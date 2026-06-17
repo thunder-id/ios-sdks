@@ -25,9 +25,9 @@ playground.xcworkspace
 # Package.resolved
 # *.xcodeproj
 #
-# Swift Package Manager generated workspace — ignore everything except shared schemes
-.swiftpm/xcode/package.xcworkspace
-.swiftpm/xcode/xcuserdata
+# Xcode automatically generates this directory with a .xcworkspacedata file and xcuserdata
+# hence it is not needed unless you have added a package configuration file to your project
+# .swiftpm
 
 .build/
 

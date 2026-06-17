@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>THUNDERID_BASE_URL</key>
+    <string>https://localhost:8090</string>
+    <key>THUNDERID_CLIENT_ID</key>
+    <string>your-client-id</string>
+    <key>THUNDERID_APPLICATION_ID</key>
+    <string>your-application-id</string>
+    <key>THUNDERID_AFTER_SIGN_IN_URL</key>
+    <string>io.thunder.b2c://callback</string>
+    <key>THUNDERID_AFTER_SIGN_OUT_URL</key>
+    <string>io.thunder.b2c://logout</string>
+</dict>
+</plist>
