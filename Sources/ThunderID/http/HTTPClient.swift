@@ -59,6 +59,10 @@ final class HTTPClient {
         }
         var request = URLRequest(url: url)
         request.httpMethod = method
+        // HTTP/3 (QUIC) connections never invoke URLSessionDelegate's server-trust challenge,
+        // so a self-signed dev cert always fails trust evaluation. Force HTTP/1.1 or HTTP/2
+        // over TLS instead, which correctly routes through LocalhostPinnedURLSession's delegate.
+        request.assumesHTTP3Capable = false
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let body {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
