@@ -1,6 +1,6 @@
 # Entrypoint workflow for releasing the iOS SDK.
 
-name: 📦 Release iOS SDK
+name: 🚀 Release
 
 on:
   workflow_dispatch:
