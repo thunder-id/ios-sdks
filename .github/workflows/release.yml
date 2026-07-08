@@ -1,0 +1,109 @@
+# Entrypoint workflow for releasing the iOS SDK.
+
+name: 📦 Release iOS SDK
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+      confirm_major:
+        description: 'Check to confirm intentional major bump (required when bump_type is major)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_GIT_USER_NAME: "thunderid[bot]"
+  RELEASE_GIT_USER_EMAIL: "thunderid[bot]@users.noreply.thunderid.dev"
+
+jobs:
+  validate:
+    name: ✅ Validate Inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Guard against accidental major bump
+        if: github.event.inputs.bump_type == 'major' && github.event.inputs.confirm_major != 'true'
+        run: |
+          echo "❌ bump_type is 'major' but confirm_major is not checked. Enable confirm_major to proceed."
+          exit 1
+
+  release:
+    name: 🍎 Release ThunderID
+    needs: [validate]
+    if: needs.validate.result == 'success'
+    runs-on: macos-latest
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          token: ${{ secrets.THUNDERID_AUTOMATION_BOT }}
+
+      - name: 🗄️ Cache Swift Packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-swift-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swift-
+
+      - name: 🔍 Install SwiftLint
+        run: brew install swiftlint
+
+      - name: 🔍 Run SwiftLint
+        run: swiftlint lint --strict
+
+      - name: 🧪 Run Tests
+        run: swift test -v
+
+      - name: 🔨 Build
+        run: swift build
+
+      - name: 🏷️ Bump Version
+        id: bump
+        run: |
+          current=$(grep -m1 "s.version" ThunderID.podspec | sed -E "s/.*= '(.*)'/\1/")
+          IFS='.' read -r major minor patch <<< "$current"
+          case "${{ github.event.inputs.bump_type }}" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+          new_version="$major.$minor.$patch"
+          sed -i '' "s/s.version          = '$current'/s.version          = '$new_version'/" ThunderID.podspec
+          echo "version=$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: 📤 Commit, Tag & Push
+        run: |
+          git config user.name "${{ env.RELEASE_GIT_USER_NAME }}"
+          git config user.email "${{ env.RELEASE_GIT_USER_EMAIL }}"
+          git add ThunderID.podspec
+          git diff --cached --quiet || git commit -m "[Release] ThunderID v${{ steps.bump.outputs.version }}"
+          for i in $(seq 1 5); do
+            git pull --rebase origin ${{ github.ref_name }}
+            git push origin HEAD:${{ github.ref_name }} && break
+            [ "$i" -eq 5 ] && exit 1
+            sleep $((i * 3))
+          done
+          git tag "${{ steps.bump.outputs.version }}"
+          git push origin "${{ steps.bump.outputs.version }}"
+
+      - name: 🚀 Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.THUNDERID_AUTOMATION_BOT }}
+          VERSION: ${{ steps.bump.outputs.version }}
+        run: |
+          gh release create "${VERSION}" \
+            --title "ThunderID iOS SDK v${VERSION}" \
+            --generate-notes

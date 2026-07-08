@@ -42,7 +42,7 @@ struct ThunderIDB2CApp: App {
         WindowGroup {
             RootView()
                 .thunderIDProvider(config: config)
-                .tint(Color(red: 1.0, green: 0.353, blue: 0.373))
+                .tint(Color(red: 0.212, green: 0.533, blue: 1.0))
         }
     }
 }

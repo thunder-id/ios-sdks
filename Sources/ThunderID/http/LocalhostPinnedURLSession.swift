@@ -19,7 +19,7 @@
 import Foundation
 import Security
 
-final class LocalhostPinnedURLSession: NSObject, URLSessionDelegate {
+final class LocalhostPinnedURLSession: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
     private let host: String
     private let pinnedCertificateData: Data?
 
@@ -29,9 +29,7 @@ final class LocalhostPinnedURLSession: NSObject, URLSessionDelegate {
     }
 
     static func make(for baseUrl: String) -> URLSession {
-        guard let url = URL(string: baseUrl),
-              let host = url.host,
-              host == "localhost" else {
+        guard let url = URL(string: baseUrl), let host = url.host else {
             return .shared
         }
 
@@ -64,6 +62,15 @@ final class LocalhostPinnedURLSession: NSObject, URLSessionDelegate {
         }
 
         completionHandler(.useCredential, URLCredential(trust: serverTrust))
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        urlSession(session, didReceive: challenge, completionHandler: completionHandler)
     }
 
     private static func loadCertificateData(from url: URL) -> Data? {

@@ -19,405 +19,440 @@
 import SwiftUI
 import ThunderIDSwiftUI
 
+// MARK: - App Screen Enum
+
+private enum AppScreen {
+    case home, profile, token
+}
+
 // MARK: - HomeView
 
 struct HomeView: View {
     @EnvironmentObject private var state: ThunderIDState
-    @State private var selectedTab = 0
+    @Environment(\.colorScheme) private var colorScheme
+
+    @State private var screen: AppScreen = .home
+
+    private var isDark: Bool { colorScheme == .dark }
+    private var bgColor: Color { isDark ? Color(hex: "080f1c") : Color(hex: "F7F9FC") }
+    private var textColor: Color { isDark ? Color(hex: "E0EAFF") : Color(hex: "05213F") }
+    private var mutedColor: Color { isDark ? Color(hex: "E0EAFF").opacity(0.48) : Color(hex: "5A7085") }
+    private var borderColor: Color { isDark ? Color.white.opacity(0.09) : Color(hex: "DDE3EC") }
+    private var cardColor: Color { isDark ? Color(hex: "111c2e") : Color(hex: "ffffff") }
+    private var primaryBlue: Color { Color(hex: "3688FF") }
+    private var successGreen: Color { Color(hex: "2fbd6b") }
+    private var errorRed: Color { Color(hex: "d95757") }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            ExploreTabView { selectedTab = 4 }
-                .tabItem { Label("Explore", systemImage: "safari") }
-                .tag(0)
-            PlaceholderTabView(label: "Saved", systemImage: "heart")
-                .tabItem { Label("Saved", systemImage: "heart") }
-                .tag(1)
-            PlaceholderTabView(label: "Trips", systemImage: "suitcase")
-                .tabItem { Label("Trips", systemImage: "suitcase") }
-                .tag(2)
-            PlaceholderTabView(label: "Inbox", systemImage: "bubble.left")
-                .tabItem { Label("Inbox", systemImage: "bubble.left") }
-                .tag(3)
-            ProfileTabView()
-                .tabItem { Label("Profile", systemImage: "person") }
-                .tag(4)
-        }
-        .task {
-            #if DEBUG
-            await logAccessToken()
+        NavigationStack {
+            ZStack {
+                bgColor.ignoresSafeArea()
+                switch screen {
+                case .home:
+                    HomeScreen(
+                        isDark: isDark,
+                        bgColor: bgColor,
+                        textColor: textColor,
+                        mutedColor: mutedColor,
+                        borderColor: borderColor,
+                        cardColor: cardColor,
+                        primaryBlue: primaryBlue,
+                        successGreen: successGreen,
+                        onProfile: { screen = .profile },
+                        onToken: { screen = .token }
+                    )
+                case .profile:
+                    ProfileScreen(
+                        isDark: isDark,
+                        bgColor: bgColor,
+                        textColor: textColor,
+                        mutedColor: mutedColor,
+                        borderColor: borderColor,
+                        cardColor: cardColor,
+                        primaryBlue: primaryBlue,
+                        successGreen: successGreen
+                    ) {
+                        screen = .home
+                    }
+                case .token:
+                    TokenScreen(
+                        isDark: isDark,
+                        bgColor: bgColor,
+                        textColor: textColor,
+                        mutedColor: mutedColor,
+                        borderColor: borderColor,
+                        cardColor: cardColor,
+                        primaryBlue: primaryBlue,
+                        successGreen: successGreen,
+                        errorRed: errorRed
+                    ) {
+                        screen = .home
+                    }
+                }
+            }
+            #if os(iOS)
+            .toolbar(.hidden, for: .navigationBar)
             #endif
         }
     }
+}
 
-    private func logAccessToken() async {
-        do {
-            let token = try await state.client.getAccessToken()
-            print("[HomeView] access token: \(token)")
-            print("[HomeView] token payload: \(decodeJwtPayload(token))")
-        } catch {
-            print("[HomeView] could not get access token: \(error)")
-        }
+// MARK: - Initials Helper
+
+func userInitials(_ displayName: String?) -> String {
+    guard let name = displayName, !name.isEmpty else { return "?" }
+    let parts = name.split(separator: " ").map(String.init)
+    if parts.count >= 2 {
+        let first = parts[0].first.map(String.init) ?? ""
+        let last = parts[1].first.map(String.init) ?? ""
+        return (first + last).uppercased()
     }
+    return String(name.prefix(2)).uppercased()
+}
 
-    private func decodeJwtPayload(_ token: String) -> String {
-        let parts = token.split(separator: ".").map(String.init)
-        guard parts.count == 3 else { return "(not a JWT)" }
-        var base64 = parts[1]
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-        while base64.count % 4 != 0 { base64 += "=" }
-        guard let data = Data(base64Encoded: base64),
-              let json = String(data: data, encoding: .utf8) else {
-            return "(decode error)"
-        }
-        return json
+// MARK: - Claim Decoding Helper
+
+/// Reads a unix-seconds numeric claim (`Int` or `Double`) from a decoded JWT/userinfo claims map.
+func claimUnixSeconds(_ codable: AnyCodable?) -> TimeInterval? {
+    guard let value = codable?.value else { return nil }
+    if let intValue = value as? Int { return TimeInterval(intValue) }
+    if let doubleValue = value as? Double { return doubleValue }
+    return nil
+}
+
+// MARK: - Avatar View
+
+struct InitialsAvatar: View {
+    let name: String?
+    let size: CGFloat
+    let primaryBlue: Color
+
+    var body: some View {
+        Circle()
+            .fill(primaryBlue)
+            .frame(width: size, height: size)
+            .overlay(
+                Text(userInitials(name))
+                    .font(.system(size: size * 0.35, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+            )
     }
 }
 
-// MARK: - Explore Tab
+// MARK: - Next Step Model
 
-private struct ExploreTabView: View {
+private struct NextStep {
+    let number: String
+    let title: String
+    let subtitle: String
+}
+
+// MARK: - Home Screen
+
+private struct HomeScreen: View {
     @EnvironmentObject private var state: ThunderIDState
-    let onProfileTap: () -> Void
-    @State private var categoryIndex = 0
-    @State private var sortIndex = 0
+    let isDark: Bool
+    let bgColor: Color
+    let textColor: Color
+    let mutedColor: Color
+    let borderColor: Color
+    let cardColor: Color
+    let primaryBlue: Color
+    let successGreen: Color
+    let onProfile: () -> Void
+    let onToken: () -> Void
 
-    private static let categories = ["Stays", "Experiences", "Adventures", "Luxe"]
-    private static let categoryIcons = ["house", "map", "mountain.2", "diamond"]
-    private static let sorts = ["Popular", "Near", "Best Price"]
+    private var displayName: String { state.user?.displayName ?? state.user?.username ?? "Guest" }
+    private var greetingName: String { state.user?.displayName ?? state.user?.username ?? "there" }
+    private var email: String? { state.user?.email }
 
-    private static let listings = [
-        Listing(
-            title: "Cozy Mountain Retreat",
-            location: "Aspen, Colorado",
-            price: 189,
-            rating: 4.92,
-            imageUrl: "https://picsum.photos/seed/acme1/400/280"
-        ),
-        Listing(
-            title: "Beachfront Villa",
-            location: "Malibu, California",
-            price: 342,
-            rating: 4.87,
-            imageUrl: "https://picsum.photos/seed/acme2/400/280"
-        ),
-        Listing(
-            title: "City Centre Loft",
-            location: "New York, NY",
-            price: 215,
-            rating: 4.78,
-            imageUrl: "https://picsum.photos/seed/acme3/400/280"
-        ),
-        Listing(
-            title: "Lakeside Cabin",
-            location: "Lake Tahoe, Nevada",
-            price: 156,
-            rating: 4.95,
-            imageUrl: "https://picsum.photos/seed/acme4/400/280"
-        )
+    private var authTimeClaim: TimeInterval? { claimUnixSeconds(state.user?.claims?["auth_time"]) }
+    private var expClaim: TimeInterval? { claimUnixSeconds(state.user?.claims?["exp"]) }
+
+    private var organisationName: String {
+        guard let handle = (try? state.client.getConfiguration())?.organizationHandle, !handle.isEmpty else {
+            return "Default"
+        }
+        return handle
+    }
+
+    private var greeting: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        let timeOfDay: String
+        if hour < 12 {
+            timeOfDay = "morning"
+        } else if hour < 17 {
+            timeOfDay = "afternoon"
+        } else {
+            timeOfDay = "evening"
+        }
+        return "Good \(timeOfDay), \(greetingName)."
+    }
+
+    private var currentDateString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMMM d"
+        return formatter.string(from: Date()).uppercased()
+    }
+
+    private let nextSteps: [NextStep] = [
+        NextStep(number: "01", title: "Secure your API", subtitle: "Add token validation to your backend."),
+        NextStep(number: "02", title: "Add social login", subtitle: "GitHub, Google, and OIDC providers."),
+        NextStep(number: "03", title: "Enable MFA", subtitle: "TOTP and passkey support."),
+        NextStep(number: "04", title: "Explore the SDK", subtitle: "API reference and guides.")
     ]
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                topBar
-                welcomeHeading
-                searchBar
-                categoryChips
-                sortTabs
-                listingsGrid
+                // Identity header card
+                identityCard
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+
+                // Date + greeting
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(currentDateString)
+                        .font(.system(size: 11, weight: .semibold))
+                        .tracking(1.2)
+                        .foregroundColor(mutedColor)
+                    Text(greeting)
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundColor(textColor)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 28)
+
+                // Stats row
+                statsRow
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+
+                // What's next section
+                sectionHeader("WHAT'S NEXT")
+                    .padding(.horizontal, 24)
+                    .padding(.top, 28)
+
+                stepsCard
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+
+                // User actions
+                sectionHeader("ACCOUNT")
+                    .padding(.horizontal, 24)
+                    .padding(.top, 28)
+
+                actionsCard
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 40)
             }
         }
-        .safeAreaInset(edge: .top) { Color.clear.frame(height: 0) }
+        .background(bgColor)
     }
 
-    private var topBar: some View {
-        HStack {
-            Image(systemName: "house.fill")
-                .foregroundColor(.accentColor)
-                .font(.system(size: 22))
-            Text("ACME Booking")
-                .font(.system(size: 17, weight: .bold))
-                .foregroundColor(.accentColor)
+    private var identityCard: some View {
+        HStack(spacing: 14) {
+            InitialsAvatar(name: displayName, size: 48, primaryBlue: primaryBlue)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(displayName)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(textColor)
+                if let email {
+                    Text(email)
+                        .font(.system(size: 13))
+                        .foregroundColor(mutedColor)
+                }
+            }
+
             Spacer()
-            UserAvatarView(user: state.user, radius: 18)
-                .onTapGesture { onProfileTap() }
-            Spacer().frame(width: 8)
+
+            // Session active badge
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(successGreen)
+                    .frame(width: 7, height: 7)
+                Text("Session active")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(successGreen)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(successGreen.opacity(0.12))
+            .clipShape(Capsule())
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 20)
+        .padding(16)
+        .background(cardColor)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(borderColor, lineWidth: 1))
     }
 
-    private var welcomeHeading: some View {
-        Text("Where Would you\nLike to Stay, \(firstName)?")
-            .font(.title2)
-            .bold()
-            .padding(.horizontal, 24)
-            .padding(.top, 24)
-    }
-
-    private var firstName: String {
-        if let given = state.user?.claims?["given_name"]?.value as? String, !given.isEmpty {
-            return given
+    private var statsRow: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            HStack(spacing: 0) {
+                statItem(value: signedInAtText, label: "Signed in at")
+                Divider()
+                    .frame(width: 1, height: 36)
+                    .background(borderColor)
+                statItem(value: sessionExpiresInText(now: context.date), label: "Session expires in")
+                Divider()
+                    .frame(width: 1, height: 36)
+                    .background(borderColor)
+                statItem(value: organisationName, label: "Organisation")
+            }
+            .padding(.vertical, 16)
         }
-        return state.user?.displayName?.components(separatedBy: " ").first ?? "there"
+        .background(cardColor)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(borderColor, lineWidth: 1))
     }
 
-    private var searchBar: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
-            Text("Search destinations...")
-                .foregroundColor(.secondary)
+    private var signedInAtText: String {
+        guard let authTime = authTimeClaim else { return "—" }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter.string(from: Date(timeIntervalSince1970: authTime))
+    }
+
+    private func sessionExpiresInText(now: Date) -> String {
+        guard let exp = expClaim else { return "—" }
+        let secondsLeft = Int(exp - now.timeIntervalSince1970)
+        if secondsLeft <= 0 { return "Expired" }
+        if secondsLeft < 3600 {
+            return "\(secondsLeft / 60)m \(secondsLeft % 60)s"
+        }
+        return "\(secondsLeft / 3600)h \((secondsLeft % 3600) / 60)m"
+    }
+
+    private func statItem(value: String, label: String) -> some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(textColor)
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundColor(mutedColor)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func sectionHeader(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold))
+            .tracking(1.2)
+            .foregroundColor(mutedColor)
+    }
+
+    private var stepsCard: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(nextSteps.enumerated()), id: \.offset) { index, step in
+                if index > 0 {
+                    Divider()
+                        .background(borderColor)
+                        .padding(.leading, 16)
+                }
+                HStack(spacing: 14) {
+                    Text(step.number)
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .foregroundColor(primaryBlue)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(step.title)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(textColor)
+                        Text(step.subtitle)
+                            .font(.system(size: 12))
+                            .foregroundColor(mutedColor)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(mutedColor)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+            }
+        }
+        .background(cardColor)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(borderColor, lineWidth: 1))
+    }
+
+    private var actionsCard: some View {
+        VStack(spacing: 0) {
+            // My profile
+            Button(action: onProfile) {
+                actionRow(icon: "person.circle", label: "My profile", color: textColor)
+            }
+
+            Divider()
+                .background(borderColor)
+                .padding(.leading, 52)
+
+            // Token debug
+            Button(action: onToken) {
+                actionRow(icon: "key.horizontal", label: "Token debug", color: textColor)
+            }
+
+            Divider()
+                .background(borderColor)
+                .padding(.leading, 52)
+
+            // Settings (no-op)
+            Button(action: noop) {
+                actionRow(icon: "gearshape", label: "Settings", color: textColor)
+            }
+
+            Divider()
+                .background(borderColor)
+                .padding(.leading, 52)
+
+            // Sign out
+            signOutRow
+        }
+        .background(cardColor)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(borderColor, lineWidth: 1))
+    }
+
+    private func noop() {}
+
+    private func actionRow(icon: String, label: String, color: Color) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundColor(color)
+                .frame(width: 24)
+            Text(label)
+                .font(.system(size: 15))
+                .foregroundColor(color)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(mutedColor)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
+
+    private var signOutRow: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "rectangle.portrait.and.arrow.right")
+                .font(.system(size: 18))
+                .foregroundColor(Color(hex: "d95757"))
+                .frame(width: 24)
+            SignOutButton()
+                .tint(Color(hex: "d95757"))
             Spacer()
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.secondary.opacity(0.12))
-        .clipShape(Capsule())
-        .padding(.horizontal, 24)
-        .padding(.top, 16)
-    }
-
-    private var categoryChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(0..<Self.categories.count, id: \.self) { idx in
-                    let selected = idx == categoryIndex
-                    VStack(spacing: 6) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(selected ? Color.accentColor : Color.secondary.opacity(0.12))
-                                .frame(width: 56, height: 56)
-                            Image(systemName: Self.categoryIcons[idx])
-                                .foregroundColor(selected ? .white : .secondary)
-                        }
-                        .animation(.easeInOut(duration: 0.2), value: selected)
-                        Text(Self.categories[idx])
-                            .font(.system(size: 11, weight: selected ? .bold : .regular))
-                            .foregroundColor(selected ? .accentColor : .secondary)
-                    }
-                    .onTapGesture { categoryIndex = idx }
-                }
-            }
-            .padding(.leading, 24)
-            .padding(.trailing, 12)
-        }
-        .frame(height: 84)
-        .padding(.top, 20)
-    }
-
-    private var sortTabs: some View {
-        HStack(spacing: 0) {
-            ForEach(0..<Self.sorts.count, id: \.self) { idx in
-                let selected = idx == sortIndex
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(Self.sorts[idx])
-                        .font(.system(size: 15, weight: selected ? .bold : .regular))
-                        .foregroundColor(selected ? .primary : .secondary)
-                    if selected {
-                        Color.accentColor
-                            .frame(width: 28, height: 2)
-                            .cornerRadius(1)
-                    } else {
-                        Color.clear.frame(height: 2)
-                    }
-                }
-                .onTapGesture { sortIndex = idx }
-                .padding(.trailing, idx < Self.sorts.count - 1 ? 20 : 0)
-            }
-            Spacer()
-            Text("See More")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.accentColor)
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 20)
-    }
-
-    private var listingsGrid: some View {
-        let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
-        return LazyVGrid(columns: columns, spacing: 12) {
-            ForEach(Self.listings, id: \.title) { listing in
-                ListingCardView(listing: listing)
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 16)
-        .padding(.bottom, 24)
+        .padding(.vertical, 14)
     }
 }
 
-// MARK: - Profile Tab
-
-private struct ProfileTabView: View {
-    @EnvironmentObject private var state: ThunderIDState
-    @State private var showEditProfile = false
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                profileCard
-                    .padding(.horizontal, 24)
-                statsCard
-                    .padding(.horizontal, 24)
-                    .padding(.top, 12)
-                featureCards
-                    .padding(.horizontal, 24)
-                    .padding(.top, 12)
-                editProfileButton
-                    .padding(.horizontal, 24)
-                    .padding(.top, 24)
-                signOutButton
-                    .padding(.horizontal, 24)
-                    .padding(.top, 12)
-                    .padding(.bottom, 24)
-            }
-        }
-        .sheet(isPresented: $showEditProfile) {
-            NavigationStack {
-                ScrollView {
-                    UserProfile { showEditProfile = false }
-                        .padding(24)
-                }
-                .navigationTitle("Edit Profile")
-                #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { showEditProfile = false }
-                    }
-                }
-            }
-            .presentationDetents([.large])
-        }
-    }
-
-    private var header: some View {
-        HStack {
-            Text("Profile")
-                .font(.title2).bold()
-            Spacer()
-            Button { } label: {
-                Image(systemName: "bell")
-                    .font(.system(size: 20))
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 20)
-        .padding(.bottom, 20)
-    }
-
-    private var displayName: String {
-        let given = state.user?.claims?["given_name"]?.value as? String ?? ""
-        let family = state.user?.claims?["family_name"]?.value as? String ?? ""
-        let full = [given, family].filter { !$0.isEmpty }.joined(separator: " ")
-        return full.isEmpty ? (state.user?.username ?? "Guest") : full
-    }
-
-    private var profileCard: some View {
-        HStack(spacing: 16) {
-            ZStack(alignment: .bottomTrailing) {
-                UserAvatarView(user: state.user, radius: 40)
-                Circle()
-                    .fill(Color.accentColor)
-                    .frame(width: 22, height: 22)
-                    .overlay(
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
-                    )
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(displayName)
-                    .font(.title3).bold()
-                Text("Los Angeles, CA")
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-        }
-        .padding(24)
-        .background(.background)
-        .cornerRadius(20)
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-        )
-    }
-
-    private var statsCard: some View {
-        HStack(spacing: 0) {
-            StatItemView(value: "24", label: "Trips")
-            Rectangle()
-                .fill(Color.gray.opacity(0.3))
-                .frame(width: 1, height: 44)
-            StatItemView(value: "22", label: "Reviews")
-            Rectangle()
-                .fill(Color.gray.opacity(0.3))
-                .frame(width: 1, height: 44)
-            StatItemView(value: "2", label: "Years on ACME")
-        }
-        .padding(.vertical, 20)
-        .background(.background)
-        .cornerRadius(20)
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-        )
-    }
-
-    private var featureCards: some View {
-        HStack(spacing: 12) {
-            FeatureCardView(
-                label: "Past trips",
-                imageUrl: "https://picsum.photos/seed/trips/300/200",
-                isNew: true
-            )
-            FeatureCardView(
-                label: "Connections",
-                imageUrl: "https://picsum.photos/seed/connect/300/200",
-                isNew: true
-            )
-        }
-    }
-
-    private var editProfileButton: some View {
-        Button { showEditProfile = true } label: {
-            Label("Edit Profile", systemImage: "pencil")
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 4)
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.large)
-    }
-
-    private var signOutButton: some View {
-        SignOutButton()
-            .buttonStyle(.bordered)
-            .controlSize(.large)
-            .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Placeholder Tab
-
-private struct PlaceholderTabView: View {
-    let label: String
-    let systemImage: String
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: systemImage)
-                .font(.system(size: 52))
-                .foregroundColor(.secondary)
-            Text(label)
-                .font(.title2)
-            Text("Coming soon")
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
+// Color(hex:) is defined in SignInView.swift and shared across the module.
