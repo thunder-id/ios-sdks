@@ -75,6 +75,7 @@ public struct SignIn: View {
                     .cornerRadius(8)
                     .disabled(signInState.isLoading)
                     .accessibilityLabel(action.label ?? i18n.resolve("signIn.submit"))
+                    .accessibilityIdentifier("thunderid-action-\(action.id)")
                 }
             }
         }

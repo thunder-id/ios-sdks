@@ -35,6 +35,7 @@ struct FlowInputFields: View {
         if input.type == "PASSWORD_INPUT" {
             SecureField(input.name, text: bindValue(input.name))
                 .accessibilityLabel(input.name)
+                .accessibilityIdentifier("thunderid-field-\(input.name)")
                 .padding(.horizontal, 16)
                 .frame(minHeight: 56)
                 .background(Color.fieldBackground)
@@ -43,6 +44,7 @@ struct FlowInputFields: View {
         } else {
             TextField(input.name, text: bindValue(input.name))
                 .accessibilityLabel(input.name)
+                .accessibilityIdentifier("thunderid-field-\(input.name)")
                 .autocorrectionDisabled()
                 .noAutocapitalization()
                 .padding(.horizontal, 16)
