@@ -41,7 +41,7 @@ public final class ThunderIDClient {
         }
         try validateConfig(config)
         self.config = config
-        let adapter = storage ?? config.storage ?? KeychainStorageAdapter()
+        let adapter = storage ?? config.storage ?? KeychainStorageAdapter(service: "dev.\(config.vendor).sdk")
         let http = HTTPClient(baseUrl: config.baseUrl)
         tokenStore = TokenStore(storage: adapter)
         jwksCache = JWKSCache(httpClient: http)

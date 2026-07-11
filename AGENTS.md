@@ -4,6 +4,15 @@
 
 Swift package providing the ThunderID authentication SDK (`ThunderID`) and a SwiftUI component library (`ThunderIDSwiftUI`). The `Samples/Quickstart` directory contains a standalone demo app.
 
+## Vendor naming rules
+
+The SDK is white-labelable: a consuming app can override the brand/vendor namespace via `ThunderIDConfig.vendor`, so storage keys, log tags, and similar runtime names shouldn't be pinned to one brand.
+
+- Do not hardcode the literal `thunderid`/`ThunderID`/`THUNDERID` (any casing) when building a runtime key/name that a consumer's `vendor` override should control — Keychain service names, log tags, and the like.
+- It's fine for the **entry point** — the module name or a type whose purpose IS to represent the SDK itself (e.g. `ThunderIDClient`, `ThunderIDProvider`) — to carry the name. That's a fixed identity, not a per-tenant value. Don't flag those.
+- Avoiding the vendor name entirely is the best outcome, when the brand prefix isn't actually load-bearing.
+- When a brand-scoped namespace is genuinely required, resolve it from `config.vendor` (which already defaults to `"thunderid"`) instead of hardcoding a literal. If the same default-resolution logic starts appearing in more than one place, extract a small shared helper rather than repeating the literal default.
+
 ## Build & test
 
 ```bash

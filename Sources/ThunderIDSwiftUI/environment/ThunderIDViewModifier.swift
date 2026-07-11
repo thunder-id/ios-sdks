@@ -45,7 +45,8 @@ public extension View {
     /// ContentView()
     ///     .thunderIDProvider(config: ThunderIDConfig(baseUrl: "...", clientId: "..."))
     /// ```
-    func thunderIDProvider(config: ThunderIDConfig, i18n: ThunderIDI18n = ThunderIDI18n()) -> some View {
-        modifier(ThunderIDProviderModifier(config: config, i18n: i18n))
+    func thunderIDProvider(config: ThunderIDConfig, i18n: ThunderIDI18n? = nil) -> some View {
+        let resolvedI18n = i18n ?? ThunderIDI18n(storageKey: "\(config.vendor)_locale")
+        return modifier(ThunderIDProviderModifier(config: config, i18n: resolvedI18n))
     }
 }

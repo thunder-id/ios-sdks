@@ -48,6 +48,11 @@ public struct ThunderIDConfig {
     public var storage: StorageAdapter?
     public var instanceId: Int?
 
+    /// Vendor/brand namespace used to derive default storage identifiers (e.g. Keychain service name).
+    /// Override this when white-labeling the SDK under a different brand. Defaults to
+    /// `VendorConstants.vendorPrefix` ("thunderid").
+    public var vendor: String
+
     public init(
         baseUrl: String,
         clientId: String? = nil,
@@ -64,7 +69,8 @@ public struct ThunderIDConfig {
         organizationHandle: String? = nil,
         tokenValidation: TokenValidationConfig = .init(),
         storage: StorageAdapter? = nil,
-        instanceId: Int? = nil
+        instanceId: Int? = nil,
+        vendor: String = VendorConstants.vendorPrefix
     ) {
         self.baseUrl = baseUrl
         self.clientId = clientId
@@ -82,6 +88,7 @@ public struct ThunderIDConfig {
         self.tokenValidation = tokenValidation
         self.storage = storage
         self.instanceId = instanceId
+        self.vendor = vendor
     }
 }
 

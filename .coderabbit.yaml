@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+
+reviews:
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+
+  path_instructions:
+    - path: "Sources/**/*.swift"
+      instructions: |
+        Flag any hardcoded occurrence of the literal `thunderid`/`ThunderID`/`THUNDERID` (any casing) used to
+        build a runtime key or name — Keychain service names, log tags, and similar.
+
+        Do not flag the module name or a type whose purpose IS to represent the SDK itself (e.g.
+        `ThunderIDClient`, `ThunderIDProvider`). That's a fixed identity, not a per-tenant value.
+
+        For everything else, ask: **"Should this read from `ThunderIDConfig.vendor` instead of hardcoding the
+        vendor name?"** The best fix is avoiding the vendor name entirely when the brand prefix isn't
+        load-bearing. When a brand-scoped namespace is genuinely required, it should resolve through
+        `config.vendor` (which already defaults to `"thunderid"`) rather than a literal string. If the same
+        default-resolution logic starts appearing in more than one place, ask for it to be extracted into a
+        shared helper instead of repeated inline.
+
+  auto_review:
+    enabled: true
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+    base_branches:
+      - main
+
+  path_filters:
+    - "!**/.build/**"
