@@ -245,19 +245,7 @@ struct AuthView: View {
                 bgColor: bgColor,
                 textColor: textColor,
                 mutedColor: mutedColor,
-                primaryBlue: primaryBlue,
-                onForgotPassword: {
-                    showSignIn = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        showRecover = true
-                    }
-                },
-                onCreateAccount: {
-                    showSignIn = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        showSignUp = true
-                    }
-                }
+                primaryBlue: primaryBlue
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
@@ -271,12 +259,7 @@ struct AuthView: View {
                 textColor: textColor,
                 mutedColor: mutedColor,
                 primaryBlue: primaryBlue
-            ) {
-                showSignUp = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    showSignIn = true
-                }
-            }
+            )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
@@ -309,8 +292,6 @@ private struct SignInSheet: View {
     let textColor: Color
     let mutedColor: Color
     let primaryBlue: Color
-    let onForgotPassword: () -> Void
-    let onCreateAccount: () -> Void
 
     var body: some View {
         ZStack {
@@ -321,28 +302,7 @@ private struct SignInSheet: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 8)
 
-                Button(action: onForgotPassword) {
-                    Text("Forgot password?")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(primaryBlue)
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
-
                 Spacer()
-
-                HStack(spacing: 4) {
-                    Text("Don't have an account?")
-                        .font(.system(size: 14))
-                        .foregroundColor(mutedColor)
-                    Button(action: onCreateAccount) {
-                        Text("Create one")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(primaryBlue)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 32)
             }
         }
     }
@@ -357,7 +317,6 @@ private struct SignUpSheet: View {
     let textColor: Color
     let mutedColor: Color
     let primaryBlue: Color
-    let onSignIn: () -> Void
 
     var body: some View {
         ZStack {
@@ -369,19 +328,6 @@ private struct SignUpSheet: View {
                     .padding(.top, 8)
 
                 Spacer()
-
-                HStack(spacing: 4) {
-                    Text("Already have an account?")
-                        .font(.system(size: 14))
-                        .foregroundColor(mutedColor)
-                    Button(action: onSignIn) {
-                        Text("Sign in")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(primaryBlue)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 32)
             }
         }
     }

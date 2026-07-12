@@ -24,35 +24,45 @@ struct FlowInputFields: View {
     let bindValue: (String) -> Binding<String>
 
     var body: some View {
-        ForEach(inputs.indices, id: \.self) { idx in
-            fieldView(for: idx)
+        ForEach(inputs, id: \.name) { input in
+            FlowInputField(
+                name: input.name,
+                type: input.type,
+                label: input.name,
+                placeholder: input.name,
+                binding: bindValue(input.name)
+            )
         }
     }
+}
 
-    @ViewBuilder
-    private func fieldView(for idx: Int) -> some View {
-        let input = inputs[idx]
-        if input.type == "PASSWORD_INPUT" {
-            SecureField(input.name, text: bindValue(input.name))
-                .accessibilityLabel(input.name)
-                .accessibilityIdentifier("thunderid-field-\(input.name)")
-                .padding(.horizontal, 16)
-                .frame(minHeight: 56)
-                .background(Color.fieldBackground)
-                .cornerRadius(8)
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.fieldBorder, lineWidth: 1))
-        } else {
-            TextField(input.name, text: bindValue(input.name))
-                .accessibilityLabel(input.name)
-                .accessibilityIdentifier("thunderid-field-\(input.name)")
-                .autocorrectionDisabled()
-                .noAutocapitalization()
-                .padding(.horizontal, 16)
-                .frame(minHeight: 56)
-                .background(Color.fieldBackground)
-                .cornerRadius(8)
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.fieldBorder, lineWidth: 1))
+/// A single flow input field, rendered either from the flat fallback `FlowInput` list
+/// (label/placeholder default to `input.name`) or from a `FlowComponent` in the component tree
+/// (label/placeholder resolved from the component's own text via `FlowTemplateResolver`).
+struct FlowInputField: View {
+    let name: String
+    let type: String?
+    let label: String
+    let placeholder: String
+    let binding: Binding<String>
+
+    var body: some View {
+        Group {
+            if type == "PASSWORD_INPUT" {
+                SecureField(placeholder, text: binding)
+            } else {
+                TextField(placeholder, text: binding)
+                    .autocorrectionDisabled()
+                    .noAutocapitalization()
+            }
         }
+        .accessibilityLabel(label)
+        .accessibilityIdentifier("thunderid-field-\(name)")
+        .padding(.horizontal, 16)
+        .frame(minHeight: 56)
+        .background(Color.fieldBackground)
+        .cornerRadius(8)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.fieldBorder, lineWidth: 1))
     }
 }
 

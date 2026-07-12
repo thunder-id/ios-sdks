@@ -22,7 +22,7 @@ import ThunderID
 /// App-native sign-up form. Drives the Flow Execution API registration loop (spec §8.4 Presentation).
 public struct SignUp: View {
     @EnvironmentObject private var state: ThunderIDState
-    @EnvironmentObject private var i18n: ThunderIDI18n
+    @EnvironmentObject var i18n: ThunderIDI18n
     public let applicationId: String
     public let onComplete: (() -> Void)?
     public let onError: ((String) -> Void)?
@@ -40,43 +40,97 @@ public struct SignUp: View {
     public var body: some View {
         BaseSignUp(applicationId: applicationId, onComplete: onComplete, onError: onError) { signUpState in
             VStack(alignment: .leading, spacing: 20) {
-                Text(i18n.resolve("signUp.title"))
-                    .font(.title2)
-                    .bold()
-                    .accessibilityAddTraits(.isHeader)
+                if signUpState.components.isEmpty {
+                    Text(i18n.resolve("signUp.title"))
+                        .font(.title2)
+                        .bold()
+                        .accessibilityAddTraits(.isHeader)
+                }
                 if let error = signUpState.error {
                     Text(error)
                         .font(.subheadline)
                         .foregroundColor(.red)
                 }
-                VStack(spacing: 12) {
-                    FlowInputFields(
-                        inputs: signUpState.inputs,
-                        bindValue: signUpState.binding(for:)
-                    )
-                }
-                ForEach(signUpState.actions, id: \.id) { action in
-                    Button {
-                        signUpState.submit(actionId: action.id)
-                    } label: {
-                        Group {
-                            if signUpState.isLoading {
-                                ProgressView().progressViewStyle(.circular).tint(.white)
-                            } else {
-                                Text(action.label ?? i18n.resolve("signUp.submit"))
-                                    .font(.body.weight(.medium))
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
+                if signUpState.components.isEmpty {
+                    VStack(spacing: 12) {
+                        FlowInputFields(
+                            inputs: signUpState.inputs,
+                            bindValue: signUpState.binding(for:)
+                        )
                     }
-                    .foregroundColor(.white)
-                    .background(Color.accentColor)
-                    .cornerRadius(8)
-                    .disabled(signUpState.isLoading)
+                    ForEach(signUpState.actions, id: \.id) { action in
+                        actionButton(for: action, signUpState: signUpState)
+                    }
+                } else {
+                    ForEach(Array(signUpState.components.enumerated()), id: \.offset) { _, component in
+                        componentView(for: component, signUpState: signUpState)
+                    }
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    func actionButton(for action: FlowAction, signUpState: SignUpState) -> some View {
+        if action.eventType?.uppercased() == "TRIGGER" {
+            triggerButton(for: action, signUpState: signUpState)
+        } else {
+            Button {
+                signUpState.submit(actionId: action.id)
+            } label: {
+                Group {
+                    if signUpState.isLoading {
+                        ProgressView().progressViewStyle(.circular).tint(.white)
+                    } else {
+                        Text(resolvedActionLabel(action, signUpState: signUpState))
+                            .font(.body.weight(.medium))
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+            }
+            .foregroundColor(.white)
+            .background(Color.accentColor)
+            .cornerRadius(8)
+            .disabled(signUpState.isLoading)
+            .accessibilityLabel(resolvedActionLabel(action, signUpState: signUpState))
+            .accessibilityIdentifier("thunderid-action-\(action.id)")
+        }
+    }
+
+    @ViewBuilder
+    func triggerButton(for action: FlowAction, signUpState: SignUpState) -> some View {
+        let iconIdentity = action.icon?.lowercased() ?? ""
+        let identity = iconIdentity + (action.ref ?? "").lowercased() + (action.label ?? "").lowercased()
+        if identity.contains("google") {
+            GoogleButton(
+                label: i18n.resolve("signIn.continueWithGoogle"),
+                isLoading: signUpState.isLoading
+            ) {
+                signUpState.submit(actionId: action.id)
+            }
+        } else if identity.contains("github") {
+            GitHubButton(
+                label: i18n.resolve("signIn.continueWithGithub"),
+                isLoading: signUpState.isLoading
+            ) {
+                signUpState.submit(actionId: action.id)
+            }
+        } else {
+            GenericTriggerButton(
+                label: resolvedActionLabel(action, signUpState: signUpState),
+                isLoading: signUpState.isLoading
+            ) {
+                signUpState.submit(actionId: action.id)
+            }
+        }
+    }
+
+    private func resolvedActionLabel(_ action: FlowAction, signUpState: SignUpState) -> String {
+        guard let label = action.label else {
+            return i18n.resolve("signUp.submit")
+        }
+        return signUpState.templateResolver?.resolve(label) ?? label
     }
 }
 
@@ -85,8 +139,10 @@ public struct SignUp: View {
 public final class SignUpState: ObservableObject {
     @Published public fileprivate(set) var inputs: [FlowInput] = []
     @Published public fileprivate(set) var actions: [FlowAction] = []
+    @Published public fileprivate(set) var components: [FlowComponent] = []
     @Published public fileprivate(set) var isLoading: Bool = false
     @Published public fileprivate(set) var error: String?
+    @Published public fileprivate(set) var templateResolver: FlowTemplateResolver?
 
     private var fieldValues: [String: String] = [:]
     private var flowId: String?
@@ -107,7 +163,12 @@ public final class SignUpState: ObservableObject {
         flowId = response.flowId
         challengeToken = response.challengeToken
         inputs = response.data?.inputs ?? []
-        actions = response.data?.actions ?? []
+        components = response.data?.meta?.components ?? []
+        actions = FlowComponentMerging.enrichActions(response.data?.actions ?? [], with: components)
+    }
+
+    func setTemplateResolver(_ resolver: FlowTemplateResolver) {
+        templateResolver = resolver
     }
 }
 
@@ -145,6 +206,19 @@ public struct BaseSignUp<Content: View>: View {
                 }
                 await initFlow()
             }
+            .task {
+                await loadFlowMeta()
+            }
+    }
+
+    /// Fetches `GET /flow/meta` in parallel with `initFlow()` so template literals in component
+    /// labels/placeholders can be resolved for display. Failures are swallowed silently — metadata
+    /// resolution must never surface as a sign-up error or block the flow from rendering.
+    private func loadFlowMeta() async {
+        guard let metaDict = try? await state.client.getFlowMeta(applicationId: applicationId) else {
+            return
+        }
+        signUpState.setTemplateResolver(FlowTemplateResolver(meta: metaDict))
     }
 
     private func initFlow() async {
