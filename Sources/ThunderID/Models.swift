@@ -281,7 +281,58 @@ public enum FlowStatus: Codable {
 public struct FlowStepData: Decodable {
     public let actions: [FlowAction]?
     public let inputs: [FlowInput]?
-    public let meta: AnyCodable?
+    public let meta: FlowMeta?
+    public let redirectURL: String?
+    public let additionalData: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case actions, inputs, meta, additionalData, redirectURL
+    }
+}
+
+/// A single node in the recursive component tree returned under `data.meta.components`.
+/// Carries the presentation metadata (label, placeholder, variant, icon, ...) that the flat
+/// `actions`/`inputs` arrays omit.
+public struct FlowComponent: Decodable {
+    public let id: String?
+    public let ref: String?
+    public let type: String?
+    public let category: String?
+    public let label: String?
+    public let placeholder: String?
+    public let variant: String?
+    public let eventType: String?
+    public let align: String?
+    public let icon: String?
+    public let components: [FlowComponent]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, ref, type, category, label, placeholder, variant, eventType, align, components
+        case icon = "image"
+        case startIcon
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try? container.decode(String.self, forKey: .id)
+        self.ref = try? container.decode(String.self, forKey: .ref)
+        self.type = try? container.decode(String.self, forKey: .type)
+        self.category = try? container.decode(String.self, forKey: .category)
+        self.label = try? container.decode(String.self, forKey: .label)
+        self.placeholder = try? container.decode(String.self, forKey: .placeholder)
+        self.variant = try? container.decode(String.self, forKey: .variant)
+        self.eventType = try? container.decode(String.self, forKey: .eventType)
+        self.align = try? container.decode(String.self, forKey: .align)
+        self.icon =
+            (try? container.decode(String.self, forKey: .icon)) ??
+            (try? container.decode(String.self, forKey: .startIcon))
+        self.components = try? container.decode([FlowComponent].self, forKey: .components)
+    }
+}
+
+/// The parsed `data.meta` payload of a Flow Execution API step response.
+public struct FlowMeta: Decodable {
+    public let components: [FlowComponent]?
 }
 
 public struct FlowAction: Decodable {
@@ -290,6 +341,9 @@ public struct FlowAction: Decodable {
     public let nextNode: String?
     public let type: String?
     public let label: String?
+    public let eventType: String?
+    public let variant: String?
+    public let icon: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -297,6 +351,10 @@ public struct FlowAction: Decodable {
         case label
         case ref
         case nextNode
+        case eventType
+        case variant
+        case icon = "image"
+        case startIcon
     }
 
     public init(
@@ -304,13 +362,19 @@ public struct FlowAction: Decodable {
         ref: String? = nil,
         nextNode: String? = nil,
         type: String? = nil,
-        label: String? = nil
+        label: String? = nil,
+        eventType: String? = nil,
+        variant: String? = nil,
+        icon: String? = nil
     ) {
         self.id = id
         self.ref = ref
         self.nextNode = nextNode
         self.type = type
         self.label = label
+        self.eventType = eventType
+        self.variant = variant
+        self.icon = icon
     }
 
     public init(from decoder: Decoder) throws {
@@ -324,6 +388,26 @@ public struct FlowAction: Decodable {
         self.nextNode = try? container.decode(String.self, forKey: .nextNode)
         self.type = try? container.decode(String.self, forKey: .type)
         self.label = try? container.decode(String.self, forKey: .label)
+        self.eventType = try? container.decode(String.self, forKey: .eventType)
+        self.variant = try? container.decode(String.self, forKey: .variant)
+        self.icon =
+            (try? container.decode(String.self, forKey: .icon)) ??
+            (try? container.decode(String.self, forKey: .startIcon))
+    }
+
+    /// Returns a copy with any `nil` presentation fields filled in from `component`.
+    /// Explicit flat-array values always win over the component tree's values.
+    public func merging(component: FlowComponent) -> FlowAction {
+        FlowAction(
+            id: id,
+            ref: ref,
+            nextNode: nextNode,
+            type: type,
+            label: label ?? component.label,
+            eventType: eventType ?? component.eventType,
+            variant: variant ?? component.variant,
+            icon: icon ?? component.icon
+        )
     }
 }
 
