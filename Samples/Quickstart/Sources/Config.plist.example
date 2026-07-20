@@ -12,5 +12,7 @@
     <string>dev.thunderid.quickstart://callback</string>
     <key>THUNDERID_AFTER_SIGN_OUT_URL</key>
     <string>dev.thunderid.quickstart://logout</string>
+    <key>THUNDERID_ATTESTATION_ENABLED</key>
+    <string>false</string>
 </dict>
 </plist>

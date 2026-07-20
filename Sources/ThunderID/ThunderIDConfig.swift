@@ -41,6 +41,12 @@ public struct ThunderIDConfig {
     public var applicationId: String?
     public var organizationHandle: String?
 
+    // MARK: - Platform Attestation
+    /// When enabled, the token from ``attestationTokenProvider`` is sent as the
+    /// `Attestation-Token` header on native flow-initiate requests.
+    public var attestationEnabled: Bool
+    public var attestationTokenProvider: (() async throws -> String)?
+
     // MARK: - Token Validation
     public var tokenValidation: TokenValidationConfig
 
@@ -67,6 +73,8 @@ public struct ThunderIDConfig {
         signUpOptions: [String: Any] = [:],
         applicationId: String? = nil,
         organizationHandle: String? = nil,
+        attestationEnabled: Bool = false,
+        attestationTokenProvider: (() async throws -> String)? = nil,
         tokenValidation: TokenValidationConfig = .init(),
         storage: StorageAdapter? = nil,
         instanceId: Int? = nil,
@@ -85,6 +93,8 @@ public struct ThunderIDConfig {
         self.signUpOptions = signUpOptions
         self.applicationId = applicationId
         self.organizationHandle = organizationHandle
+        self.attestationEnabled = attestationEnabled
+        self.attestationTokenProvider = attestationTokenProvider
         self.tokenValidation = tokenValidation
         self.storage = storage
         self.instanceId = instanceId

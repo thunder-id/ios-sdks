@@ -28,13 +28,17 @@ struct ThunderIDB2CApp: App {
                 "Config.plist not found — copy Config.plist.example to Sources/Config.plist and fill in your values"
             )
         }
+        let attestationEnabled = (dict["THUNDERID_ATTESTATION_ENABLED"] ?? "").lowercased() == "true"
+        let attestationProvider = AppAttestTokenProvider()
         return ThunderIDConfig(
             baseUrl: dict["THUNDERID_BASE_URL"] ?? "",
             clientId: dict["THUNDERID_CLIENT_ID"],
             scopes: ["openid", "profile", "email"],
             afterSignInUrl: dict["THUNDERID_AFTER_SIGN_IN_URL"],
             afterSignOutUrl: dict["THUNDERID_AFTER_SIGN_OUT_URL"],
-            applicationId: dict["THUNDERID_APPLICATION_ID"]
+            applicationId: dict["THUNDERID_APPLICATION_ID"],
+            attestationEnabled: attestationEnabled,
+            attestationTokenProvider: attestationEnabled ? attestationProvider.requestToken : nil
         )
     }()
 
