@@ -33,6 +33,11 @@ disabled_rules:
 
 line_length: 120
 
+identifier_name:
+  excluded:
+    - id
+    - bg
+
 type_body_length:
   warning: 350
   error: 400

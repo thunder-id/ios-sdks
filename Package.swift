@@ -37,7 +37,8 @@ let package = Package(
         .target(
             name: "ThunderIDSwiftUI",
             dependencies: ["ThunderID"],
-            path: "Sources/ThunderIDSwiftUI"
+            path: "Sources/ThunderIDSwiftUI",
+            resources: [.copy("Resources/LogoIcons")]
         ),
         .testTarget(
             name: "ThunderIDTests",
