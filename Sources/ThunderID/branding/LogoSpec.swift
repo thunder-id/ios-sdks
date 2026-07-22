@@ -32,8 +32,8 @@ public enum AvatarVariant: String, Sendable, Equatable {
     case twoLetter = "two_letter"
     /// One of the 19 curated animal badge icons, selected by `AvatarSpec.content`.
     case anonymousAnimal = "anonymous_animal"
-    /// One of the 33 curated entity badge icons (applications, organizations, resource servers),
-    /// selected by `AvatarSpec.content`.
+    /// One of the 36 curated entity badge icons (applications, organizations, resource servers,
+    /// agents), selected by `AvatarSpec.content`.
     case anonymousEntity = "anonymous_entity"
 }
 
@@ -88,13 +88,14 @@ public let anonymousAnimalNames: Set<String> = [
     "frog", "giraffe", "hippo", "jackal"
 ]
 
-/// The 33 curated `anonymous_entity` keys with a bundled badge icon, lowercase. Covers three
-/// categories of non-human resources: applications, organizations, and resource servers.
+/// The 36 curated `anonymous_entity` keys with a bundled badge icon, lowercase. Covers four
+/// categories of non-human resources: applications, organizations, resource servers, and agents.
 public let anonymousEntityNames: Set<String> = [
     "anchor", "antenna", "anvil", "arch", "bridge", "chevron", "circuit_node", "compass", "cube",
     "diamond", "dome", "gate", "hexagon", "key", "lighthouse", "lock", "obelisk", "octagon",
     "orbit_ring", "parallelogram", "pavilion", "pentagon", "plus_facet", "silo", "spiral", "spire",
-    "star", "tower", "townhouse", "triangle_stack", "turbine", "valve", "windmill"
+    "star", "tower", "townhouse", "triangle_stack", "turbine", "valve", "windmill",
+    "bot_head", "brain", "neural_net"
 ]
 
 private let emojiScheme = "emoji:"

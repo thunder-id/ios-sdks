@@ -151,13 +151,13 @@ final class LogoSpecTests: XCTestCase {
         XCTAssertEqual(anonymousAnimalNames, expected)
     }
 
-    func testAnonymousEntityNamesHasExpectedThirtyThreeEntries() {
+    func testAnonymousEntityNamesHasExpectedThirtySixEntries() {
         let expected: Set<String> = [
             "anchor", "antenna", "anvil", "arch", "bridge", "chevron", "circuit_node", "compass",
             "cube", "diamond", "dome", "gate", "hexagon", "key", "lighthouse", "lock", "obelisk",
             "octagon", "orbit_ring", "parallelogram", "pavilion", "pentagon", "plus_facet", "silo",
             "spiral", "spire", "star", "tower", "townhouse", "triangle_stack", "turbine", "valve",
-            "windmill"
+            "windmill", "bot_head", "brain", "neural_net"
         ]
         XCTAssertEqual(anonymousEntityNames, expected)
     }

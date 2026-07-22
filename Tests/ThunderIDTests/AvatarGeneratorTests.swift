@@ -171,7 +171,7 @@ final class AvatarGeneratorTests: XCTestCase {
     func testDeriveAvatarContentAnonymousEntityDiffersAcrossDifferentSeeds() {
         let first = deriveAvatarContent(variant: .anonymousEntity, seedText: "session-123")
         let second = deriveAvatarContent(variant: .anonymousEntity, seedText: "app-abc123")
-        // Not a strict guarantee (hash collisions are possible), but with 33 buckets these two
+        // Not a strict guarantee (hash collisions are possible), but with 36 buckets these two
         // seeds are chosen specifically to land in different buckets.
         XCTAssertNotEqual(first, second)
     }

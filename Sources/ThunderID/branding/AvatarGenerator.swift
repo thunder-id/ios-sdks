@@ -129,7 +129,7 @@ public func generateAvatar(_ spec: AvatarSpec) -> GeneratedAvatar {
 ///   `seedText`, using the same polynomial hash as `generateAvatar(_:)`, modulo the sorted list of 19
 ///   names, so the same seed always picks the same animal. An empty/nil seed still returns some valid
 ///   animal.
-/// - `.anonymousEntity`: same hash-pick, but over the sorted list of 33 curated entity keys.
+/// - `.anonymousEntity`: same hash-pick, but over the sorted list of 36 curated entity keys.
 public func deriveAvatarContent(variant: AvatarVariant, seedText: String?) -> String {
     switch variant {
     case .oneLetter:
