@@ -92,7 +92,11 @@ public final class ThunderIDClient {
                 challengeToken: payload.challengeToken
             )
         } else {
-            response = try await flowClient!.initiate(applicationId: request.applicationId, flowType: request.flowType)
+            response = try await flowClient!.initiate(
+                applicationId: request.applicationId,
+                flowType: request.flowType,
+                attestationToken: try await attestationToken()
+            )
         }
         try establishSessionIfNeeded(from: response)
         return response
@@ -211,7 +215,8 @@ public final class ThunderIDClient {
         } else {
             response = try await flowClient!.initiate(
                 applicationId: appId,
-                flowType: request?.flowType ?? .registration
+                flowType: request?.flowType ?? .registration,
+                attestationToken: try await attestationToken()
             )
         }
         try establishSessionIfNeeded(from: response)
@@ -335,6 +340,18 @@ public final class ThunderIDClient {
         guard config.baseUrl.hasPrefix("https://") else {
             throw ThunderIDError(code: .invalidConfiguration, message: "baseUrl must use HTTPS")
         }
+        guard !config.attestationEnabled || config.attestationTokenProvider != nil else {
+            throw ThunderIDError(
+                code: .invalidConfiguration,
+                message: "attestationTokenProvider is required when attestationEnabled is true"
+            )
+        }
+    }
+
+    /// Returns the attestation token when enabled, or `nil` otherwise.
+    private func attestationToken() async throws -> String? {
+        guard let config, config.attestationEnabled else { return nil }
+        return try await config.attestationTokenProvider?()
     }
 
     private func deepUnwrap(_ value: Any) -> Any {

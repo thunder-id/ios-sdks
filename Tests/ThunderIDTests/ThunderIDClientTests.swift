@@ -213,4 +213,34 @@ final class ThunderIDClientTests: XCTestCase {
         XCTAssertEqual(body["action"] as? String, "basic_auth")
         XCTAssertNil(body["actionId"])
     }
+
+    // MARK: - Attestation
+
+    func testAttestationDisabledByDefault() {
+        let config = ThunderIDConfig(baseUrl: "https://localhost:8090")
+        XCTAssertFalse(config.attestationEnabled)
+        XCTAssertNil(config.attestationTokenProvider)
+    }
+
+    func testInitializeRejectsAttestationEnabledWithoutProvider() async {
+        let config = ThunderIDConfig(baseUrl: "https://localhost:8090", attestationEnabled: true)
+        do {
+            _ = try await client.initialize(config: config, storage: InMemoryStorageAdapter())
+            XCTFail("Expected INVALID_CONFIGURATION error")
+        } catch let error as ThunderIDError {
+            XCTAssertEqual(error.code, .invalidConfiguration)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testInitializeAcceptsAttestationEnabledWithProvider() async throws {
+        let config = ThunderIDConfig(
+            baseUrl: "https://localhost:8090",
+            attestationEnabled: true,
+            attestationTokenProvider: { "test-token" }
+        )
+        let result = try await client.initialize(config: config, storage: InMemoryStorageAdapter())
+        XCTAssertTrue(result)
+    }
 }

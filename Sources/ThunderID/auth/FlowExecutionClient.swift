@@ -26,13 +26,22 @@ final class FlowExecutionClient {
         self.httpClient = httpClient
     }
 
-    func initiate(applicationId: String, flowType: FlowType) async throws -> EmbeddedFlowResponse {
+    func initiate(
+        applicationId: String,
+        flowType: FlowType,
+        attestationToken: String? = nil
+    ) async throws -> EmbeddedFlowResponse {
         let body: [String: Any] = [
             "applicationId": applicationId,
             "flowType": flowType.rawValue,
             "verbose": true
         ]
-        return try await httpClient.post(path: "/flow/execute", body: body, requiresAuth: false)
+        return try await httpClient.post(
+            path: "/flow/execute",
+            body: body,
+            requiresAuth: false,
+            headers: attestationTokenHeaders(attestationToken)
+        )
     }
 
     func submit(
@@ -46,11 +55,12 @@ final class FlowExecutionClient {
         if !inputs.isEmpty {
             body["inputs"] = inputs
         }
-        if let data = try? JSONSerialization.data(withJSONObject: body, options: .prettyPrinted),
-           let json = String(data: data, encoding: .utf8) {
-            print("[DEBUG][FlowExecutionClient] submit body:\n\(json)")
-        }
         return try await httpClient.post(path: "/flow/execute", body: body, requiresAuth: false)
+    }
+
+    private func attestationTokenHeaders(_ token: String?) -> [String: String] {
+        guard let token else { return [:] }
+        return ["Attestation-Token": token]
     }
 
     func submitBody(flowId: String, actionId: String, challengeToken: String?) -> [String: Any] {
