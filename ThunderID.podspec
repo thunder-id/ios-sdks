@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'ThunderID'
-  s.version          = '0.1.0'
+  s.version          = '0.2.0'
   s.summary          = 'iOS SDK for ThunderID'
   s.description      = <<-DESC
     Native iOS SDK that enables authentication, authorization, and user management for applications integrating with ThunderID.
