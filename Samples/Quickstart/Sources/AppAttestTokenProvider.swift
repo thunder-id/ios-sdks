@@ -37,57 +37,18 @@ enum AppAttestError: LocalizedError {
 /// come from the server in production; this sample generates it locally.
 final class AppAttestTokenProvider {
     private let service = DCAppAttestService.shared
-    private let keyIdStorageKey: String
-    private let attestedStorageKey: String
 
-    init(keyPrefix: String = "dev.thunderid.quickstart.appAttest") {
-        keyIdStorageKey = "\(keyPrefix).keyId"
-        attestedStorageKey = "\(keyPrefix).attested"
-    }
-
-    /// Returns a base64-encoded attestation/assertion envelope.
+    /// Returns the base64-encoded App Attest attestation object, which is what the
+    /// `Attestation-Token` header carries.
+    ///
+    /// A key can be attested only once, and the server verifies a fresh attestation object on every
+    /// flow initiation, so this generates a new key per call rather than reusing a stored one.
     func requestToken() async throws -> String {
         guard service.isSupported else { throw AppAttestError.unsupported }
-        let keyId = try await resolveKeyId()
-        let challenge = makeChallenge()
-        let clientDataHash = Data(SHA256.hash(data: challenge))
-        let envelope = try await buildEnvelope(keyId: keyId, challenge: challenge, clientDataHash: clientDataHash)
-        let data = try JSONSerialization.data(withJSONObject: envelope)
-        return data.base64EncodedString()
-    }
-
-    /// Returns the stored key id, generating one on first use.
-    private func resolveKeyId() async throws -> String {
-        if let existing = UserDefaults.standard.string(forKey: keyIdStorageKey) {
-            return existing
-        }
         let keyId = try await service.generateKey()
-        UserDefaults.standard.set(keyId, forKey: keyIdStorageKey)
-        return keyId
-    }
-
-    /// Attests the key on first use, then asserts on later calls.
-    private func buildEnvelope(
-        keyId: String,
-        challenge: Data,
-        clientDataHash: Data
-    ) async throws -> [String: String] {
-        var envelope: [String: String] = [
-            "platform": "ios",
-            "keyId": keyId,
-            "challenge": challenge.base64EncodedString()
-        ]
-        if UserDefaults.standard.bool(forKey: attestedStorageKey) {
-            let assertion = try await service.generateAssertion(keyId, clientDataHash: clientDataHash)
-            envelope["type"] = "assertion"
-            envelope["assertion"] = assertion.base64EncodedString()
-        } else {
-            let attestation = try await service.attestKey(keyId, clientDataHash: clientDataHash)
-            UserDefaults.standard.set(true, forKey: attestedStorageKey)
-            envelope["type"] = "attestation"
-            envelope["attestation"] = attestation.base64EncodedString()
-        }
-        return envelope
+        let clientDataHash = Data(SHA256.hash(data: makeChallenge()))
+        let attestation = try await service.attestKey(keyId, clientDataHash: clientDataHash)
+        return attestation.base64EncodedString()
     }
 
     /// Generates a random 32-byte challenge.

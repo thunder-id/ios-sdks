@@ -23,9 +23,13 @@ Testing this end-to-end requires:
 - A **physical device** — App Attest is unavailable in the simulator.
 - A signing team and the **App Attest capability** enabled on the target, so Xcode adds the
   `com.apple.developer.devicecheck.appattest-environment` entitlement.
-- A server that issues the App Attest challenge and verifies the attestation/assertion with Apple.
-  This sample generates the challenge locally to exercise the SDK hook; point
-  `AppAttestTokenProvider` at your challenge endpoint before relying on it in production.
+- The **Team ID** and **Bundle ID** registered on the ThunderID application's attestation settings to
+  match the ones the app is signed with. ThunderID derives the expected App ID from
+  `<TeamID>.<BundleID>` and rejects a token whose attested App ID differs.
+
+The `Attestation-Token` header carries the base64-encoded App Attest attestation object exactly as
+`DCAppAttestService.attestKey` returns it — do not wrap it in a JSON envelope. The challenge should
+come from the server in production; this sample generates it locally to exercise the SDK hook.
 
 ## Run
 
