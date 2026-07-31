@@ -80,7 +80,12 @@ extension SignUp {
 
     @ViewBuilder
     private func richTextComponentView(_ component: FlowComponent, signUpState: SignUpState) -> some View {
-        RichTextLinks(html: resolved(component.label, signUpState: signUpState))
+        RichTextLinks(html: resolved(component.label, signUpState: signUpState)) { actionRef in
+            guard let action = signUpState.actions.first(where: { $0.ref == actionRef || $0.id == actionRef }) else {
+                return
+            }
+            signUpState.submit(actionId: action.id)
+        }
     }
 
     @ViewBuilder

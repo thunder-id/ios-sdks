@@ -1,19 +1,40 @@
-# ThunderID iOS B2C Sample
+# ThunderID iOS Quickstart
 
-Demonstrates a native iOS B2C flow using the ThunderIDSwiftUI SDK:
+ThunderID iOS Quickstart demonstrates the full authentication lifecycle using the `ThunderID iOS` SDK.
 
-- Unauthenticated → embedded sign-in form (Flow Execution API)
-- Authenticated → user avatar dropdown, organization switcher, editable profile sheet
-- Sign-out → returns to sign-in screen
+**Flow demonstrated:**
+1. App opens → unauthenticated state (sign-in screen)
+2. User initiates sign-in / sign-up → SDK starts app-native Flow Execution
+3. User completes the flow and logs in to ThunderID
+4. Successful → authenticated state with profile information, token debugging, and sign-out button.
+5. User taps Sign Out → session terminated, returns to sign-in screen
+
+## Prerequisites
+
+- Xcode 15+
+- A running ThunderID instance
 
 ## Setup
 
 ```bash
 cp Config.plist.example Sources/Config.plist
-# Edit Sources/Config.plist with your ThunderID base URL, client ID, and application ID
+# Edit Sources/Config.plist with your ThunderID base URL and application ID
 ```
 
-### Apple App Attest attestation (optional)
+### Configuration
+
+> [!NOTE]
+> This sample uses app-native authentication (Flow Execution API), so only the base URL and application ID are required — no OAuth2 client ID or redirect URIs.
+
+| Variable | Description |
+|----------|-------------|
+| `THUNDERID_BASE_URL` | Base URL of your ThunderID server (HTTPS) |
+| `THUNDERID_APP_ID` | Application UUID from ThunderID console |
+
+
+💡 `Sources/Config.plist` is gitignored. Never commit real credentials.
+
+### Attestation via Apple App Attest (optional)
 
 If the application enforces platform attestation, set `THUNDERID_ATTESTATION_ENABLED` to `true` in
 `Sources/Config.plist`, then rebuild. When enabled, the sample mints a token via
@@ -30,7 +51,3 @@ Testing this end-to-end requires:
 ## Run
 
 Open in Xcode via `Package.swift` and run on an iOS 16+ simulator or device.
-
-## SDK used
-
-`ThunderIDSwiftUI` at `sdks/thunderid-swiftui/` — depends on the `ThunderID` iOS Platform SDK at `sdks/thunderid-ios/`.

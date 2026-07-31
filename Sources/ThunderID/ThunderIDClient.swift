@@ -227,10 +227,7 @@ public final class ThunderIDClient {
 
     public func getAccessToken(sessionId: String? = nil) async throws -> String {
         try requireInitialized()
-        guard let clientId = config?.clientId else {
-            throw ThunderIDError(code: .invalidConfiguration, message: "clientId required")
-        }
-        return try await tokenRefresher!.getAccessToken(clientId: clientId)
+        return try await tokenRefresher!.getAccessToken(clientId: config?.clientId)
     }
 
     public func decodeJwtToken<R: Decodable>(_ token: String) throws -> R {
