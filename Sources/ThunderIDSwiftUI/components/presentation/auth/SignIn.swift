@@ -175,9 +175,9 @@ public final class SignInState: ObservableObject {
     private var fieldValues: [String: String] = [:]
     private var flowId: String?
     private var challengeToken: String?
-    var submitAction: (String, [String: String], String?, String?) -> Void
+    var submitAction: (String?, [String: String], String?, String?) -> Void
 
-    init(submit: @escaping (String, [String: String], String?, String?) -> Void) {
+    init(submit: @escaping (String?, [String: String], String?, String?) -> Void) {
         self.submitAction = submit
     }
 
@@ -217,6 +217,7 @@ public struct BaseSignIn<Content: View>: View {
 
     @StateObject private var signInState = SignInState { _, _, _, _ in }
     @State private var federatedAuthSession = FederatedAuthSession()
+    @State private var passkeyAuthSession = PasskeyAuthSession()
 
     public init(
         applicationId: String,
@@ -272,7 +273,7 @@ public struct BaseSignIn<Content: View>: View {
         }
     }
 
-    private func submit(actionId: String, inputs: [String: String], flowId: String?, challengeToken: String?) async {
+    private func submit(actionId: String?, inputs: [String: String], flowId: String?, challengeToken: String?) async {
         signInState.isLoading = true
         defer {
             signInState.isLoading = false
@@ -291,13 +292,25 @@ public struct BaseSignIn<Content: View>: View {
         }
     }
 
-    private func handleResponse(_ response: EmbeddedFlowResponse, actionId: String) async {
+    private func handleResponse(_ response: EmbeddedFlowResponse, actionId: String?) async {
         switch response.flowStatus {
         case .complete:
             await state.refresh()
             onComplete?()
         case .promptOnly:
-            if response.type == "REDIRECTION", let redirectURL = response.data?.redirectURL {
+            let additionalData = response.data?.additionalData
+            let passkeyChallenge = additionalData?["passkeyChallenge"]?.value as? String
+            let passkeyCreationOptions = additionalData?["passkeyCreationOptions"]?.value as? String
+
+            if let flowId = response.flowId,
+               passkeyChallenge != nil || passkeyCreationOptions != nil {
+                await performPasskeyCeremony(
+                    flowId: flowId,
+                    challengeToken: response.challengeToken,
+                    passkeyChallenge: passkeyChallenge,
+                    passkeyCreationOptions: passkeyCreationOptions
+                )
+            } else if response.type == "REDIRECTION", let redirectURL = response.data?.redirectURL {
                 await handleRedirection(redirectURL, response: response, actionId: actionId)
             } else {
                 signInState.update(from: response)
@@ -309,7 +322,32 @@ public struct BaseSignIn<Content: View>: View {
         }
     }
 
-    private func handleRedirection(_ redirectURL: String, response: EmbeddedFlowResponse, actionId: String) async {
+    /// Runs the native WebAuthn ceremony (`PasskeyAuthSession.authenticate` for a
+    /// `passkeyChallenge`, `.register` for `passkeyCreationOptions`) and resubmits the flow with
+    /// the resulting flat inputs, without requiring another user tap. On ceremony failure (user
+    /// cancellation, no credential, etc.) the error is surfaced and the flow is left as-is so the
+    /// user can retry.
+    private func performPasskeyCeremony(
+        flowId: String,
+        challengeToken: String?,
+        passkeyChallenge: String?,
+        passkeyCreationOptions: String?
+    ) async {
+        do {
+            let inputs: [String: String]
+            if let passkeyChallenge {
+                inputs = try await passkeyAuthSession.authenticate(requestOptionsJson: passkeyChallenge)
+            } else {
+                inputs = try await passkeyAuthSession.register(creationOptionsJson: passkeyCreationOptions ?? "")
+            }
+            await submit(actionId: nil, inputs: inputs, flowId: flowId, challengeToken: challengeToken)
+        } catch {
+            signInState.error = error.localizedDescription
+            onError?(error.localizedDescription)
+        }
+    }
+
+    private func handleRedirection(_ redirectURL: String, response: EmbeddedFlowResponse, actionId: String?) async {
         guard let url = URL(string: redirectURL), let scheme = callbackURLScheme() else {
             let message = i18n.resolve("signIn.federatedError")
             signInState.error = message

@@ -52,6 +52,31 @@ The `Attestation-Token` header carries the base64-encoded App Attest attestation
 `DCAppAttestService.attestKey` returns it — do not wrap it in a JSON envelope. The challenge should
 come from the server in production; this sample generates it locally to exercise the SDK hook.
 
+### Passkeys (WebAuthn)
+
+Passkey registration/authentication via `ASAuthorizationPlatformPublicKeyCredentialProvider`
+requires the app's relying party ID to be backed by a real **Associated Domain**, not `localhost`.
+Without this, `ASAuthorizationController` fails immediately with
+`Error Domain=com.apple.AuthenticationServices.AuthorizationError Code=1004`.
+
+This sample ships `Sources/Quickstart.entitlements` with a placeholder
+`webcredentials:your-thunderid-domain.example` entry. To exercise passkeys end-to-end:
+
+1. Replace the placeholder domain in `Sources/Quickstart.entitlements` with the domain your
+   ThunderID server is actually reachable at (it must serve valid HTTPS — self-signed certs and
+   `localhost` will not work).
+2. Host an `apple-app-site-association` file at
+   `https://<that-domain>/.well-known/apple-app-site-association` declaring this app's Team ID and
+   `PRODUCT_BUNDLE_IDENTIFIER` (`dev.thunderid.Quickstart`) under `webcredentials.apps`.
+3. Make sure the server's passkey `rp.id` matches that same domain — the SDK
+   (`PasskeyAuthSession`) passes whatever `rp.id` the server returns straight through to
+   `ASAuthorizationPlatformPublicKeyCredentialProvider`.
+4. Set a `DEVELOPMENT_TEAM` and enable the **Associated Domains** capability for the target in
+   Xcode (Signing & Capabilities) so the entitlement is actually applied to the build.
+
+Exposing a local ThunderID instance under a real, HTTPS-reachable domain (e.g. via a tunnel) is
+left to you — this sample only wires up the entitlement/documentation, not the tunnel itself.
+
 ## Run
 
 Open in Xcode via `Package.swift` and run on an iOS 16+ simulator or device.

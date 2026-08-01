@@ -195,13 +195,13 @@ public struct TokenExchangeRequestConfig {
 /// Payload for app-native (embedded) sign-in via the Flow Execution API.
 public struct EmbeddedSignInPayload {
     public var flowId: String?
-    public var actionId: String
+    public var actionId: String?
     public var inputs: [String: String]
     public var challengeToken: String?
 
     public init(
         flowId: String? = nil,
-        actionId: String,
+        actionId: String? = nil,
         inputs: [String: String] = [:],
         challengeToken: String? = nil
     ) {
