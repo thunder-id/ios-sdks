@@ -48,6 +48,12 @@ public enum ThunderIDErrorCode: String {
     case confirmationCodeInvalid = "CONFIRMATION_CODE_INVALID"
     case confirmationCodeExpired = "CONFIRMATION_CODE_EXPIRED"
 
+    // Passkey / WebAuthn
+    case passkeyNotSupported = "PASSKEY_NOT_SUPPORTED"
+    case passkeyCancelled = "PASSKEY_CANCELLED"
+    case passkeyNoCredential = "PASSKEY_NO_CREDENTIAL"
+    case passkeyFailed = "PASSKEY_FAILED"
+
     // Network & Server
     case networkError = "NETWORK_ERROR"
     case requestTimeout = "REQUEST_TIMEOUT"

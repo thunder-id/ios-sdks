@@ -46,7 +46,7 @@ final class FlowExecutionClient {
 
     func submit(
         flowId: String,
-        actionId: String,
+        actionId: String?,
         inputs: [String: String],
         challengeToken: String?
     ) async throws -> EmbeddedFlowResponse {
@@ -63,11 +63,11 @@ final class FlowExecutionClient {
         return ["Attestation-Token": token]
     }
 
-    func submitBody(flowId: String, actionId: String, challengeToken: String?) -> [String: Any] {
-        var body: [String: Any] = [
-            "executionId": flowId,
-            "action": actionId
-        ]
+    func submitBody(flowId: String, actionId: String?, challengeToken: String?) -> [String: Any] {
+        var body: [String: Any] = ["executionId": flowId]
+        if let actionId {
+            body["action"] = actionId
+        }
         if let token = challengeToken {
             body["challengeToken"] = token
         }
