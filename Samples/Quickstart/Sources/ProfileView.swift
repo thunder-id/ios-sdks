@@ -30,7 +30,6 @@ struct ProfileScreen: View {
     let borderColor: Color
     let cardColor: Color
     let primaryBlue: Color
-    let successGreen: Color
     let onBack: () -> Void
 
     @State private var showEditProfile = false
@@ -100,7 +99,7 @@ struct ProfileScreen: View {
 
     private var identitySection: some View {
         VStack(spacing: 12) {
-            InitialsAvatar(name: displayName, size: 56, primaryBlue: primaryBlue)
+            UserAvatar(size: 56)
 
             VStack(spacing: 4) {
                 Text(displayName)

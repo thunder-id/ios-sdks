@@ -40,18 +40,19 @@ public struct SignIn: View {
     public var body: some View {
         BaseSignIn(applicationId: applicationId, onComplete: onComplete, onError: onError) { signInState in
             VStack(alignment: .leading, spacing: 20) {
-                if signInState.components.isEmpty {
+                if signInState.components.isEmpty, signInState.error == nil {
                     Text(i18n.resolve("signIn.title"))
                         .font(.title2)
                         .bold()
                         .accessibilityAddTraits(.isHeader)
                 }
                 if let error = signInState.error {
-                    Text(error)
-                        .font(.subheadline)
-                        .foregroundColor(.red)
-                }
-                if signInState.components.isEmpty {
+                    // An error response carries no UI of its own — the previous step's
+                    // inputs/actions are stale once the server has rejected the last
+                    // submission, so show only the error instead of a form the user can
+                    // no longer meaningfully interact with.
+                    FlowErrorBanner(message: error)
+                } else if signInState.components.isEmpty {
                     VStack(spacing: 12) {
                         FlowInputFields(
                             inputs: signInState.inputs,
@@ -72,14 +73,21 @@ public struct SignIn: View {
 
     @ViewBuilder
     func actionButton(for action: FlowAction, signInState: SignInState) -> some View {
+        // Only the button matching the in-flight submission shows a spinner; the rest stay
+        // disabled (to prevent overlapping submits) but keep their label instead of every
+        // button spinning together.
+        let isActiveAction = signInState.loadingActionId == nil || signInState.loadingActionId == action.id
+        let isSpinning = signInState.isLoading && isActiveAction
+        let isBlocked = signInState.isLoading && !isActiveAction
+
         if action.eventType?.uppercased() == "TRIGGER" {
-            triggerButton(for: action, signInState: signInState)
+            triggerButton(for: action, signInState: signInState, isSpinning: isSpinning, isBlocked: isBlocked)
         } else {
             Button {
                 signInState.submit(actionId: action.id)
             } label: {
                 Group {
-                    if signInState.isLoading {
+                    if isSpinning {
                         ProgressView().progressViewStyle(.circular).tint(.white)
                     } else {
                         Text(resolvedActionLabel(action, signInState: signInState))
@@ -99,27 +107,43 @@ public struct SignIn: View {
     }
 
     @ViewBuilder
-    func triggerButton(for action: FlowAction, signInState: SignInState) -> some View {
+    func triggerButton(
+        for action: FlowAction,
+        signInState: SignInState,
+        isSpinning: Bool,
+        isBlocked: Bool
+    ) -> some View {
         let iconIdentity = action.icon?.lowercased() ?? ""
         let identity = iconIdentity + (action.ref ?? "").lowercased() + (action.label ?? "").lowercased()
         if identity.contains("google") {
             GoogleButton(
                 label: i18n.resolve("signIn.continueWithGoogle"),
-                isLoading: signInState.isLoading
+                isLoading: isSpinning,
+                disabled: isBlocked
             ) {
                 signInState.submit(actionId: action.id)
             }
         } else if identity.contains("github") {
             GitHubButton(
                 label: i18n.resolve("signIn.continueWithGithub"),
-                isLoading: signInState.isLoading
+                isLoading: isSpinning,
+                disabled: isBlocked
+            ) {
+                signInState.submit(actionId: action.id)
+            }
+        } else if identity.contains("passkey") {
+            PasskeyButton(
+                label: resolvedActionLabel(action, signInState: signInState),
+                isLoading: isSpinning,
+                disabled: isBlocked
             ) {
                 signInState.submit(actionId: action.id)
             }
         } else {
             GenericTriggerButton(
                 label: resolvedActionLabel(action, signInState: signInState),
-                isLoading: signInState.isLoading
+                isLoading: isSpinning,
+                disabled: isBlocked
             ) {
                 signInState.submit(actionId: action.id)
             }
@@ -141,6 +165,10 @@ public final class SignInState: ObservableObject {
     @Published public fileprivate(set) var actions: [FlowAction] = []
     @Published public fileprivate(set) var components: [FlowComponent] = []
     @Published public fileprivate(set) var isLoading: Bool = false
+    /// The actionId currently being submitted, if known. When set, only the button matching
+    /// this id shows a spinner while `isLoading` is true — the rest are disabled but keep
+    /// their label instead of every button spinning together.
+    @Published public fileprivate(set) var loadingActionId: String?
     @Published public fileprivate(set) var error: String?
     @Published public fileprivate(set) var templateResolver: FlowTemplateResolver?
 
@@ -161,6 +189,7 @@ public final class SignInState: ObservableObject {
     }
 
     public func submit(actionId: String) {
+        loadingActionId = actionId
         submitAction(actionId, fieldValues, flowId, challengeToken)
     }
 
@@ -245,7 +274,10 @@ public struct BaseSignIn<Content: View>: View {
 
     private func submit(actionId: String, inputs: [String: String], flowId: String?, challengeToken: String?) async {
         signInState.isLoading = true
-        defer { signInState.isLoading = false }
+        defer {
+            signInState.isLoading = false
+            signInState.loadingActionId = nil
+        }
         do {
             let payload = EmbeddedSignInPayload(
                 flowId: flowId, actionId: actionId, inputs: inputs, challengeToken: challengeToken

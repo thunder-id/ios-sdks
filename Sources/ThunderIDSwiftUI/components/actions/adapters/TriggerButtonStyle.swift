@@ -24,11 +24,14 @@ import SwiftUI
 struct TriggerButtonStyle<Icon: View>: View {
     let label: String
     let isLoading: Bool
+    /// Disables the button without showing a spinner, e.g. while a sibling button's
+    /// submission is in flight.
+    var disabled: Bool = false
     let onTap: () -> Void
     @ViewBuilder let icon: Icon
 
     var body: some View {
-        Button(action: isLoading ? {} : onTap) {
+        Button(action: (isLoading || disabled) ? {} : onTap) {
             HStack(spacing: 10) {
                 icon
                 Text(label)
@@ -39,7 +42,7 @@ struct TriggerButtonStyle<Icon: View>: View {
         }
         .foregroundColor(.primary)
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.4), lineWidth: 1))
-        .disabled(isLoading)
+        .disabled(isLoading || disabled)
         .accessibilityLabel(label)
     }
 }
@@ -49,10 +52,11 @@ struct TriggerButtonStyle<Icon: View>: View {
 struct GenericTriggerButton: View {
     let label: String
     let isLoading: Bool
+    var disabled: Bool = false
     let onTap: () -> Void
 
     var body: some View {
-        TriggerButtonStyle(label: label, isLoading: isLoading, onTap: onTap) {
+        TriggerButtonStyle(label: label, isLoading: isLoading, disabled: disabled, onTap: onTap) {
             EmptyView()
         }
     }

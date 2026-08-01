@@ -30,7 +30,10 @@ final class TokenRefresher {
     }
 
     /// Returns the current access token, refreshing if near expiry (60s threshold).
-    func getAccessToken(clientId: String) async throws -> String {
+    /// `clientId` is only required when a refresh is actually attempted — app-native
+    /// sessions (config'd with `applicationId`, no `clientId`) can still read a
+    /// still-valid token without it.
+    func getAccessToken(clientId: String?) async throws -> String {
         if let token = tokenStore.accessToken() {
             if !tokenStore.isNearExpiry() {
                 return token
@@ -40,6 +43,9 @@ final class TokenRefresher {
             if tokenStore.refreshToken() == nil {
                 return token
             }
+        }
+        guard let clientId else {
+            throw ThunderIDError(code: .invalidConfiguration, message: "clientId required to refresh access token")
         }
         let refreshed = try await refresh(clientId: clientId)
         return refreshed.accessToken

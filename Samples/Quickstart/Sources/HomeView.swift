@@ -69,8 +69,7 @@ struct HomeView: View {
                         mutedColor: mutedColor,
                         borderColor: borderColor,
                         cardColor: cardColor,
-                        primaryBlue: primaryBlue,
-                        successGreen: successGreen
+                        primaryBlue: primaryBlue
                     ) {
                         screen = .home
                     }
@@ -97,19 +96,6 @@ struct HomeView: View {
     }
 }
 
-// MARK: - Initials Helper
-
-func userInitials(_ displayName: String?) -> String {
-    guard let name = displayName, !name.isEmpty else { return "?" }
-    let parts = name.split(separator: " ").map(String.init)
-    if parts.count >= 2 {
-        let first = parts[0].first.map(String.init) ?? ""
-        let last = parts[1].first.map(String.init) ?? ""
-        return (first + last).uppercased()
-    }
-    return String(name.prefix(2)).uppercased()
-}
-
 // MARK: - Claim Decoding Helper
 
 /// Reads a unix-seconds numeric claim (`Int` or `Double`) from a decoded JWT/userinfo claims map.
@@ -120,31 +106,13 @@ func claimUnixSeconds(_ codable: AnyCodable?) -> TimeInterval? {
     return nil
 }
 
-// MARK: - Avatar View
-
-struct InitialsAvatar: View {
-    let name: String?
-    let size: CGFloat
-    let primaryBlue: Color
-
-    var body: some View {
-        Circle()
-            .fill(primaryBlue)
-            .frame(width: size, height: size)
-            .overlay(
-                Text(userInitials(name))
-                    .font(.system(size: size * 0.35, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-            )
-    }
-}
-
 // MARK: - Next Step Model
 
 private struct NextStep {
     let number: String
     let title: String
     let subtitle: String
+    let href: String
 }
 
 // MARK: - Home Screen
@@ -162,9 +130,15 @@ private struct HomeScreen: View {
     let onProfile: () -> Void
     let onToken: () -> Void
 
-    private var displayName: String { state.user?.displayName ?? state.user?.username ?? "Guest" }
-    private var greetingName: String { state.user?.displayName ?? state.user?.username ?? "there" }
-    private var email: String? { state.user?.email }
+    private var greetingName: String {
+        if let given = state.user?.claims?["given_name"]?.value as? String, !given.isEmpty {
+            return given
+        }
+        if let email = state.user?.email, let prefix = email.split(separator: "@").first, !prefix.isEmpty {
+            return String(prefix)
+        }
+        return "there"
+    }
 
     private var authTimeClaim: TimeInterval? { claimUnixSeconds(state.user?.claims?["auth_time"]) }
     private var expClaim: TimeInterval? { claimUnixSeconds(state.user?.claims?["exp"]) }
@@ -196,32 +170,39 @@ private struct HomeScreen: View {
     }
 
     private let nextSteps: [NextStep] = [
-        NextStep(number: "01", title: "Secure your API", subtitle: "Add token validation to your backend."),
-        NextStep(number: "02", title: "Add social login", subtitle: "GitHub, Google, and OIDC providers."),
-        NextStep(number: "03", title: "Enable MFA", subtitle: "TOTP and passkey support."),
-        NextStep(number: "04", title: "Explore the SDK", subtitle: "API reference and guides.")
+        NextStep(
+            number: "01",
+            title: "Explore use cases",
+            subtitle: "See what you can build — auth flows for web, mobile, APIs, and agents.",
+            href: "https://thunderid.dev/docs/next/use-cases/overview/"
+        ),
+        NextStep(
+            number: "02",
+            title: "Learn about flows",
+            subtitle: "Understand how authorization code, PKCE, client credentials, and device flows work.",
+            href: "https://thunderid.dev/docs/next/guides/flows/what-are-flows/"
+        ),
+        NextStep(
+            number: "03",
+            title: "Style your experience",
+            subtitle: "Customize the login UI, branding, and email templates to match your product.",
+            href: "https://thunderid.dev/docs/next/guides/design/overview/"
+        ),
+        NextStep(
+            number: "04",
+            title: "Explore SDK APIs",
+            subtitle: "Full iOS SDK reference — views, state objects, and configuration options.",
+            href: "https://thunderid.dev/docs/next/sdks/ios/overview/"
+        )
     ]
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // Identity header card
-                identityCard
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-
-                // Date + greeting
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(currentDateString)
-                        .font(.system(size: 11, weight: .semibold))
-                        .tracking(1.2)
-                        .foregroundColor(mutedColor)
-                    Text(greeting)
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundColor(textColor)
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 28)
+                // Hero: avatar + (date/session row, greeting row)
+                heroSection
+                    .padding(.horizontal, 24)
+                    .padding(.top, 24)
 
                 // Stats row
                 statsRow
@@ -251,41 +232,31 @@ private struct HomeScreen: View {
         .background(bgColor)
     }
 
-    private var identityCard: some View {
-        HStack(spacing: 14) {
-            InitialsAvatar(name: displayName, size: 48, primaryBlue: primaryBlue)
+    private var heroSection: some View {
+        HStack(alignment: .center, spacing: 14) {
+            UserAvatar(size: 48)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(displayName)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(textColor)
-                if let email {
-                    Text(email)
-                        .font(.system(size: 13))
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(currentDateString)
+                        .font(.system(size: 11, weight: .semibold))
+                        .tracking(1.2)
                         .foregroundColor(mutedColor)
+                    Circle()
+                        .fill(mutedColor.opacity(0.4))
+                        .frame(width: 3, height: 3)
+                    Circle()
+                        .fill(successGreen)
+                        .frame(width: 6, height: 6)
+                    Text("Session active")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(successGreen)
                 }
+                Text(greeting)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(textColor)
             }
-
-            Spacer()
-
-            // Session active badge
-            HStack(spacing: 5) {
-                Circle()
-                    .fill(successGreen)
-                    .frame(width: 7, height: 7)
-                Text("Session active")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(successGreen)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(successGreen.opacity(0.12))
-            .clipShape(Capsule())
         }
-        .padding(16)
-        .background(cardColor)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(borderColor, lineWidth: 1))
     }
 
     private var statsRow: some View {
@@ -345,6 +316,8 @@ private struct HomeScreen: View {
             .foregroundColor(mutedColor)
     }
 
+    @Environment(\.openURL) private var openURL
+
     private var stepsCard: some View {
         VStack(spacing: 0) {
             ForEach(Array(nextSteps.enumerated()), id: \.offset) { index, step in
@@ -353,29 +326,35 @@ private struct HomeScreen: View {
                         .background(borderColor)
                         .padding(.leading, 16)
                 }
-                HStack(spacing: 14) {
-                    Text(step.number)
-                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                        .foregroundColor(primaryBlue)
-                        .frame(width: 28)
+                Button {
+                    guard let url = URL(string: step.href) else { return }
+                    openURL(url)
+                } label: {
+                    HStack(spacing: 14) {
+                        Text(step.number)
+                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                            .foregroundColor(primaryBlue)
+                            .frame(width: 28)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(step.title)
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(textColor)
-                        Text(step.subtitle)
-                            .font(.system(size: 12))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(step.title)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(textColor)
+                            Text(step.subtitle)
+                                .font(.system(size: 12))
+                                .foregroundColor(mutedColor)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .medium))
                             .foregroundColor(mutedColor)
                     }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(mutedColor)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+                .buttonStyle(.plain)
             }
         }
         .background(cardColor)
@@ -403,15 +382,6 @@ private struct HomeScreen: View {
                 .background(borderColor)
                 .padding(.leading, 52)
 
-            // Settings (no-op)
-            Button(action: noop) {
-                actionRow(icon: "gearshape", label: "Settings", color: textColor)
-            }
-
-            Divider()
-                .background(borderColor)
-                .padding(.leading, 52)
-
             // Sign out
             signOutRow
         }
@@ -419,8 +389,6 @@ private struct HomeScreen: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(borderColor, lineWidth: 1))
     }
-
-    private func noop() {}
 
     private func actionRow(icon: String, label: String, color: Color) -> some View {
         HStack(spacing: 14) {

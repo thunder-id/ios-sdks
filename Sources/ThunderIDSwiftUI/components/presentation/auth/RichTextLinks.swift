@@ -20,17 +20,30 @@ import Foundation
 import SwiftUI
 
 /// Renders the constrained HTML subset produced by the Flow Execution API's `RICH_TEXT`
-/// components: `<p>`/`<span>` wrappers (stripped, text kept) and `<a href="...">` anchors
-/// (rendered as tappable `Link`s). No third-party HTML parser is used — a small regex-based
-/// tag walk is sufficient for this fixed subset.
+/// components: `<p>`/`<span>` wrappers (stripped, text kept) and `<a>` anchors. An anchor with
+/// `data-action-ref` is a sentinel identifying a flow action to submit in-app (there's no DOM/
+/// browser navigation on mobile, matching the web SDK's sentinel-anchor contract); otherwise an
+/// `href` is opened as an external URL via `Link`. No third-party HTML parser is used — a small
+/// regex-based tag walk is sufficient for this fixed subset.
 struct RichTextLinks: View {
     let html: String
+    /// Invoked with the anchor's `data-action-ref` value when a sentinel anchor is tapped.
+    var onActionRef: ((String) -> Void)?
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(Array(Self.segments(from: html).enumerated()), id: \.offset) { _, segment in
                 if segment.isLink {
-                    if let url = segment.url {
+                    if let actionRef = segment.actionRef {
+                        Button {
+                            onActionRef?(actionRef)
+                        } label: {
+                            Text(segment.text)
+                                .foregroundColor(.accentColor)
+                                .underline()
+                        }
+                        .buttonStyle(.plain)
+                    } else if let url = segment.url {
                         Link(segment.text, destination: url)
                     } else {
                         // The anchor's href didn't resolve to a usable URL (e.g. the flow meta
@@ -50,21 +63,42 @@ struct RichTextLinks: View {
 
     /// A single renderable chunk of rich text: plain text, or a link with its display text.
     /// `isLink` reflects whether the source was an `<a>` element — independent of whether
-    /// `url` successfully parsed — so link styling never silently degrades to plain text.
+    /// `url`/`actionRef` successfully resolved — so link styling never silently degrades to
+    /// plain text. `actionRef` (when present) always takes priority over `url` at the call site.
     struct Segment {
         let text: String
         let url: URL?
+        let actionRef: String?
         let isLink: Bool
     }
 
     private static let anchorRegex = try? NSRegularExpression(
-        pattern: "<a\\s+[^>]*href=\"([^\"]*)\"[^>]*>(.*?)</a>",
+        pattern: "<a\\s+([^>]*)>(.*?)</a>",
         options: [.dotMatchesLineSeparators]
     )
 
+    private static let attributeRegex = try? NSRegularExpression(
+        pattern: "([\\w-]+)\\s*=\\s*\"([^\"]*)\""
+    )
+
+    private static func attributes(from raw: String) -> [String: String] {
+        guard let attributeRegex else { return [:] }
+        var result: [String: String] = [:]
+        let range = NSRange(raw.startIndex..<raw.endIndex, in: raw)
+        attributeRegex.enumerateMatches(in: raw, range: range) { match, _, _ in
+            guard let match,
+                  let nameRange = Range(match.range(at: 1), in: raw),
+                  let valueRange = Range(match.range(at: 2), in: raw) else {
+                return
+            }
+            result[String(raw[nameRange]).lowercased()] = String(raw[valueRange])
+        }
+        return result
+    }
+
     static func segments(from html: String) -> [Segment] {
         guard let regex = anchorRegex else {
-            return [Segment(text: stripTags(html), url: nil, isLink: false)]
+            return [Segment(text: stripTags(html), url: nil, actionRef: nil, isLink: false)]
         }
 
         var segments: [Segment] = []
@@ -74,15 +108,17 @@ struct RichTextLinks: View {
         regex.enumerateMatches(in: html, range: fullRange) { match, _, _ in
             guard let match,
                   let matchRange = Range(match.range, in: html),
-                  let hrefRange = Range(match.range(at: 1), in: html),
+                  let attrRange = Range(match.range(at: 1), in: html),
                   let innerRange = Range(match.range(at: 2), in: html) else {
                 return
             }
             appendTextSegment(String(html[lastEnd..<matchRange.lowerBound]), to: &segments)
             let linkText = stripTags(String(html[innerRange]))
-            let href = String(html[hrefRange])
+            let attrs = attributes(from: String(html[attrRange]))
+            let actionRef = attrs["data-action-ref"].flatMap { $0.isEmpty ? nil : $0 }
+            let href = attrs["href"] ?? ""
             let url = href.isEmpty ? nil : URL(string: href)
-            segments.append(Segment(text: linkText, url: url, isLink: true))
+            segments.append(Segment(text: linkText, url: url, actionRef: actionRef, isLink: true))
             lastEnd = matchRange.upperBound
         }
         appendTextSegment(String(html[lastEnd...]), to: &segments)
@@ -92,7 +128,7 @@ struct RichTextLinks: View {
     private static func appendTextSegment(_ raw: String, to segments: inout [Segment]) {
         let text = stripTags(raw)
         if !text.isEmpty {
-            segments.append(Segment(text: text, url: nil, isLink: false))
+            segments.append(Segment(text: text, url: nil, actionRef: nil, isLink: false))
         }
     }
 

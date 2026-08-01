@@ -173,7 +173,7 @@ struct AuthView: View {
                     .padding(.horizontal, 32)
 
                 // Subtext
-                Text("OAuth 2.0, PKCE, MFA, and JWT\n— out of the box in minutes.")
+                Text("OAuth 2.0, PKCE, MFA, and JWT\n- out of the box in minutes.")
                     .font(.system(size: 15))
                     .multilineTextAlignment(.center)
                     .foregroundColor(mutedColor)

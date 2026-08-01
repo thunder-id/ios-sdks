@@ -4,14 +4,8 @@
 <dict>
     <key>THUNDERID_BASE_URL</key>
     <string>https://localhost:8090</string>
-    <key>THUNDERID_CLIENT_ID</key>
-    <string>your-client-id</string>
     <key>THUNDERID_APPLICATION_ID</key>
     <string>your-application-id</string>
-    <key>THUNDERID_AFTER_SIGN_IN_URL</key>
-    <string>dev.thunderid.quickstart://callback</string>
-    <key>THUNDERID_AFTER_SIGN_OUT_URL</key>
-    <string>dev.thunderid.quickstart://logout</string>
     <key>THUNDERID_ATTESTATION_ENABLED</key>
     <string>false</string>
 </dict>

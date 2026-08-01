@@ -26,7 +26,7 @@ struct RootView: View {
         if !state.isInitialized || state.isLoading {
             VStack(spacing: 12) {
                 ProgressView()
-                Text("Starting ACME Booking\u{2026}")
+                Text("Loading\u{2026}")
                     .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

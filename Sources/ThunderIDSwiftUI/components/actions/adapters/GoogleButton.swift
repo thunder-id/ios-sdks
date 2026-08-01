@@ -23,10 +23,11 @@ import SwiftUI
 struct GoogleButton: View {
     let label: String
     let isLoading: Bool
+    var disabled: Bool = false
     let onTap: () -> Void
 
     var body: some View {
-        TriggerButtonStyle(label: label, isLoading: isLoading, onTap: onTap) {
+        TriggerButtonStyle(label: label, isLoading: isLoading, disabled: disabled, onTap: onTap) {
             GoogleGlyph()
                 .frame(width: 18, height: 18)
         }
