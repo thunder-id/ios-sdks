@@ -46,5 +46,5 @@ _How should users update their code/configuration to adapt to the breaking chang
 
 ### Security checks
 
-- [ ] Followed secure coding standards in [WSO2 Secure Coding Guidelines](https://security.docs.wso2.com/en/latest/security-guidelines/secure-engineering-guidelines/secure-coding-guidlines/introduction/)
+- [ ] Followed secure coding standards.
 - [ ] Confirmed that this PR doesn't commit any keys, passwords, tokens, usernames, or other secrets.
