@@ -1,3 +1,4 @@
+// swift-tools-version: 5.9
 // Copyright 2026 The ThunderID Authors
 // SPDX-License-Identifier: Apache-2.0
 
