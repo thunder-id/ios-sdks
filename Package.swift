@@ -1,6 +1,7 @@
 // swift-tools-version: 5.9
 // Copyright 2026 The ThunderID Authors
 // SPDX-License-Identifier: Apache-2.0
+
 import PackageDescription
 
 let package = Package(
@@ -23,7 +24,10 @@ let package = Package(
             name: "ThunderIDSwiftUI",
             dependencies: ["ThunderID"],
             path: "Sources/ThunderIDSwiftUI",
-            resources: [.copy("Resources/LogoIcons")]
+            resources: [
+                .copy("Resources/LogoIcons"),
+                .copy("Resources/ProviderIcons")
+            ]
         ),
         .testTarget(
             name: "ThunderIDTests",

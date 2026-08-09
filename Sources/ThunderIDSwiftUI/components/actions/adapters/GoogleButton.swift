@@ -1,7 +1,14 @@
 // Copyright 2026 The ThunderID Authors
 // SPDX-License-Identifier: Apache-2.0
 
+import Foundation
 import SwiftUI
+
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 /// "Continue with Google" federated sign-in trigger, styled to match the outlined action
 /// buttons rendered below a SignIn form's "Or" divider.
@@ -19,43 +26,65 @@ struct GoogleButton: View {
     }
 }
 
-/// Multi-color Google "G" glyph, ported from the SVG path data used by the web SDK's
-/// `GoogleButton` icon adapter (viewBox 67.91 x 67.901).
+/// Google "G" glyph. Rendered from a bundled multi-gradient raster asset rather than a hand-drawn
+/// `SVGIconPath` shape: Google's current mark uses gradients that can't be reasonably reproduced
+/// with the flat-path renderer used by the other adapter buttons.
 private struct GoogleGlyph: View {
-    private static let viewBox = CGSize(width: 67.91, height: 67.901)
-
     var body: some View {
-        ZStack {
-            SVGIconPath(
-                pathData: "M15.049,160.965l-2.364,8.824-8.639.183a34.011,34.011,0,0,1-.25-31.7h0l7.691,1.41," +
-                    "3.369,7.645a20.262,20.262,0,0,0,.19,13.642Z",
-                viewBox: Self.viewBox,
-                translate: CGSize(width: 0, height: -119.93)
-            )
-            .fill(Color(red: 0.984, green: 0.733, blue: 0))
-
-            SVGIconPath(
-                pathData: "M294.24,208.176A33.939,33.939,0,0,1,282.137,241h0l-9.687-.494-1.371-8.559a20.235," +
-                    "20.235,0,0,0,8.706-10.333H261.628V208.176Z",
-                viewBox: Self.viewBox,
-                translate: CGSize(width: -226.93, height: -180.567)
-            )
-            .fill(Color(red: 0.318, green: 0.559, blue: 0.973))
-
-            SVGIconPath(
-                pathData: "M81.668,328.8h0a33.962,33.962,0,0,1-51.161-10.387l11-9.006a20.192,20.192,0,0,0,29.1,10.338Z",
-                viewBox: Self.viewBox,
-                translate: CGSize(width: -26.463, height: -268.374)
-            )
-            .fill(Color(red: 0.157, green: 0.706, blue: 0.275))
-
-            SVGIconPath(
-                pathData: "M80.451,7.816l-11,9A20.19,20.19,0,0,0,39.686,27.393l-11.06-9.055h0A33.959,33.959,0," +
-                    "0,1,80.451,7.816Z",
-                viewBox: Self.viewBox,
-                translate: CGSize(width: -24.828, height: 0)
-            )
-            .fill(Color(red: 0.945, green: 0.263, blue: 0.212))
+        if let image = GoogleGlyph.resolvedImage() {
+            image
+                .resizable()
+                .scaledToFit()
+        } else {
+            EmptyView()
         }
+    }
+
+    /// Locates the best-matching density variant of the bundled `google@{1x,2x,3x}.png` asset for
+    /// the current display, falling back through the other bundled scales (`2x` -> `3x` -> `1x`, in
+    /// that preference order) if it's missing. Mirrors `LogoIconCatalog`'s density-fallback search.
+    private static func resolvedImage() -> Image? {
+        guard let url = resourceUrl() else { return nil }
+        #if canImport(UIKit)
+        guard let platformImage = UIImage(contentsOfFile: url.path) else { return nil }
+        return Image(uiImage: platformImage)
+        #elseif canImport(AppKit)
+        guard let platformImage = NSImage(contentsOfFile: url.path) else { return nil }
+        return Image(nsImage: platformImage)
+        #else
+        return nil
+        #endif
+    }
+
+    private static func resourceUrl() -> URL? {
+        for scale in scaleSearchOrder() {
+            if let url = Bundle.module.url(
+                forResource: "google@\(scale)x",
+                withExtension: "png",
+                subdirectory: "ProviderIcons"
+            ) {
+                return url
+            }
+        }
+        return nil
+    }
+
+    private static func scaleSearchOrder() -> [Int] {
+        let preferred = min(max(currentDisplayScale(), 1), 3)
+        var order = [preferred]
+        for scale in [2, 3, 1] where !order.contains(scale) {
+            order.append(scale)
+        }
+        return order
+    }
+
+    private static func currentDisplayScale() -> Int {
+        #if canImport(UIKit)
+        return Int(UIScreen.main.scale.rounded())
+        #elseif canImport(AppKit)
+        return Int((NSScreen.main?.backingScaleFactor ?? 2).rounded())
+        #else
+        return 2
+        #endif
     }
 }
