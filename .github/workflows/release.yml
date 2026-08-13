@@ -44,6 +44,8 @@ jobs:
     needs: [validate]
     if: needs.validate.result == 'success'
     runs-on: macos-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
     steps:
       - name: 📥 Checkout Code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -107,3 +109,82 @@ jobs:
           gh release create "${VERSION}" \
             --title "ThunderID iOS SDK v${VERSION}" \
             --generate-notes
+
+  package-quickstart:
+    name: 📦 Package Quickstart Sample
+    needs: [release]
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+    steps:
+      - name: 📥 Checkout Tag
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: "${{ needs.release.outputs.version }}"
+          persist-credentials: false
+
+      - name: 📦 Extract Quickstart Sample
+        run: git archive "${VERSION}" Samples/Quickstart | tar -x -C /tmp
+
+      - name: 🔗 Detach Sample's Package.swift from Local SDK Source
+        working-directory: /tmp/Samples/Quickstart
+        run: |
+          sed -i '' "s#\.package(path: \"../..\")#.package(url: \"https://github.com/thunder-id/ios-sdks\", exact: \"${VERSION}\")#" Package.swift
+          grep -q "exact: \"${VERSION}\"" Package.swift
+          # Stale — was resolved against the local monorepo package and leaks its dev-only
+          # dependencies (e.g. SwiftLint). Removing it forces a fresh resolve against the
+          # pinned remote dependency above.
+          rm -f Package.resolved
+
+      - name: 💎 Install xcodeproj Gem
+        run: gem install xcodeproj --version 1.28.1 --no-document
+
+      - name: 🔗 Detach Sample's Xcode Project from Local SDK Source
+        working-directory: /tmp/Samples/Quickstart
+        env:
+          PACKAGE_URL: https://github.com/thunder-id/ios-sdks
+        run: |
+          ruby <<'RUBY'
+          require 'xcodeproj'
+
+          project_path = 'Quickstart.xcodeproj'
+          project = Xcodeproj::Project.open(project_path)
+          version = ENV.fetch('VERSION')
+          package_url = ENV.fetch('PACKAGE_URL')
+
+          local_ref = project.root_object.package_references.find do |ref|
+            ref.is_a?(Xcodeproj::Project::Object::XCLocalSwiftPackageReference)
+          end
+          raise 'No local Swift package reference found in Quickstart.xcodeproj' unless local_ref
+
+          remote_ref = project.new(Xcodeproj::Project::Object::XCRemoteSwiftPackageReference)
+          remote_ref.repositoryURL = package_url
+          remote_ref.requirement = {'kind' => 'exactVersion', 'version' => version}
+
+          project.root_object.package_references.delete(local_ref)
+          project.root_object.package_references << remote_ref
+
+          project.objects.select { |obj| obj.isa == 'XCSwiftPackageProductDependency' }.each do |dep|
+            dep.package = remote_ref if dep.package == local_ref
+          end
+
+          project.save
+          RUBY
+
+      - name: 🚫 Reject Symlinks
+        working-directory: /tmp/Samples/Quickstart
+        run: |
+          if find . -type l | grep -q .; then
+            echo "Symbolic links found in the sample tree — refusing to archive." >&2
+            find . -type l -exec echo "  {}" \;
+            exit 1
+          fi
+
+      - name: 🗜️ Zip Sample
+        working-directory: /tmp/Samples
+        run: mv Quickstart ios-quickstart && zip -r "ios-quickstart-${VERSION}.zip" ios-quickstart -x "*.xcuserdatad/*"
+
+      - name: 🚀 Upload to Release
+        env:
+          GH_TOKEN: ${{ secrets.THUNDERID_AUTOMATION_BOT }}
+        run: gh release upload "${VERSION}" "/tmp/Samples/ios-quickstart-${VERSION}.zip"
