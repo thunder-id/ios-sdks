@@ -93,7 +93,7 @@ jobs:
           git add ThunderID.podspec
           git diff --cached --quiet || git commit -m "[Release] ThunderID v${{ steps.bump.outputs.version }}"
           for i in $(seq 1 5); do
-            git pull --rebase origin ${{ github.ref_name }}
+            git pull --rebase --autostash origin ${{ github.ref_name }}
             git push origin HEAD:${{ github.ref_name }} && break
             [ "$i" -eq 5 ] && exit 1
             sleep $((i * 3))
