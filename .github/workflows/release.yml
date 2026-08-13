@@ -87,14 +87,16 @@ jobs:
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
 
       - name: 📤 Commit, Tag & Push
+        env:
+          RELEASE_REF: ${{ github.ref_name }}
         run: |
           git config user.name "${{ env.RELEASE_GIT_USER_NAME }}"
           git config user.email "${{ env.RELEASE_GIT_USER_EMAIL }}"
           git add ThunderID.podspec
           git diff --cached --quiet || git commit -m "[Release] ThunderID v${{ steps.bump.outputs.version }}"
           for i in $(seq 1 5); do
-            git pull --rebase --autostash origin ${{ github.ref_name }}
-            git push origin HEAD:${{ github.ref_name }} && break
+            git pull --rebase --autostash origin "$RELEASE_REF"
+            git push origin HEAD:"$RELEASE_REF" && break
             [ "$i" -eq 5 ] && exit 1
             sleep $((i * 3))
           done
