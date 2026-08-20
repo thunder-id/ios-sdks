@@ -3,37 +3,50 @@
 
 import Foundation
 
+/// The authenticated user.
+///
+/// A deployment's claims are dynamic, so the user *is* the claim set: every claim comes
+/// through untouched and is readable by key. The few well-known claims mirror the
+/// `KnownUser` keys in the JavaScript SDK and are plain accessors, not mapped fields, so
+/// they read the claim of the same name and nothing else.
 public struct User: Codable {
-    public let sub: String
-    public let username: String?
-    public let email: String?
-    public let displayName: String?
-    public let profilePicture: String?
-    public let isNewUser: Bool?
-    public let claims: [String: AnyCodable]?
+    /// Every claim exactly as the server sent it.
+    public let claims: [String: AnyCodable]
 
-    enum CodingKeys: String, CodingKey {
-        case sub, username, email, isNewUser, claims
-        case displayName = "displayName"
-        case profilePicture = "picture"
+    public init(claims: [String: AnyCodable]) {
+        self.claims = claims
     }
 
-    public init(
-        sub: String,
-        username: String? = nil,
-        email: String? = nil,
-        displayName: String? = nil,
-        profilePicture: String? = nil,
-        isNewUser: Bool? = nil,
-        claims: [String: AnyCodable]? = nil
-    ) {
-        self.sub = sub
-        self.username = username
-        self.email = email
-        self.displayName = displayName
-        self.profilePicture = profilePicture
-        self.isNewUser = isNewUser
-        self.claims = claims
+    public init(from decoder: Decoder) throws {
+        claims = try decoder.singleValueContainer().decode([String: AnyCodable].self)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(claims)
+    }
+
+    /// Reads any claim by name, including ones this SDK has never heard of.
+    public subscript(claim: String) -> Any? {
+        claims[claim]?.value
+    }
+
+    public var sub: String? { self["sub"] as? String }
+    public var username: String? { self["username"] as? String }
+    public var email: String? { self["email"] as? String }
+    public var displayName: String? { self["displayName"] as? String }
+    public var givenName: String? { self["givenName"] as? String }
+    public var familyName: String? { self["familyName"] as? String }
+
+    /// Protocol claims: they describe the token, not the user.
+    public static let reservedClaims: Set<String> = [
+        "sub", "iss", "aud", "exp", "iat", "nbf", "jti", "azp", "nonce", "typ",
+        "at_hash", "c_hash", "sid", "scope", "client_id", "acr", "amr", "auth_time"
+    ]
+
+    /// Every claim except ``reservedClaims``.
+    public var profileClaims: [String: AnyCodable] {
+        claims.filter { !User.reservedClaims.contains($0.key) }
     }
 }
 

@@ -32,8 +32,7 @@ struct UserAvatarView: View {
     }
 
     private var pictureUrl: String? {
-        if let pic = user?.profilePicture, !pic.isEmpty { return pic }
-        if let pic = user?.claims?["picture"]?.value as? String, !pic.isEmpty { return pic }
+        if let pic = user?["picture"] as? String, !pic.isEmpty { return pic }
         return nil
     }
 

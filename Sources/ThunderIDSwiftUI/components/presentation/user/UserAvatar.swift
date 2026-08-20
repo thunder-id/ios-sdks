@@ -68,8 +68,8 @@ public struct BaseUserAvatar: View {
     /// SDK's precedence: `given_name` + `family_name` claims, then `displayName`, then `username`,
     /// then `email`, falling back to `"Guest"`.
     private var seedName: String {
-        if let givenName = nonBlankString(user?.claims?["given_name"]?.value),
-           let familyName = nonBlankString(user?.claims?["family_name"]?.value) {
+        if let givenName = nonBlankString(user?["given_name"]),
+           let familyName = nonBlankString(user?["family_name"]) {
             return "\(givenName) \(familyName)"
         }
         if let displayName = nonBlankString(user?.displayName) { return displayName }
@@ -78,13 +78,13 @@ public struct BaseUserAvatar: View {
         return "Guest"
     }
 
-    /// The user's profile picture, checked in the same order as the web SDK: the mapped `picture`
+    /// The user's profile picture, checked in the same order as the web SDK: the `picture`
     /// claim first, then a set of common alternate claim keys used by non-standard identity providers.
     private var pictureUrl: String? {
-        if let profilePicture = nonBlankString(user?.profilePicture) { return profilePicture }
+        if let profilePicture = nonBlankString(user?["picture"]) { return profilePicture }
         let alternateKeys = ["profileUrl", "profile", "URL", "avatarUrl", "avatar"]
         for key in alternateKeys {
-            if let value = nonBlankString(user?.claims?[key]?.value) { return value }
+            if let value = nonBlankString(user?[key]) { return value }
         }
         return nil
     }
