@@ -260,14 +260,7 @@ public final class ThunderIDClient {
         if let token = tokenStore?.accessToken(),
            let claims = try? decodeJwtToken(token) as [String: AnyCodable],
            let sub = claims["sub"]?.value as? String, !sub.isEmpty {
-            let user = User(
-                sub: sub,
-                username: (claims["username"]?.value ?? claims["preferred_username"]?.value) as? String,
-                email: claims["email"]?.value as? String,
-                displayName: (claims["name"]?.value ?? claims["displayName"]?.value) as? String,
-                profilePicture: claims["picture"]?.value as? String,
-                claims: claims
-            )
+            let user = User(claims: claims)
             currentUser = user
             return user
         }
@@ -362,14 +355,7 @@ public final class ThunderIDClient {
         let tokenResponse = TokenResponse(accessToken: assertion, tokenType: "Bearer")
         try tokenStore!.save(tokenResponse)
         if let claims = try? decodeJwtToken(assertion) as [String: AnyCodable] {
-            let sub = claims["sub"]?.value as? String ?? ""
-            currentUser = User(
-                sub: sub,
-                username: claims["username"]?.value as? String ?? claims["preferred_username"]?.value as? String,
-                email: claims["email"]?.value as? String,
-                displayName: claims["name"]?.value as? String ?? claims["displayName"]?.value as? String,
-                claims: claims
-            )
+            currentUser = User(claims: claims)
         }
     }
 }

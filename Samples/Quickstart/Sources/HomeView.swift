@@ -84,8 +84,8 @@ struct HomeView: View {
 // MARK: - Claim Decoding Helper
 
 /// Reads a unix-seconds numeric claim (`Int` or `Double`) from a decoded JWT/userinfo claims map.
-func claimUnixSeconds(_ codable: AnyCodable?) -> TimeInterval? {
-    guard let value = codable?.value else { return nil }
+func claimUnixSeconds(_ claim: Any?) -> TimeInterval? {
+    guard let value = claim else { return nil }
     if let intValue = value as? Int { return TimeInterval(intValue) }
     if let doubleValue = value as? Double { return doubleValue }
     return nil
@@ -116,7 +116,7 @@ private struct HomeScreen: View {
     let onToken: () -> Void
 
     private var greetingName: String {
-        if let given = state.user?.claims?["given_name"]?.value as? String, !given.isEmpty {
+        if let given = state.user?["given_name"] as? String, !given.isEmpty {
             return given
         }
         if let email = state.user?.email, let prefix = email.split(separator: "@").first, !prefix.isEmpty {
@@ -125,8 +125,8 @@ private struct HomeScreen: View {
         return "there"
     }
 
-    private var authTimeClaim: TimeInterval? { claimUnixSeconds(state.user?.claims?["auth_time"]) }
-    private var expClaim: TimeInterval? { claimUnixSeconds(state.user?.claims?["exp"]) }
+    private var authTimeClaim: TimeInterval? { claimUnixSeconds(state.user?["auth_time"]) }
+    private var expClaim: TimeInterval? { claimUnixSeconds(state.user?["exp"]) }
 
     private var organisationName: String {
         guard let handle = (try? state.client.getConfiguration())?.organizationHandle, !handle.isEmpty else {
