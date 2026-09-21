@@ -1,0 +1,30 @@
+# This workflow holds a pull request until its cross-SDK parity decision is recorded.
+# The check itself lives in thunder-id/thunderid; this file owns only the triggers.
+#
+# Uses:
+#   OS: ubuntu-latest
+
+name: 🔀 Parity Check
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, edited, labeled, unlabeled]
+  # So a reply carrying the port links refreshes the checklist without waiting for a push.
+  issue_comment:
+    types: [created, edited]
+  merge_group:
+
+# Grouped per event as well as per pull request: a reply refreshing the checklist must not
+# cancel the run that is gating the pull request.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    name: 🔀 Cross-SDK Parity
+    permissions:
+      contents: read
+      pull-requests: write
+    # Pin to a tag once one is cut, so shared workflow changes land here deliberately.
+    uses: thunder-id/thunderid/.github/workflows/sdk-parity-check.yml@main
