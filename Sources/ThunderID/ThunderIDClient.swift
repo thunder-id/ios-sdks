@@ -21,13 +21,21 @@ public final class ThunderIDClient {
     // MARK: - Lifecycle
 
     public func initialize(config: ThunderIDConfig, storage: StorageAdapter? = nil) async throws -> Bool {
+        try await initialize(config: config, storage: storage, session: nil)
+    }
+
+    /// `session` is a test-only seam (`@testable`): it lets a test substitute a `URLProtocol`-stubbed
+    /// session for the pinned one `initialize(config:storage:)` builds by default, so the HTTP layer
+    /// can be exercised without a real network. Public callers always go through the two-argument
+    /// overload above, which passes `nil` and keeps today's behavior unchanged.
+    func initialize(config: ThunderIDConfig, storage: StorageAdapter?, session: URLSession?) async throws -> Bool {
         guard self.config == nil else {
             throw ThunderIDError(code: .alreadyInitialized, message: "SDK is already initialized")
         }
         try validateConfig(config)
         self.config = config
         let adapter = storage ?? config.storage ?? KeychainStorageAdapter(service: "dev.\(config.vendor).sdk")
-        let http = HTTPClient(baseUrl: config.baseUrl)
+        let http = HTTPClient(baseUrl: config.baseUrl, session: session)
         tokenStore = TokenStore(storage: adapter)
         jwksCache = JWKSCache(httpClient: http)
         tokenValidator = TokenValidator(jwksCache: jwksCache!, config: config)
@@ -161,7 +169,7 @@ public final class ThunderIDClient {
                 "client_id": clientId
             ]
             if let httpClient {
-                let _: EmptyDecodable? = try? await httpClient.post(
+                let _: EmptyResponse? = try? await httpClient.post(
                     path: "/oauth2/revoke",
                     body: body,
                     requiresAuth: false
@@ -286,6 +294,18 @@ public final class ThunderIDClient {
         return try await httpClient!.put(path: "/users/me", body: ["attributes": payload])
     }
 
+    /// Changes one of the signed-in user's own credentials via `POST /users/me/update-credentials`.
+    ///
+    /// The self-service write path does not verify the account's existing value today, so this
+    /// call collects only the new value, matching the Android/React/Vue SDKs.
+    public func updateUserCredentials(attribute: String = "password", newValue: String) async throws {
+        try requireInitialized()
+        let _: EmptyResponse = try await httpClient!.post(
+            path: "/users/me/update-credentials",
+            body: ["attributes": [attribute: newValue]]
+        )
+    }
+
     /// Overrides the cached user, e.g. after merging in freshly-fetched `/users/me` attributes.
     public func setCachedUser(_ user: User) {
         currentUser = user
@@ -368,8 +388,6 @@ public final class ThunderIDClient {
         }
     }
 }
-
-private struct EmptyDecodable: Decodable {}
 
 private extension Data {
     init?(base64URLEncoded string: String) {

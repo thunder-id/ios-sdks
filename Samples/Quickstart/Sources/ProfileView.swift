@@ -37,6 +37,12 @@ struct ProfileScreen: View {
                 // (light/dark-adaptive), so this screen only supplies the surrounding chrome.
                 UserProfile()
                     .padding(.horizontal, 20)
+                    .padding(.bottom, 24)
+
+                // ChangeCredential manages the credential declared on the user type schema; its
+                // heading and labels follow that credential's own display name from the console.
+                ChangeCredential()
+                    .padding(.horizontal, 20)
                     .padding(.bottom, 40)
             }
         }

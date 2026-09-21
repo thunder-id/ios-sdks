@@ -53,6 +53,7 @@ final class ComponentTests: XCTestCase {
         let requiredKeys = [
             "signIn.button", "signOut.button", "signUp.button",
             "userProfile.title", "userProfile.save", "userProfile.edit", "userProfile.cancel",
+            "changeCredential.heading", "changeCredential.submitShort", "changeCredential.unavailable",
             "languageSwitcher.title",
         ]
         for key in requiredKeys {

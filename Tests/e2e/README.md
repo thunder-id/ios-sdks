@@ -54,6 +54,12 @@ container and outlives both a state reset and a reinstall. A previous run can le
 signed in, so every flow starts with the `ensure-signed-out` subflow rather than assuming a clean
 device.
 
+**`change-credential.yaml` actually changes the test user's password.** The self-service
+credential write path has no "current value" to verify against, so there is nothing to gate the
+change behind. The flow changes it to a temporary value and back to `TestPassword@123` before
+finishing. If a run fails between those two steps, `e2e_mobile_user` is left on the temporary
+password until a re-run of `change-credential.yaml` changes it back.
+
 **`npx thunderid` cannot be used in CI.** It renders an interactive TUI and aborts with
 `bubbletea: could not open TTY` whenever stdout is not a terminal. `run-e2e.sh` downloads the
 release directly and calls the distribution's own `setup.sh` and `start.sh`, which take the same

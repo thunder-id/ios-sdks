@@ -1,0 +1,61 @@
+appId: dev.thunderid.Quickstart
+---
+# Signs in with E2E_USERNAME/E2E_PASSWORD via the server-driven credentials step and waits for the
+# authenticated "Session active" state. Shared by every flow that needs to start from a signed-in
+# state; the caller is expected to have defined those two env vars itself.
+
+- tapOn: "Sign in"
+
+# The credentials step is rendered from the flow definition the server returns, not from static
+# native views. The SDK tags each input with the field's identifier and each button with the
+# action's ref, so these ids track the server's flow response.
+- extendedWaitUntil:
+    visible:
+      id: "thunderid-field-username"
+    timeout: 20000
+
+# "Visible" fires the instant the field is on screen, which on a loaded CI runner can be before
+# the view has actually finished settling (SwiftUI still completing its own layout/render pass
+# after the flow response arrives). Typing into a field that's mid-settle has been observed to
+# bind an empty string despite the keystrokes displaying correctly - the input lands, then gets
+# discarded when the view finishes settling under it. Waiting for animations to end first gives
+# that settling a beat to finish before anything gets typed.
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# A slow CI runner can take long enough filling and submitting this form that the server's
+# credentials-step challenge expires before submission, which silently resets the form instead
+# of authenticating - "Session active" then never appears. That is an expired challenge, not a
+# regression, so retry the fill-and-submit rather than fail outright.
+#
+# The retried view is not guaranteed to come back blank - a failed submission can just as easily
+# leave the previous attempt's text sitting in the field - so each retry erases before typing
+# rather than assuming an empty field.
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn:
+          id: "thunderid-field-username"
+      - eraseText: 50
+      - inputText: ${E2E_USERNAME}
+
+      # tapOn's own element-lookup timeout is much shorter than extendedWaitUntil's, and is not
+      # always enough on a loaded CI runner, so wait explicitly rather than tap blind.
+      - extendedWaitUntil:
+          visible:
+            id: "thunderid-field-password"
+          timeout: 20000
+      - tapOn:
+          id: "thunderid-field-password"
+      - eraseText: 50
+      - inputText: ${E2E_PASSWORD}
+
+      - tapOn:
+          id: "thunderid-action-action_001"
+
+      - runFlow: dismiss-save-password.yaml
+
+      # Authenticated state.
+      - extendedWaitUntil:
+          visible: "Session active"
+          timeout: 30000

@@ -296,7 +296,7 @@ public struct BaseUserProfile<Content: View>: View {
         state.isLoading = true
         defer { state.isLoading = false }
         do {
-            async let loadedSchema = thunderState.client.getUserSchema()
+            async let loadedSchema = thunderState.getUserSchema()
             async let loadedProfile = thunderState.client.getUserProfile()
             let (schemaResult, profileResult) = try await (loadedSchema, loadedProfile)
             state.schema = schemaResult

@@ -18,6 +18,12 @@ public final class ThunderIDState: ObservableObject {
     /// Mirrors ``ThunderIDConfig/fetchUserProfile``.
     public private(set) var fetchUserProfileEnabled: Bool = true
 
+    /// Cached `GET /users/me/meta` result, shared by every mounted view that needs the user type
+    /// schema (e.g. `UserProfile` and `ChangeCredential`), so a screen that mounts several of them
+    /// issues one request instead of one per view.
+    private var userSchema: [String: AttributeSchema]?
+    private var schemaTask: Task<[String: AttributeSchema], Error>?
+
     public var isSignedIn: Bool { user != nil }
 
     init(client: ThunderIDClient, i18n: ThunderIDI18n) {
@@ -52,11 +58,26 @@ public final class ThunderIDState: ObservableObject {
         do {
             let signedIn = try await client.isSignedIn()
             user = signedIn ? try await client.getUser() : nil
+            userSchema = nil
+            schemaTask = nil
             if signedIn && fetchUserProfileEnabled { launchUserProfileSync() }
             error = nil
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// Returns the cached user type schema, fetching it once on first access. Concurrent callers
+    /// during that first fetch share the same in-flight request rather than issuing their own.
+    public func getUserSchema() async throws -> [String: AttributeSchema] {
+        if let userSchema { return userSchema }
+        if let schemaTask { return try await schemaTask.value }
+        let task = Task { try await client.getUserSchema() }
+        schemaTask = task
+        defer { schemaTask = nil }
+        let schema = try await task.value
+        userSchema = schema
+        return schema
     }
 
     /// Merges `profile`'s attributes into `user`'s claims and syncs the client's cache to match.

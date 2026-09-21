@@ -144,7 +144,9 @@ final class HTTPClient {
     }
 }
 
-private struct EmptyResponse: Decodable {}
+/// Marker type for a `204 No Content` (or otherwise empty-body) response. `decodeSuccess`
+/// special-cases it so callers never try to JSON-decode an empty body.
+struct EmptyResponse: Decodable {}
 
 private extension HTTPClient {
     func debugLogRequest(_ request: URLRequest, body: [String: Any]?) {
