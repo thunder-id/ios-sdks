@@ -67,6 +67,15 @@ public struct SignIn: View {
 
         if action.eventType?.uppercased() == "TRIGGER" {
             triggerButton(for: action, signInState: signInState, isSpinning: isSpinning, isBlocked: isBlocked)
+        } else if FlowComponentMerging.isOutlinedVariant(action.variant) {
+            GenericTriggerButton(
+                label: resolvedActionLabel(action, signInState: signInState),
+                isLoading: isSpinning,
+                disabled: isBlocked
+            ) {
+                signInState.submit(actionId: action.id)
+            }
+            .accessibilityIdentifier("thunderid-action-\(action.id)")
         } else {
             Button {
                 signInState.submit(actionId: action.id)
@@ -149,6 +158,8 @@ public final class SignInState: ObservableObject {
     @Published public fileprivate(set) var inputs: [FlowInput] = []
     @Published public fileprivate(set) var actions: [FlowAction] = []
     @Published public fileprivate(set) var components: [FlowComponent] = []
+    /// The step's `additionalData`, read by data-bound display components through their `source`.
+    @Published public fileprivate(set) var additionalData: [String: AnyCodable] = [:]
     @Published public fileprivate(set) var isLoading: Bool = false
     /// The actionId currently being submitted, if known. When set, only the button matching
     /// this id shows a spinner while `isLoading` is true — the rest are disabled but keep
@@ -183,6 +194,7 @@ public final class SignInState: ObservableObject {
         challengeToken = response.challengeToken
         inputs = response.data?.inputs ?? []
         components = response.data?.meta?.components ?? []
+        additionalData = response.data?.additionalData ?? [:]
         actions = FlowComponentMerging.enrichActions(response.data?.actions ?? [], with: components)
         seedFieldValues()
     }

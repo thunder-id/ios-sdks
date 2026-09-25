@@ -23,6 +23,8 @@ extension SignUp {
             return AnyView(dividerComponentView(component, signUpState: signUpState))
         } else if type == "ACTION" {
             return AnyView(actionComponentView(component, signUpState: signUpState))
+        } else if type == "KEY_VALUE_LIST" {
+            return AnyView(keyValueListComponentView(component, signUpState: signUpState))
         } else {
             return AnyView(EmptyView())
         }
@@ -30,7 +32,7 @@ extension SignUp {
 
     @ViewBuilder
     private func textComponentView(_ component: FlowComponent, signUpState: SignUpState) -> some View {
-        let isHeading = component.variant == "HEADING_1"
+        let isHeading = component.variant?.hasPrefix("HEADING_") == true
         let isCentered = component.align == "center"
         Text(resolved(component.label, signUpState: signUpState))
             .font(isHeading ? .title2 : .body)
@@ -91,6 +93,18 @@ extension SignUp {
             actionButton(for: action, signUpState: signUpState)
         } else {
             EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func keyValueListComponentView(_ component: FlowComponent, signUpState: SignUpState) -> some View {
+        let raw = component.source.flatMap { signUpState.additionalData[$0]?.value }
+        let pairs = KeyValuePair.list(from: raw).map {
+            KeyValuePair(label: resolved($0.label, signUpState: signUpState), value: $0.value)
+        }
+        // An empty panel tells the user nothing, so a list with no pairs renders nothing at all.
+        if !pairs.isEmpty {
+            KeyValueList(label: resolved(component.label, signUpState: signUpState), pairs: pairs)
         }
     }
 
