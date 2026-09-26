@@ -56,6 +56,37 @@ final class HTTPClient {
         let _: EmptyResponse = try await perform(request)
     }
 
+    /// Resolves `path` against `baseUrl`, for callers that build absolute URLs themselves.
+    func url(forPath path: String) -> URL? {
+        URL(string: baseUrl + path)
+    }
+
+    /// Sends an authenticated request to an absolute URL, which may live on a different host from `baseUrl`.
+    /// When `fetcher` is set it replaces the `URLSession` transport for this request; the access token is
+    /// already attached to the request it receives.
+    func send<T: Decodable>(
+        method: String,
+        url: URL,
+        body: Data? = nil,
+        fetcher: ThunderIDFetcher? = nil
+    ) async throws -> T {
+        guard url.scheme == "https" else {
+            throw ThunderIDError(code: .invalidConfiguration, message: "Request URL must use HTTPS")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.assumesHTTP3Capable = false
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        if let provider = accessTokenProvider {
+            let token = try await provider()
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        debugLogRequest(request, body: nil)
+        return try await perform(request, fetcher: fetcher)
+    }
+
     private func buildRequest(
         method: String, path: String, body: [String: Any]?, requiresAuth: Bool
     ) async throws -> URLRequest {
@@ -83,10 +114,14 @@ final class HTTPClient {
         return request
     }
 
-    private func perform<T: Decodable>(_ request: URLRequest) async throws -> T {
+    private func perform<T: Decodable>(_ request: URLRequest, fetcher: ThunderIDFetcher? = nil) async throws -> T {
         let (data, response): (Data, URLResponse)
         do {
-            (data, response) = try await session.data(for: request)
+            if let fetcher {
+                (data, response) = try await fetcher(request)
+            } else {
+                (data, response) = try await session.data(for: request)
+            }
             debugLogResponse(response, data: data)
         } catch {
             let nsError = error as NSError
@@ -102,6 +137,10 @@ final class HTTPClient {
         guard let http = response as? HTTPURLResponse else {
             throw ThunderIDError(code: .networkError, message: "Invalid response")
         }
+        return try handleResponse(http, data: data)
+    }
+
+    private func handleResponse<T: Decodable>(_ http: HTTPURLResponse, data: Data) throws -> T {
         switch http.statusCode {
         case 200...299:
             return try decodeSuccess(data)
@@ -113,6 +152,10 @@ final class HTTPClient {
             throw ThunderIDError(code: .invalidInput, message: detail)
         case 401:
             throw ThunderIDError(code: .authenticationFailed, message: "Unauthorized")
+        case 403:
+            throw ThunderIDError(code: .forbidden, message: "Forbidden")
+        case 404:
+            throw ThunderIDError(code: .notFound, message: "Not found")
         case 409:
             throw ThunderIDError(code: .userAlreadyExists, message: "Conflict")
         case 500...599:

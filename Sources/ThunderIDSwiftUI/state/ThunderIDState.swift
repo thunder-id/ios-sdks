@@ -14,6 +14,8 @@ public final class ThunderIDState: ObservableObject {
 
     public let client: ThunderIDClient
     public let i18n: ThunderIDI18n
+    /// Coordinates refetching between the management queries and mutations built from this state.
+    public let invalidator = ResourceInvalidator()
 
     /// Mirrors ``ThunderIDConfig/fetchUserProfile``.
     public private(set) var fetchUserProfileEnabled: Bool = true
