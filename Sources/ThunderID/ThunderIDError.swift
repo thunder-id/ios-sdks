@@ -39,6 +39,10 @@ public enum ThunderIDErrorCode: String {
     case passkeyNoCredential = "PASSKEY_NO_CREDENTIAL"
     case passkeyFailed = "PASSKEY_FAILED"
 
+    // Management
+    case forbidden = "FORBIDDEN"
+    case notFound = "NOT_FOUND"
+
     // Network & Server
     case networkError = "NETWORK_ERROR"
     case requestTimeout = "REQUEST_TIMEOUT"

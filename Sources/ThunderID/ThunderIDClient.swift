@@ -389,6 +389,42 @@ public final class ThunderIDClient {
     }
 }
 
+// MARK: - Management
+
+public extension ThunderIDClient {
+    /// Application management operations. Throws until `initialize(config:)` has run.
+    var applications: ApplicationsAPI {
+        get throws { ApplicationsAPI(transport: try managementTransport("applications", override: \.applications)) }
+    }
+
+    /// User management operations. Throws until `initialize(config:)` has run.
+    var users: UsersAPI {
+        get throws { UsersAPI(transport: try managementTransport("users", override: \.users)) }
+    }
+
+    /// Agent management operations. Throws until `initialize(config:)` has run.
+    var agents: AgentsAPI {
+        get throws { AgentsAPI(transport: try managementTransport("agents", override: \.agents)) }
+    }
+}
+
+private extension ThunderIDClient {
+    func managementTransport(
+        _ collection: String,
+        override: KeyPath<ThunderIDEndpoints, String?>
+    ) throws -> ManagementTransport {
+        let config = try requireInitialized()
+        guard let httpClient else {
+            throw ThunderIDError(code: .sdkNotInitialized, message: "Call initialize() before using the SDK")
+        }
+        return ManagementTransport(
+            httpClient: httpClient,
+            collectionUrl: config.endpoints[keyPath: override] ?? "\(config.baseUrl)/\(collection)",
+            fetcher: config.fetcher
+        )
+    }
+}
+
 private extension Data {
     init?(base64URLEncoded string: String) {
         var base64 = string
