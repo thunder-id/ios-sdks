@@ -48,6 +48,14 @@ public enum DefaultStrings {
         "changeCredential.generic.error": "An error occurred while updating your {credentialLower}. Please try again.",
         "changeCredential.unavailable": "{credential} changes unavailable",
         "changeCredential.unavailable.description": "Please contact your administrator.",
-        "languageSwitcher.title": "Language"
+        "languageSwitcher.title": "Language",
+        "pagedSelect.placeholder": "Select an option",
+        "pagedSelect.empty": "No options found.",
+        "pagedSelect.loadMore": "Load more",
+        "pagedSelect.retry": "Retry",
+        "pagedSelect.loadError": "Failed to load options.",
+        "userSelect.placeholder": "Select a user",
+        "userSelect.empty": "No users found.",
+        "userSelect.loadError": "Failed to load users."
     ]
 }

@@ -10,13 +10,16 @@ struct FlowInputFields: View {
 
     var body: some View {
         ForEach(inputs, id: \.name) { input in
-            FlowInputField(
-                name: input.name,
-                type: input.type,
-                label: input.name,
-                placeholder: input.name,
-                binding: bindValue(input.name)
-            )
+            // USER_SELECT is skipped (see `warnIfUserSelectSkipped`), never shown as free text.
+            if input.type != "USER_SELECT" {
+                FlowInputField(
+                    name: input.name,
+                    type: input.type,
+                    label: input.name,
+                    placeholder: input.name,
+                    binding: bindValue(input.name)
+                )
+            }
         }
     }
 }

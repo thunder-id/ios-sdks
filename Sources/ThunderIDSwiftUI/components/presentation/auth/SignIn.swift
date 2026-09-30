@@ -184,6 +184,7 @@ public final class SignInState: ObservableObject {
         inputs = response.data?.inputs ?? []
         components = response.data?.meta?.components ?? []
         actions = FlowComponentMerging.enrichActions(response.data?.actions ?? [], with: components)
+        warnIfUserSelectSkipped(inputs: inputs, components: components)
         seedFieldValues()
     }
 
