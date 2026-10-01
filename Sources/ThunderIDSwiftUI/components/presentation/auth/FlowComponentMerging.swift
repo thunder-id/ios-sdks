@@ -51,4 +51,10 @@ enum FlowComponentMerging {
         }
         return result
     }
+
+    /// Whether a non-TRIGGER action asks for the outlined, secondary look rather than the filled
+    /// primary one. A missing variant keeps the filled look, so flows that never set one render as before.
+    static func isOutlinedVariant(_ variant: String?) -> Bool {
+        ["SECONDARY", "OUTLINED"].contains(variant?.uppercased() ?? "")
+    }
 }

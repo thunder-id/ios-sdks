@@ -285,7 +285,8 @@ private struct SignInSheet: View {
             VStack(alignment: .leading, spacing: 0) {
                 SignIn(applicationId: applicationId)
                     .padding(.horizontal, 24)
-                    .padding(.top, 8)
+                    .padding(.top, 32)
+                    .padding(.bottom, 24)
 
                 Spacer()
             }
@@ -310,7 +311,8 @@ private struct SignUpSheet: View {
             VStack(alignment: .leading, spacing: 0) {
                 SignUp(applicationId: applicationId)
                     .padding(.horizontal, 24)
-                    .padding(.top, 8)
+                    .padding(.top, 32)
+                    .padding(.bottom, 24)
 
                 Spacer()
             }

@@ -356,10 +356,13 @@ public struct FlowComponent: Decodable {
     public let eventType: String?
     public let align: String?
     public let icon: String?
+    /// The `additionalData` key a data-bound display component (e.g. `KEY_VALUE_LIST`) reads its
+    /// value from at render time.
+    public let source: String?
     public let components: [FlowComponent]?
 
     enum CodingKeys: String, CodingKey {
-        case id, ref, type, category, label, placeholder, variant, eventType, align, components
+        case id, ref, type, category, label, placeholder, variant, eventType, align, source, components
         case icon = "image"
         case startIcon
     }
@@ -378,6 +381,7 @@ public struct FlowComponent: Decodable {
         self.icon =
             (try? container.decode(String.self, forKey: .icon)) ??
             (try? container.decode(String.self, forKey: .startIcon))
+        self.source = try? container.decode(String.self, forKey: .source)
         self.components = try? container.decode([FlowComponent].self, forKey: .components)
     }
 }
