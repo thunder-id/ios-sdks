@@ -10,13 +10,16 @@ struct FlowInputFields: View {
 
     var body: some View {
         ForEach(inputs, id: \.name) { input in
-            FlowInputField(
-                name: input.name,
-                type: input.type,
-                label: input.name,
-                placeholder: input.name,
-                binding: bindValue(input.name)
-            )
+            // Picker inputs are skipped (see `warnIfPagedSelectSkipped`), never shown as free text.
+            if !pagedSelectInputTypes.contains(input.type ?? "") {
+                FlowInputField(
+                    name: input.name,
+                    type: input.type,
+                    label: input.name,
+                    placeholder: input.name,
+                    binding: bindValue(input.name)
+                )
+            }
         }
     }
 }

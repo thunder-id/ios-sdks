@@ -49,6 +49,20 @@ public enum DefaultStrings {
         "changeCredential.generic.error": "An error occurred while updating your {credentialLower}. Please try again.",
         "changeCredential.unavailable": "{credential} changes unavailable",
         "changeCredential.unavailable.description": "Please contact your administrator.",
-        "languageSwitcher.title": "Language"
+        "languageSwitcher.title": "Language",
+        "pagedSelect.placeholder": "Select an option",
+        "pagedSelect.empty": "No options found.",
+        "pagedSelect.loadMore": "Load more",
+        "pagedSelect.retry": "Retry",
+        "pagedSelect.loadError": "Failed to load options.",
+        "userSelect.placeholder": "Select a user",
+        "userSelect.empty": "No users found.",
+        "userSelect.loadError": "Failed to load users.",
+        "authFlowSelect.placeholder": "Select a login flow",
+        "authFlowSelect.empty": "No login flows found.",
+        "authFlowSelect.loadError": "Failed to load login flows.",
+        "userTypeSelect.placeholder": "Select a user type",
+        "userTypeSelect.empty": "No user types found.",
+        "userTypeSelect.loadError": "Failed to load user types."
     ]
 }

@@ -196,6 +196,7 @@ public final class SignInState: ObservableObject {
         components = response.data?.meta?.components ?? []
         additionalData = response.data?.additionalData ?? [:]
         actions = FlowComponentMerging.enrichActions(response.data?.actions ?? [], with: components)
+        warnIfPagedSelectSkipped(inputs: inputs, components: components)
         seedFieldValues()
     }
 

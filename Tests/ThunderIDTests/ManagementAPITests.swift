@@ -169,4 +169,95 @@ final class ManagementAPITests: XCTestCase {
         }
         XCTAssertTrue(recorder.requests.isEmpty)
     }
+
+    func testFlowsListSendsTheFlowTypeAndPaging() async throws {
+        let recorder = RecordingFetcher()
+        recorder.respond("""
+        {"totalResults":75,"startIndex":31,"count":1,"flows":[
+        {"id":"flow-1","handle":"password","name":"Password login","flowType":"AUTHENTICATION",
+        "activeVersion":2,"isReadOnly":false,"createdAt":"2026-01-01","updatedAt":"2026-01-02"}]}
+        """)
+        let client = try await makeClient(fetcher: recorder.fetcher)
+
+        let page = try await client.flows.list(limit: 30, offset: 30, flowType: .authentication)
+
+        XCTAssertEqual(page.totalResults, 75)
+        XCTAssertEqual(page.flows.first?.id, "flow-1")
+        XCTAssertEqual(page.flows.first?.name, "Password login")
+        let request = try XCTUnwrap(recorder.requests.first)
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.url?.absoluteString, "\(baseUrl)/flows?flowType=AUTHENTICATION&limit=30&offset=30")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer admin-token")
+    }
+
+    func testFlowsListWithoutAFlowTypeSendsNoFilterAndToleratesMissingOptionalFields() async throws {
+        let recorder = RecordingFetcher()
+        recorder.respond(#"{"totalResults":1,"startIndex":1,"count":1,"flows":[{"id":"f","handle":"h","name":"N","flowType":"REGISTRATION"}]}"#)
+        let client = try await makeClient(fetcher: recorder.fetcher)
+
+        let page = try await client.flows.list()
+
+        XCTAssertNil(page.flows.first?.activeVersion)
+        XCTAssertEqual(recorder.requests.first?.url?.absoluteString, "\(baseUrl)/flows")
+    }
+
+    func testUserTypesListSendsPagingAndDecodesHandles() async throws {
+        let recorder = RecordingFetcher()
+        recorder.respond("""
+        {"totalResults":2,"startIndex":1,"count":2,"types":[
+        {"id":"type-1","handle":"employee","displayName":"Staff","ouId":"ou-1","allowSelfRegistration":false,"isReadOnly":false},
+        {"id":"type-2","handle":"contractor","displayName":"Staff"}]}
+        """)
+        let client = try await makeClient(fetcher: recorder.fetcher)
+
+        let page = try await client.userTypes.list(limit: 30, offset: 0)
+
+        XCTAssertEqual(page.types.map(\.handle), ["employee", "contractor"])
+        XCTAssertEqual(recorder.requests.first?.url?.absoluteString, "\(baseUrl)/user-types?limit=30&offset=0")
+    }
+
+    func testFlowAndUserTypeEndpointsOverrideTargetTheResourceServer() async throws {
+        let recorder = RecordingFetcher()
+        recorder.respond(#"{"totalResults":0,"startIndex":1,"count":0,"flows":[],"types":[]}"#)
+        let client = try await makeClient(
+            fetcher: recorder.fetcher,
+            endpoints: .init(flows: "https://rs.example.com/flows/", userTypes: "https://rs.example.com/user-types")
+        )
+
+        _ = try await client.flows.list(flowType: .authentication)
+        _ = try await client.userTypes.list(limit: 10)
+
+        XCTAssertEqual(recorder.requests.map { $0.url?.absoluteString }, [
+            "https://rs.example.com/flows?flowType=AUTHENTICATION",
+            "https://rs.example.com/user-types?limit=10"
+        ])
+    }
+
+    func testFlowAndUserTypeListsRequireInitialization() {
+        XCTAssertThrowsError(try ThunderIDClient().flows) { error in
+            XCTAssertEqual((error as? ThunderIDError)?.code, .sdkNotInitialized)
+        }
+        XCTAssertThrowsError(try ThunderIDClient().userTypes) { error in
+            XCTAssertEqual((error as? ThunderIDError)?.code, .sdkNotInitialized)
+        }
+    }
+
+    func testForbiddenOnTheFlowAndUserTypeListsHasItsOwnCode() async throws {
+        let recorder = RecordingFetcher()
+        recorder.respond("{}", status: 403)
+        let client = try await makeClient(fetcher: recorder.fetcher)
+
+        do {
+            _ = try await client.flows.list()
+            XCTFail("Expected forbidden")
+        } catch let error as ThunderIDError {
+            XCTAssertEqual(error.code, .forbidden)
+        }
+        do {
+            _ = try await client.userTypes.list()
+            XCTFail("Expected forbidden")
+        } catch let error as ThunderIDError {
+            XCTAssertEqual(error.code, .forbidden)
+        }
+    }
 }
