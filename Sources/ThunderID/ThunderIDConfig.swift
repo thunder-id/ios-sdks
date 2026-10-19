@@ -126,11 +126,21 @@ public struct ThunderIDEndpoints {
     public var agents: String?
     public var applications: String?
     public var users: String?
+    public var flows: String?
+    public var userTypes: String?
 
-    public init(agents: String? = nil, applications: String? = nil, users: String? = nil) {
+    public init(
+        agents: String? = nil,
+        applications: String? = nil,
+        users: String? = nil,
+        flows: String? = nil,
+        userTypes: String? = nil
+    ) {
         self.agents = agents
         self.applications = applications
         self.users = users
+        self.flows = flows
+        self.userTypes = userTypes
     }
 }
 

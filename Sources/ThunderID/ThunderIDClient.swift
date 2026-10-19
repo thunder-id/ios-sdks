@@ -402,6 +402,16 @@ public extension ThunderIDClient {
         get throws { UsersAPI(transport: try managementTransport("users", override: \.users)) }
     }
 
+    /// Flow listing. Throws until `initialize(config:)` has run.
+    var flows: FlowsAPI {
+        get throws { FlowsAPI(transport: try managementTransport("flows", override: \.flows)) }
+    }
+
+    /// User type listing. Throws until `initialize(config:)` has run.
+    var userTypes: UserTypesAPI {
+        get throws { UserTypesAPI(transport: try managementTransport("user-types", override: \.userTypes)) }
+    }
+
     /// Agent management operations. Throws until `initialize(config:)` has run.
     var agents: AgentsAPI {
         get throws { AgentsAPI(transport: try managementTransport("agents", override: \.agents)) }

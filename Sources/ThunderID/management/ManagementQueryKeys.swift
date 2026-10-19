@@ -16,6 +16,16 @@ public enum UserQueryKeys {
     public static let users = "users"
 }
 
+/// Cache keys for flow resources.
+public enum FlowQueryKeys {
+    public static let flows = "flows"
+}
+
+/// Cache keys for user type resources.
+public enum UserTypeQueryKeys {
+    public static let userTypes = "userTypes"
+}
+
 /// Cache keys for agent resources.
 public enum AgentQueryKeys {
     public static let agent = "agent"
