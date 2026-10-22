@@ -65,3 +65,22 @@ public struct UpdateManagedUserRequest: Codable {
         self.attributes = attributes
     }
 }
+
+/// A type a user can be created as.
+public struct ManagedUserType: Codable {
+    public let id: String
+    public let handle: String
+    public let displayName: String?
+    public let ouId: String?
+    public let ouHandle: String?
+    public let allowSelfRegistration: Bool?
+    public let isReadOnly: Bool?
+}
+
+/// A page of user types.
+public struct ManagedUserTypeListResponse: Codable {
+    public let totalResults: Int
+    public let startIndex: Int
+    public let count: Int
+    public let types: [ManagedUserType]
+}

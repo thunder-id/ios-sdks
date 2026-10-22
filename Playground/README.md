@@ -13,11 +13,36 @@ The app has four tabs:
   Capabilities the iOS SDK has no API for (biometric unlock, organizations, theming) are shown as
   unavailable with the reason. Checks that need you (a browser sheet, a sign-in form, ending the
   session) run only when tapped; Run all covers the rest.
+  - **Management**: the management endpoints, groups (`groups.list/get`), group members,
+    roles (`roles.list/get`), role assignments (with the `type` filter), the signed-in user's
+    groups and the user types, agent types, and an agent's groups and roles. These only read.
+    **Group and role writes** is tap-only because it changes the server: it creates a
+    `playground-*` group, adds and removes a user, creates a role assigned to the group, removes
+    and re-adds the assignment, then deletes both, cleaning up even when a step fails. The read
+    checks remember the first group, role, user and agent they find, and the explorer's live
+    stories start from those IDs.
+  - **Permissions**: `ThunderIDPermissions.fromAccessToken` and `has` on tokens built in the app
+    (no session needed), and **Granted permissions**, which compares `getGrantedPermissions()`,
+    the token itself and the SwiftUI `GrantedPermissions` object.
+  - A card under the summary lists where `baseUrl` and each management collection resolve, and
+    whether each came from an override or the `{baseUrl}/{collection}` default. The **Management
+    endpoints** check confirms that
+    against the URLs the SDK really builds, using a probe `fetcher` that records each request
+    and stops it before it leaves the device (signed in only, since the SDK attaches the token
+    first).
 - **Components**: a component explorer for the ThunderIDSwiftUI components. Pick a component and a
   story, edit its props under Controls, preview it in light or dark, and copy the SwiftUI snippet
-  generated from the current props under Code.
+  generated from the current props under Code. The admin components (`UserList`, `UserDetails`,
+  `UserCreate`, `GroupList`, `GroupCreate`, `GroupMembers`, `RoleList`, `RoleCreate`,
+  `RolePermissions`, `RoleAssignments`, `AgentList`, `AgentDetails`, `AgentCreate`) are under the
+  `Admin ·` groups. Their Sample, Loading, Empty, Error and Submitting stories render the `Base*`
+  view with sample records (members and assignments can be added and removed locally); Live
+  renders the connected view against the management API with the signed-in user's token. Live
+  create stories create real records.
 - **Session**: the signed-in user, an access token countdown, refresh and sign out, and tabs for
-  the tokens (reveal and copy), the decoded claims and recent events.
+  the tokens (reveal and copy), the decoded claims, the granted permissions and recent events.
+  Permissions lists what `GrantedPermissions` reads from the token, probes the management
+  permissions the admin components need with `can(_:)`, and lets you test any permission.
 - **Logs**: everything the playground asked the SDK to do and what came back, including every
   write the SDK makes to the Keychain (key names only).
 
@@ -58,6 +83,23 @@ cp Sources/Config.plist.example Sources/Config.plist
 | `THUNDERID_AFTER_SIGN_OUT_URL` | Where to go after sign-out |
 | `THUNDERID_SCOPES` | Space-separated scopes, `openid profile email` by default |
 
+These management endpoint keys are optional. Without them every collection is
+`{THUNDERID_BASE_URL}/{collection}`, which is what the SDK does when `ThunderIDConfig.endpoints`
+is empty.
+
+| Key | Value |
+|---|---|
+| `THUNDERID_ENDPOINT_APPLICATIONS` | Full collection URL for `endpoints.applications` |
+| `THUNDERID_ENDPOINT_USERS` | `endpoints.users` |
+| `THUNDERID_ENDPOINT_USER_TYPES` | `endpoints.userTypes` |
+| `THUNDERID_ENDPOINT_GROUPS` | `endpoints.groups` |
+| `THUNDERID_ENDPOINT_ROLES` | `endpoints.roles` |
+| `THUNDERID_ENDPOINT_AGENTS` | `endpoints.agents` |
+| `THUNDERID_ENDPOINT_AGENT_TYPES` | `endpoints.agentTypes` |
+
+These keys can also be passed as launch arguments, which win over `Config.plist`, for example
+`-THUNDERID_ENDPOINT_GROUPS https://localhost:9090/groups`.
+
 `Config.plist` is gitignored. Without it the app still opens against `https://localhost:8090`
 and each check explains what is missing.
 
@@ -72,13 +114,24 @@ xcodebuild -project Playground.xcodeproj -scheme Playground \
 ```
 
 Launch arguments, handy for screenshots: `-tab Components` (or `Session`, `Logs`) opens that tab,
-and `-runAll YES` runs every automatic check once the SDK has initialized.
+`-runAll YES` runs every automatic check once the SDK has initialized, `-showEndpoints YES`
+expands the endpoints card, `-component groupMembers` (any component ID) opens that component,
+and `-sessionTab permissions` opens that inner Session tab.
 
 The playground is also a Swift package, which is how CI type-checks it against the SDK:
 
 ```bash
 swift build
 ```
+
+## Custom rendering
+
+Every admin view, `Base*` and connected, takes an optional `content` closure, the same pattern as `BaseSignIn`, and
+renders it in place of its own UI. The closure gets the view's state: `AdminListState` (rows, paging and selection),
+`NamedResourceFormState` and the other form states (bindings and `submit`), or the details states (the record and its
+actions). The Components tab's **Custom rendering** group draws `UserList` as custom rows with a pager,
+`GroupCreate` as plain SwiftUI fields bound to the state, and `UserDetails` as a profile card. Open one directly with
+`-component customUserList` (or `customGroupCreate`, `customUserDetails`).
 
 ## Notes
 
@@ -90,3 +143,21 @@ swift build
   stored expiry so the next `getAccessToken()` runs the refresh grant, since there is no public
   "refresh now" call. App-native sign-in stores only an access token, so token refresh needs a
   system browser session.
+
+### SDK gaps found while adding the management screens
+
+- The resolved management URLs are internal (`ManagementTransport`), so the playground mirrors
+  the `endpoints[field] ?? "{baseUrl}/{collection}"` rule and checks it against captured
+  requests. A public accessor would remove the need for that mirror.
+- `getAccessToken()` (and so `getGrantedPermissions()` and `GrantedPermissions.refresh()`)
+  force-unwraps the token refresher, which `initialize(config:)` assigns after the config. Calling
+  it while initialization is in flight crashes instead of throwing, so the Permissions tab waits
+  for `ThunderIDState.isInitialized`.
+- The management models (`ManagedGroup`, `RoleSummary`, `Role`, `ManagedUser`, `BasicAgent`,
+  `Agent`, `MembershipGroup`) have no public initializers, so the `Base*` samples are decoded
+  from JSON.
+- There is no permission-gated wrapper (a `SignedIn`-style guard on `GrantedPermissions.can`),
+  and the admin components do not hide actions the token cannot perform; they show the server's
+  403 as an error.
+- There is no API to list organization units, so create components rely on the `ouId` claim or
+  the user profile (`ouId` control to override).

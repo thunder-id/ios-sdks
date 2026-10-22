@@ -17,6 +17,7 @@ struct ChecksView: View {
                         NoticeBanner(text: notice)
                     }
                     SummaryCard()
+                    EndpointsCard(config: checks.config)
                     ForEach(CapabilityCatalog.sections) { section in
                         VStack(spacing: 8) {
                             SectionLabel(text: section.name)
@@ -295,5 +296,75 @@ struct NoticeBanner: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Palette.warning.opacity(0.3), lineWidth: 1)
         )
+    }
+}
+
+/// Where `baseUrl` (sign-in, tokens, flows) and each management collection resolve to.
+/// Collapsed to one line until tapped, or open from the start with `-showEndpoints YES`.
+private struct EndpointsCard: View {
+    let config: PlaygroundConfig
+    @State private var isExpanded = UserDefaults.standard.bool(forKey: "showEndpoints")
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                isExpanded.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "point.3.connected.trianglepath.dotted")
+                        .font(.system(size: 13))
+                        .foregroundColor(Palette.accent)
+                    Text(
+                        config.hasEndpointOverrides
+                            ? "Management endpoints overridden"
+                            : "Management endpoints on the base URL"
+                    )
+                        .font(.system(size: 13.5, weight: .medium))
+                    Spacer(minLength: 0)
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Palette.text(0.4))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if isExpanded {
+                row(name: "baseUrl", url: config.baseUrl, source: "baseUrl")
+                ForEach(config.resolvedEndpoints) { endpoint in
+                    row(
+                        name: endpoint.collection.path,
+                        url: endpoint.url,
+                        source: endpoint.source.rawValue,
+                        isDefault: endpoint.source == .baseUrl
+                    )
+                }
+                Text("Override with THUNDERID_ENDPOINT_* in Config.plist.")
+                    .font(.system(size: 11.5))
+                    .foregroundColor(Palette.text(0.45))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .playgroundGroup()
+    }
+
+    private func row(name: String, url: String, source: String, isDefault: Bool = true) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(name)
+                    .font(.mono(11.5, weight: .medium))
+                    .foregroundColor(Palette.accent)
+                Spacer()
+                Text(source)
+                    .font(.mono(10.5))
+                    .foregroundColor(isDefault ? Palette.text(0.4) : Palette.warningText)
+            }
+            Text(url)
+                .font(.mono(11))
+                .foregroundColor(Palette.text(0.7))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+        }
     }
 }

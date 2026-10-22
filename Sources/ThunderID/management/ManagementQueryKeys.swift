@@ -14,10 +14,27 @@ public enum ApplicationQueryKeys {
 public enum UserQueryKeys {
     public static let user = "user"
     public static let users = "users"
+    public static let userTypes = "user-types"
 }
 
 /// Cache keys for agent resources.
 public enum AgentQueryKeys {
     public static let agent = "agent"
     public static let agents = "agents"
+    public static let agentTypes = "agent-types"
+}
+
+/// Cache keys for group resources. ``memberships`` covers the groups a user or an agent belongs to.
+public enum GroupQueryKeys {
+    public static let group = "group"
+    public static let groups = "groups"
+    public static let groupMembers = "group-members"
+    public static let memberships = "group-memberships"
+}
+
+/// Cache keys for role resources. ``roleAssignments`` also covers the roles assigned to an agent.
+public enum RoleQueryKeys {
+    public static let role = "role"
+    public static let roles = "roles"
+    public static let roleAssignments = "role-assignments"
 }

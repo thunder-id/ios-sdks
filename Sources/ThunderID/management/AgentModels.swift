@@ -105,3 +105,29 @@ public struct UpdateAgentRequest: Codable {
 
     public init() {}
 }
+
+/// A page of the roles assigned to an agent, by name.
+public struct AgentRoleListResponse: Codable {
+    public let totalResults: Int
+    public let startIndex: Int
+    public let count: Int
+    public let roles: [String]
+}
+
+/// A type an agent can be registered as.
+public struct AgentType: Codable {
+    public let id: String
+    public let handle: String
+    public let displayName: String
+    public let ouId: String
+    public let ouHandle: String?
+    public let allowSelfRegistration: Bool?
+}
+
+/// A page of agent types.
+public struct AgentTypeListResponse: Codable {
+    public let totalResults: Int
+    public let startIndex: Int
+    public let count: Int
+    public let types: [AgentType]
+}

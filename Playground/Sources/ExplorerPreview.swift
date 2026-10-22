@@ -12,6 +12,16 @@ struct ComponentPreview: View {
     let onEvent: (String) -> Void
 
     var body: some View {
+        if spec.group.hasPrefix("Admin") {
+            AdminPreview(id: spec.id, values: values, onEvent: onEvent)
+        } else if spec.group == "Custom rendering" {
+            CustomRenderPreview(id: spec.id, values: values, onEvent: onEvent)
+        } else {
+            standardPreview
+        }
+    }
+
+    @ViewBuilder private var standardPreview: some View {
         switch spec.group {
         case "Actions": actionPreview
         case "User": UserPreview(id: spec.id, values: values, onEvent: onEvent)

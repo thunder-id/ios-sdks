@@ -25,6 +25,7 @@ struct PlaygroundApp: App {
             RootView()
                 .environmentObject(log)
                 .environmentObject(checks)
+                .environmentObject(checks.ids)
                 .thunderIDProvider(config: sdkConfig)
                 .tint(Palette.primary)
         }

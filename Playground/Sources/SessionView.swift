@@ -5,16 +5,18 @@ import SwiftUI
 import ThunderIDSwiftUI
 
 struct SessionView: View {
-    enum Tab: Hashable {
+    enum Tab: String, Hashable {
         case tokens
         case claims
+        case permissions
         case events
     }
 
     @EnvironmentObject private var state: ThunderIDState
     @EnvironmentObject private var checks: ChecksModel
     @EnvironmentObject private var log: EventLog
-    @State private var tab: Tab = .tokens
+    /// `-sessionTab permissions` as a launch argument opens that inner tab, for screenshots.
+    @State private var tab: Tab = Tab(rawValue: UserDefaults.standard.string(forKey: "sessionTab") ?? "") ?? .tokens
     @State private var snapshot = SessionSnapshot.empty
     @State private var revealed: Set<String> = []
 
@@ -34,7 +36,12 @@ struct SessionView: View {
                 VStack(spacing: 14) {
                     UserCard(snapshot: snapshot, refresh: refreshToken, signOut: signOut, signIn: signIn)
                     SegmentedPicker(
-                        options: [(Tab.tokens, "Tokens"), (Tab.claims, "Claims"), (Tab.events, "Events")],
+                        options: [
+                            (Tab.tokens, "Tokens"),
+                            (Tab.claims, "Claims"),
+                            (Tab.permissions, "Permissions"),
+                            (Tab.events, "Events")
+                        ],
                         selection: $tab
                     )
                     tabContent
@@ -53,6 +60,8 @@ struct SessionView: View {
             TokensList(tokens: snapshot.tokens, revealed: $revealed, storageService: checks.storage.service)
         case .claims:
             ClaimsList(claims: snapshot.claims, source: snapshot.claimsSource)
+        case .permissions:
+            PermissionsPanel()
         case .events:
             EventList(entries: Array(log.entries.prefix(30)))
         }

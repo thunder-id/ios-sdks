@@ -25,12 +25,15 @@ struct CheckContext {
     let storage: PlaygroundStorage
     let config: PlaygroundConfig
     let log: EventLog
+    let ids: ManagementIds
 
     var client: ThunderIDClient { state.client }
 
     typealias Runner = @MainActor (CheckContext) async throws -> String
 
-    static let runners: [CapabilityID: Runner] = [
+    static let runners: [CapabilityID: Runner] = authRunners.merging(managementRunners) { current, _ in current }
+
+    private static let authRunners: [CapabilityID: Runner] = [
         .browserSignIn: { try await $0.signInWithBrowser() },
         .passkey: { try await $0.passkey() },
         .signOut: { try await $0.signOut() },

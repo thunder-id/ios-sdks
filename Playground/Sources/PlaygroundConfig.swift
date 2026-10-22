@@ -16,14 +16,24 @@ struct PlaygroundConfig {
     let afterSignInUrl: String?
     let afterSignOutUrl: String?
     let scopes: [String]
+    /// `THUNDERID_ENDPOINT_*` values, keyed by collection path (`users`, `groups`, ...).
+    let endpointOverrides: [String: String]
     let isLoaded: Bool
 
-    static func load(bundle: Bundle = .main) -> PlaygroundConfig {
-        guard let url = bundle.url(forResource: "Config", withExtension: "plist"),
-              let dict = NSDictionary(contentsOf: url) as? [String: String] else {
-            return PlaygroundConfig(values: [:], isLoaded: false)
+    static func load(bundle: Bundle = .main, defaults: UserDefaults = .standard) -> PlaygroundConfig {
+        var values: [String: String] = [:]
+        var isLoaded = false
+        if let url = bundle.url(forResource: "Config", withExtension: "plist"),
+           let dict = NSDictionary(contentsOf: url) as? [String: String] {
+            values = dict
+            isLoaded = true
         }
-        return PlaygroundConfig(values: dict, isLoaded: true)
+        // Management keys can also come from launch arguments (`-THUNDERID_ENDPOINT_GROUPS https://...`),
+        // which win over Config.plist, to try an override without editing the file.
+        for key in ManagementCollection.all.map(\.configKey) {
+            if let value = defaults.string(forKey: key) { values[key] = value }
+        }
+        return PlaygroundConfig(values: values, isLoaded: isLoaded)
     }
 
     private init(values: [String: String], isLoaded: Bool) {
@@ -40,6 +50,9 @@ struct PlaygroundConfig {
         scopes = (value("THUNDERID_SCOPES") ?? "openid profile email")
             .split(separator: " ")
             .map(String.init)
+        endpointOverrides = ManagementCollection.all.reduce(into: [:]) { overrides, collection in
+            overrides[collection.path] = value(collection.configKey)
+        }
         self.isLoaded = isLoaded
     }
 
@@ -62,6 +75,7 @@ struct PlaygroundConfig {
             afterSignInUrl: afterSignInUrl,
             afterSignOutUrl: afterSignOutUrl,
             applicationId: applicationId,
+            endpoints: sdkEndpoints,
             storage: storage
         )
     }

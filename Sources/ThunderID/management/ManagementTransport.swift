@@ -44,7 +44,36 @@ struct ManagementTransport {
         )
     }
 
-    private func url(id: String?, query: [URLQueryItem]) throws -> URL {
+    /// Reads a sub-collection of one resource, such as `{collection}/{id}/members`.
+    func related<T: Decodable>(
+        id: String,
+        subPath: String,
+        query: [URLQueryItem],
+        fetcher: ThunderIDFetcher?
+    ) async throws -> T {
+        try await httpClient.send(
+            method: "GET",
+            url: url(id: id, subPath: subPath, query: query),
+            fetcher: fetcher ?? self.fetcher
+        )
+    }
+
+    /// Posts to an action on one resource, such as `{collection}/{id}/members/add`.
+    func action<T: Decodable, Body: Encodable>(
+        id: String,
+        subPath: String,
+        _ body: Body,
+        fetcher: ThunderIDFetcher?
+    ) async throws -> T {
+        try await httpClient.send(
+            method: "POST",
+            url: url(id: id, subPath: subPath, query: []),
+            body: try JSONEncoder().encode(body),
+            fetcher: fetcher ?? self.fetcher
+        )
+    }
+
+    private func url(id: String?, subPath: String? = nil, query: [URLQueryItem]) throws -> URL {
         if let id, id.trimmingCharacters(in: .whitespaces).isEmpty {
             throw ThunderIDError(code: .invalidInput, message: "A resource identifier is required")
         }
@@ -55,6 +84,9 @@ struct ManagementTransport {
         if let id {
             let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(["/"])) ?? id
             base += "/\(encoded)"
+            if let subPath {
+                base += "/\(subPath)"
+            }
         }
         guard var components = URLComponents(string: base) else {
             throw ThunderIDError(code: .invalidConfiguration, message: "Invalid management URL: \(base)")

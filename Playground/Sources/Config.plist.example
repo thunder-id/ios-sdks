@@ -14,5 +14,13 @@
     <string>dev.thunderid.playground://signout</string>
     <key>THUNDERID_SCOPES</key>
     <string>openid profile email</string>
+    <!-- Optional: per-collection management endpoint overrides. Unset ones use THUNDERID_BASE_URL. -->
+    <!-- <key>THUNDERID_ENDPOINT_APPLICATIONS</key><string>https://localhost:9090/applications</string> -->
+    <!-- <key>THUNDERID_ENDPOINT_USERS</key><string>https://localhost:9090/users</string> -->
+    <!-- <key>THUNDERID_ENDPOINT_USER_TYPES</key><string>https://localhost:9090/user-types</string> -->
+    <!-- <key>THUNDERID_ENDPOINT_GROUPS</key><string>https://localhost:9090/groups</string> -->
+    <!-- <key>THUNDERID_ENDPOINT_ROLES</key><string>https://localhost:9090/roles</string> -->
+    <!-- <key>THUNDERID_ENDPOINT_AGENTS</key><string>https://localhost:9090/agents</string> -->
+    <!-- <key>THUNDERID_ENDPOINT_AGENT_TYPES</key><string>https://localhost:9090/agent-types</string> -->
 </dict>
 </plist>

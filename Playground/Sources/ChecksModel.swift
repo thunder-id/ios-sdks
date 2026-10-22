@@ -23,6 +23,8 @@ final class ChecksModel: ObservableObject {
     let config: PlaygroundConfig
     let storage: PlaygroundStorage
     let log: EventLog
+    /// What the management checks found, for later checks and the explorer's live stories.
+    let ids = ManagementIds()
     private weak var state: ThunderIDState?
 
     init(config: PlaygroundConfig, storage: PlaygroundStorage, log: EventLog) {
@@ -59,7 +61,7 @@ final class ChecksModel: ObservableObject {
         }
         guard let runner = CheckContext.runners[capability.id] else { return }
         statuses[capability.id] = .running
-        let context = CheckContext(state: state, storage: storage, config: config, log: log)
+        let context = CheckContext(state: state, storage: storage, config: config, log: log, ids: ids)
         do {
             let reason = try await runner(context)
             statuses[capability.id] = .pass(reason)

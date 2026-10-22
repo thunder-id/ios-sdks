@@ -12,7 +12,9 @@ struct ExplorerView: View {
 
     @EnvironmentObject private var checks: ChecksModel
     @EnvironmentObject private var log: EventLog
-    @State private var selectedId = "signInButton"
+    @EnvironmentObject private var ids: ManagementIds
+    /// `-component groupMembers` (any component ID) as a launch argument opens that component.
+    @State private var selectedId = UserDefaults.standard.string(forKey: "component") ?? "signInButton"
     @State private var storyId = ""
     @State private var values: [String: PropValues] = [:]
     @State private var isDark = true
@@ -20,11 +22,25 @@ struct ExplorerView: View {
     @State private var events: [String] = []
 
     private var components: [ComponentSpec] {
-        ExplorerCatalog.components(applicationId: checks.config.applicationId ?? "")
+        ExplorerCatalog.components(
+            applicationId: checks.config.applicationId ?? "",
+            ids: AdminStoryIds(
+                groupId: ids.groupId ?? "",
+                roleId: ids.roleId ?? "",
+                userId: ids.userId ?? "",
+                agentId: ids.agentId ?? ""
+            )
+        )
     }
 
     private var spec: ComponentSpec {
         components.first { $0.id == selectedId } ?? components[0]
+    }
+
+    private var groupNames: [String] {
+        components.map(\.group).reduce(into: []) { names, group in
+            if !names.contains(group) { names.append(group) }
+        }
     }
 
     private var current: PropValues { values[spec.id] ?? spec.defaults }
@@ -47,8 +63,13 @@ struct ExplorerView: View {
                     .font(.system(size: 11.5))
                     .foregroundColor(Palette.text(0.5))
                 Menu {
-                    ForEach(components) { component in
-                        Button(component.name) { select(component) }
+                    // Grouped, since the admin components roughly double the list.
+                    ForEach(groupNames, id: \.self) { group in
+                        Section(group) {
+                            ForEach(components.filter { $0.group == group }) { component in
+                                Button(component.name) { select(component) }
+                            }
+                        }
                     }
                 } label: {
                     HStack(spacing: 4) {

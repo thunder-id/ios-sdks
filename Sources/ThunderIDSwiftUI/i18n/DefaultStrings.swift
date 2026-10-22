@@ -5,7 +5,9 @@ import Foundation
 
 /// English default strings for all ThunderIDSwiftUI components.
 public enum DefaultStrings {
-    public static let all: [String: String] = [
+    public static let all: [String: String] = core.merging(AdminDefaultStrings.all) { current, _ in current }
+
+    private static let core: [String: String] = [
         "signIn.button": "Sign in",
         "signIn.title": "Sign in",
         "signIn.submit": "Continue",

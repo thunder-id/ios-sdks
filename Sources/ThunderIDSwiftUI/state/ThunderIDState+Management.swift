@@ -96,11 +96,12 @@ public extension ThunderIDState {
 
     // MARK: - Agents
 
-    func agentsQuery(limit: Int? = nil, offset: Int? = nil, fetcher: ThunderIDFetcher? = nil)
+    func agentsQuery(limit: Int? = nil, offset: Int? = nil, filter: String? = nil, fetcher: ThunderIDFetcher? = nil)
         -> ResourceQuery<AgentListResponse> {
         let client = client
-        return query(key: listKey(AgentQueryKeys.agents, ["limit": limit, "offset": offset])) {
-            try await client.agents.list(limit: limit, offset: offset, fetcher: fetcher)
+        let key = listKey(AgentQueryKeys.agents, ["limit": limit, "offset": offset]) + ["filter=\(filter ?? "")"]
+        return query(key: key) {
+            try await client.agents.list(limit: limit, offset: offset, filter: filter, fetcher: fetcher)
         }
     }
 
@@ -137,7 +138,7 @@ public extension ThunderIDState {
     }
 }
 
-private extension ThunderIDState {
+extension ThunderIDState {
     func query<Value>(key: [String], fetch: @escaping () async throws -> Value) -> ResourceQuery<Value> {
         ResourceQuery(key: key, invalidator: invalidator, fetch: fetch)
     }

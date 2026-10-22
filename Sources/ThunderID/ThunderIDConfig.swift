@@ -124,13 +124,31 @@ public struct ThunderIDHttpConfig {
 /// `{baseUrl}/{collection}`. A single resource is addressed as `{collection}/{id}`.
 public struct ThunderIDEndpoints {
     public var agents: String?
+    /// Defaults to `{baseUrl}/agent-types`.
+    public var agentTypes: String?
     public var applications: String?
+    public var groups: String?
+    public var roles: String?
     public var users: String?
+    /// Defaults to `{baseUrl}/user-types`.
+    public var userTypes: String?
 
-    public init(agents: String? = nil, applications: String? = nil, users: String? = nil) {
+    public init(
+        agents: String? = nil,
+        agentTypes: String? = nil,
+        applications: String? = nil,
+        groups: String? = nil,
+        roles: String? = nil,
+        users: String? = nil,
+        userTypes: String? = nil
+    ) {
         self.agents = agents
+        self.agentTypes = agentTypes
         self.applications = applications
+        self.groups = groups
+        self.roles = roles
         self.users = users
+        self.userTypes = userTypes
     }
 }
 
