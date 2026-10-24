@@ -10,6 +10,9 @@ public enum ThunderIDErrorCode: String {
     case alreadyInitialized = "ALREADY_INITIALIZED"
     case invalidConfiguration = "INVALID_CONFIGURATION"
     case invalidRedirectUri = "INVALID_REDIRECT_URI"
+    /// The operation does not apply in the configured mode, such as asking for a token when sign-in runs
+    /// on a backend, or sending a request to a URL the backend does not proxy.
+    case unsupportedOperation = "UNSUPPORTED_OPERATION"
 
     // Authentication
     case authenticationFailed = "AUTHENTICATION_FAILED"

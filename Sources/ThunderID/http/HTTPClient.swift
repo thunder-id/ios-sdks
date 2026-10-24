@@ -10,6 +10,11 @@ final class HTTPClient {
     private let baseUrl: String
     private let session: URLSession
     private var accessTokenProvider: (() async throws -> String)?
+    private var transport: Transport?
+
+    /// Sends a request on the client's behalf and returns the response whatever its status. The fetcher
+    /// is the caller's own transport for the request, when it passed one.
+    typealias Transport = (URLRequest, ThunderIDFetcher?) async throws -> (Data, HTTPURLResponse)
 
     init(baseUrl: String, session: URLSession? = nil) {
         self.baseUrl = baseUrl
@@ -18,6 +23,12 @@ final class HTTPClient {
 
     func setAccessTokenProvider(_ provider: @escaping () async throws -> String) {
         accessTokenProvider = provider
+    }
+
+    /// Replaces how requests leave the client. When sign-in runs on a backend, every request goes
+    /// through it.
+    func setTransport(_ transport: @escaping Transport) {
+        self.transport = transport
     }
 
     func get<T: Decodable>(path: String, requiresAuth: Bool = true) async throws -> T {
@@ -115,6 +126,19 @@ final class HTTPClient {
     }
 
     private func perform<T: Decodable>(_ request: URLRequest, fetcher: ThunderIDFetcher? = nil) async throws -> T {
+        let (data, response): (Data, HTTPURLResponse)
+        if let transport {
+            (data, response) = try await transport(request, fetcher)
+        } else {
+            (data, response) = try await rawData(for: request, fetcher: fetcher)
+        }
+        debugLogResponse(response, data: data)
+        return try handleResponse(response, data: data)
+    }
+
+    /// Sends `request` as it is and returns the response whatever its status. It logs neither the
+    /// request nor the response, so it is safe for a request that carries a credential.
+    func rawData(for request: URLRequest, fetcher: ThunderIDFetcher? = nil) async throws -> (Data, HTTPURLResponse) {
         let (data, response): (Data, URLResponse)
         do {
             if let fetcher {
@@ -122,7 +146,6 @@ final class HTTPClient {
             } else {
                 (data, response) = try await session.data(for: request)
             }
-            debugLogResponse(response, data: data)
         } catch {
             let nsError = error as NSError
             let details = "\(nsError.domain)(\(nsError.code)): \(nsError.localizedDescription)"
@@ -137,7 +160,7 @@ final class HTTPClient {
         guard let http = response as? HTTPURLResponse else {
             throw ThunderIDError(code: .networkError, message: "Invalid response")
         }
-        return try handleResponse(http, data: data)
+        return (data, http)
     }
 
     private func handleResponse<T: Decodable>(_ http: HTTPURLResponse, data: Data) throws -> T {

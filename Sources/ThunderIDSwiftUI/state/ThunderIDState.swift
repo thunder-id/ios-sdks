@@ -39,6 +39,10 @@ public final class ThunderIDState: ObservableObject {
         fetchUserProfileEnabled = config.fetchUserProfile
         do {
             _ = try await client.initialize(config: config)
+            // A session that ends elsewhere, which only sign-in on a backend reports, clears the user.
+            client.onSignOut { [weak self] in
+                Task { @MainActor in self?.user = nil }
+            }
             let signedIn = await (try? client.isSignedIn()) ?? false
             if signedIn {
                 user = try? await client.getUser()

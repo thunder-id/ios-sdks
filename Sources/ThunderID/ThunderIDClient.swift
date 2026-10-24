@@ -6,15 +6,19 @@ import Foundation
 /// ThunderID SDK client — Platform layer implementation of the full IAMClient interface (spec §7.1).
 public final class ThunderIDClient {
     private var config: ThunderIDConfig?
-    private var httpClient: HTTPClient?
+    var httpClient: HTTPClient?
     private var tokenStore: TokenStore?
     private var tokenRefresher: TokenRefresher?
     private var tokenValidator: TokenValidator?
     private var jwksCache: JWKSCache?
     private var flowClient: FlowExecutionClient?
-    private var pkceManager = PKCEManager()
+    var pkceManager = PKCEManager()
     private var _isLoading: Bool = false
-    private var currentUser: User?
+    var currentUser: User?
+    /// Set when sign-in runs on the app's backend (`endpoints.backend`), which holds the tokens.
+    var backend: BackendClient?
+    var backendHttp: BackendHttpClient?
+    var signOutListeners: [() -> Void] = []
 
     public init() {}
 
@@ -33,6 +37,9 @@ public final class ThunderIDClient {
             throw ThunderIDError(code: .alreadyInitialized, message: "SDK is already initialized")
         }
         try validateConfig(config)
+        let backendEndpoints = try config.endpoints.backend.map {
+            try ResolvedBackendEndpoints.resolve($0, apiBaseUrl: config.baseUrl)
+        }
         self.config = config
         let adapter = storage ?? config.storage ?? KeychainStorageAdapter(service: "dev.\(config.vendor).sdk")
         let http = HTTPClient(baseUrl: config.baseUrl, session: session)
@@ -41,13 +48,18 @@ public final class ThunderIDClient {
         tokenValidator = TokenValidator(jwksCache: jwksCache!, config: config)
         tokenRefresher = TokenRefresher(httpClient: http, tokenStore: tokenStore!)
         flowClient = FlowExecutionClient(httpClient: http)
+        httpClient = http
+        if let backendEndpoints {
+            // The backend holds the tokens, so no request carries one: they go through the backend instead.
+            setUpBackend(backendEndpoints, config: config, http: http, tokenStore: tokenStore!, session: session)
+            return true
+        }
         http.setAccessTokenProvider { [weak self] in
             guard let self, let config = self.config else {
                 throw ThunderIDError(code: .sdkNotInitialized, message: "Not initialized")
             }
             return try await self.tokenRefresher!.getAccessToken(clientId: config.clientId)
         }
-        httpClient = http
         return true
     }
 
@@ -56,6 +68,7 @@ public final class ThunderIDClient {
             throw ThunderIDError(code: .sdkNotInitialized, message: "SDK not initialized")
         }
         if let baseUrl { current = ThunderIDConfig(baseUrl: baseUrl, clientId: current.clientId) }
+        tearDownBackend()
         config = nil
         return try await initialize(config: current)
     }
@@ -74,6 +87,7 @@ public final class ThunderIDClient {
         sessionId: String? = nil
     ) async throws -> EmbeddedFlowResponse {
         try requireInitialized()
+        try refuseInBackendMode("Embedded sign-in")
         _isLoading = true
         defer { _isLoading = false }
         let response: EmbeddedFlowResponse
@@ -97,8 +111,12 @@ public final class ThunderIDClient {
 
     /// Redirect-based sign-in: returns the authorization URL to open in ASWebAuthenticationSession.
     /// The caller is responsible for handling the redirect callback.
+    ///
+    /// When sign-in runs on the app's backend, it is the backend's sign-in URL, bound to a PKCE challenge
+    /// and coming back to `afterSignInUrl` with a one-time `session_code`.
     public func buildSignInURL(options: SignInOptions? = nil) throws -> URL {
         let cfg = try requireConfig()
+        if let backend { return try backendSignInURL(backend, config: cfg) }
         guard let clientId = cfg.clientId else {
             throw ThunderIDError(code: .invalidConfiguration, message: "clientId required for redirect mode")
         }
@@ -124,8 +142,10 @@ public final class ThunderIDClient {
     }
 
     /// Exchanges the authorization code received from the redirect callback for tokens.
+    /// When sign-in runs on the app's backend, it exchanges the callback's `session_code` for the session.
     public func handleRedirectCallback(url: URL) async throws -> User {
         let cfg = try requireConfig()
+        if let backend { return try await handleBackendCallback(url: url, backend: backend) }
         guard let clientId = cfg.clientId else {
             throw ThunderIDError(code: .invalidConfiguration, message: "clientId required")
         }
@@ -163,6 +183,10 @@ public final class ThunderIDClient {
         try requireInitialized()
         _isLoading = true
         defer { _isLoading = false }
+        if let backend {
+            currentUser = nil
+            return try await backend.signOut() ?? config?.afterSignOutUrl ?? "/"
+        }
         if let refreshToken = tokenStore?.refreshToken(), let clientId = config?.clientId {
             let body: [String: Any] = [
                 "token": refreshToken,
@@ -183,10 +207,14 @@ public final class ThunderIDClient {
 
     public func isSignedIn(sessionId: String? = nil) async throws -> Bool {
         try requireInitialized()
+        if let backend { return try await backend.getSession().isSignedIn }
         return tokenStore?.accessToken() != nil
     }
 
-    public func isLoading() -> Bool { _isLoading }
+    /// True while initializing or refreshing. When sign-in runs on a backend, it stays true until the first
+    /// session read settles, so a route guard does not start a sign-in before it is known whether the user
+    /// is signed in.
+    public func isLoading() -> Bool { _isLoading || (backend?.loading.isLoading ?? false) }
 
     // MARK: - Registration
 
@@ -196,6 +224,7 @@ public final class ThunderIDClient {
         request: EmbeddedFlowRequestConfig? = nil
     ) async throws -> EmbeddedFlowResponse {
         try requireInitialized()
+        try refuseInBackendMode("Embedded sign-up")
         let appId = request?.applicationId ?? config?.applicationId ?? ""
         let response: EmbeddedFlowResponse
         if let payload, let flowId = payload.flowId {
@@ -218,8 +247,11 @@ public final class ThunderIDClient {
 
     // MARK: - Token & Session
 
+    /// When sign-in runs on a backend, it is the access token the backend's `token` endpoint issues for the
+    /// requests under `endpoints.backend.bypass`.
     public func getAccessToken(sessionId: String? = nil) async throws -> String {
         try requireInitialized()
+        if let backend { return try await backend.accessToken() }
         return try await tokenRefresher!.getAccessToken(clientId: config?.clientId)
     }
 
@@ -236,6 +268,7 @@ public final class ThunderIDClient {
         config: TokenExchangeRequestConfig, sessionId: String? = nil
     ) async throws -> TokenResponse {
         try requireInitialized()
+        try refuseInBackendMode("exchangeToken")
         var body: [String: Any] = [
             "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
             "subject_token": config.subjectToken,
@@ -265,6 +298,7 @@ public final class ThunderIDClient {
     public func getUser(options: [String: Any]? = nil) async throws -> User {
         try requireInitialized()
         if let user = currentUser { return user }
+        if let backend { return try await backendUser(backend) }
         if let token = tokenStore?.accessToken(),
            let claims = try? decodeJwtToken(token) as [String: AnyCodable],
            let sub = claims["sub"]?.value as? String, !sub.isEmpty {
@@ -330,7 +364,7 @@ public final class ThunderIDClient {
         return config
     }
 
-    private func requireConfig() throws -> ThunderIDConfig {
+    func requireConfig() throws -> ThunderIDConfig {
         guard let config else {
             throw ThunderIDError(code: .sdkNotInitialized, message: "Call initialize() before using the SDK")
         }

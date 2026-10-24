@@ -40,9 +40,13 @@ public struct ThunderIDConfig {
     // MARK: - Token Validation
     public var tokenValidation: TokenValidationConfig
 
-    // MARK: - Management
+    // MARK: - Session
+    /// Behaviour around the session. See ``ThunderIDSessionConfig``.
+    public var session: ThunderIDSessionConfig
+
+    // MARK: - Endpoints
     /// Collection URL overrides for the management operations, for a management API that runs on a
-    /// different host from `baseUrl`.
+    /// different host from `baseUrl`, and the app backend that signs the app in (`endpoints.backend`).
     public var endpoints: ThunderIDEndpoints
     /// HTTP options.
     public var http: ThunderIDHttpConfig
@@ -74,6 +78,7 @@ public struct ThunderIDConfig {
         attestationEnabled: Bool = false,
         attestationTokenProvider: (() async throws -> String)? = nil,
         tokenValidation: TokenValidationConfig = .init(),
+        session: ThunderIDSessionConfig = .init(),
         endpoints: ThunderIDEndpoints = .init(),
         http: ThunderIDHttpConfig = .init(),
         storage: StorageAdapter? = nil,
@@ -97,6 +102,7 @@ public struct ThunderIDConfig {
         self.attestationEnabled = attestationEnabled
         self.attestationTokenProvider = attestationTokenProvider
         self.tokenValidation = tokenValidation
+        self.session = session
         self.endpoints = endpoints
         self.http = http
         self.storage = storage
@@ -126,11 +132,34 @@ public struct ThunderIDEndpoints {
     public var agents: String?
     public var applications: String?
     public var users: String?
+    /// The app backend's auth endpoints. Setting them hands sign-in to the backend: the SDK then signs in,
+    /// reads the session, and sends API calls through the backend, and never holds the user's tokens.
+    /// `baseUrl` is then the API base whose requests go through the backend's proxy. Unset by default.
+    public var backend: ThunderIDBackendEndpoints?
 
-    public init(agents: String? = nil, applications: String? = nil, users: String? = nil) {
+    public init(
+        agents: String? = nil,
+        applications: String? = nil,
+        users: String? = nil,
+        backend: ThunderIDBackendEndpoints? = nil
+    ) {
         self.agents = agents
         self.applications = applications
         self.users = users
+        self.backend = backend
+    }
+}
+
+/// Behaviour around the session.
+public struct ThunderIDSessionConfig {
+    /// How often to ask the app's backend whether the session is still live, in seconds. Only applies when
+    /// sign-in runs on a backend (`endpoints.backend`): the backend's check endpoint reports liveness without
+    /// refreshing the session or counting as activity, so polling it does not keep an idle session alive.
+    /// `0` leaves only the check that runs when the app comes back to the foreground.
+    public var checkInterval: TimeInterval
+
+    public init(checkInterval: TimeInterval = 0) {
+        self.checkInterval = checkInterval
     }
 }
 
