@@ -47,6 +47,7 @@ struct CustomRenderPreview: View {
                 UserDetails(
                     userId: values.text("userId"),
                     deletable: true,
+                    lifecycleActions: true,
                     onDeleted: { onEvent("onDeleted") },
                     content: { UserCard(details: $0) }
                 )
@@ -56,6 +57,8 @@ struct CustomRenderPreview: View {
                 user: AdminSamples.users.first,
                 groups: AdminSamples.userGroups,
                 onDelete: { onEvent("onDelete") },
+                lifecycleActions: AdminSamples.lifecycleActions(.user, status: AdminSamples.users.first?.status?.value),
+                onLifecycleAction: { action, _ in onEvent("onLifecycleAction: \(action.rawValue)") },
                 content: { UserCard(details: $0) }
             )
         }
@@ -201,7 +204,7 @@ private struct UserCard: View {
             } else {
                 Text(details.displayName).font(.system(size: 22, weight: .semibold))
                 if let user = details.user {
-                    Text("\(user.type) · \(user.ouHandle ?? user.ouId)")
+                    Text("\(user.type) · \(user.ouHandle ?? user.ouId) · \(user.status?.value.rawValue ?? "ACTIVE")")
                         .font(.system(size: 13))
                         .foregroundColor(.secondary)
                 }
@@ -216,6 +219,16 @@ private struct UserCard: View {
                 Text(details.groups.map(\.name).joined(separator: " · "))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(Palette.primary)
+                if let run = details.onLifecycleAction {
+                    HStack {
+                        // The card offers only the actions that need no confirmation. A custom render that
+                        // offers suspend or unsuspend must ask the operator first.
+                        ForEach(details.lifecycleActions.filter { !$0.requiresConfirmation }) { action in
+                            Button(action.rawValue.capitalized) { run(action, nil) }
+                                .disabled(details.isRunningLifecycleAction)
+                        }
+                    }
+                }
                 if let delete = details.onDelete {
                     Button("Delete user", role: .destructive, action: delete)
                 }

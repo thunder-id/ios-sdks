@@ -19,8 +19,12 @@ func stringifyManagedAttribute(_ value: AnyCodable) -> String {
     }
 }
 
-/// A user's attributes and groups, rendered from the data it is given. Editing and deleting are
-/// offered only when `onUpdate` and `onDelete` are set, and never for a read-only user.
+/// A user's attributes, groups and access status, rendered from the data it is given. Editing and
+/// deleting are offered only when `onUpdate` and `onDelete` are set, and never for a read-only user.
+/// The account lifecycle actions in `lifecycleActions` (suspend, unsuspend, unlock) are offered only
+/// when `onLifecycleAction` is set; they change only runtime state, so they apply to read-only users
+/// too. Suspending and unsuspending ask for confirmation first, and a suspension takes an optional
+/// operator note.
 public struct BaseUserDetails<Content: View>: View {
     @EnvironmentObject private var i18n: ThunderIDI18n
     let user: ManagedUser?
@@ -32,6 +36,9 @@ public struct BaseUserDetails<Content: View>: View {
     let isUpdating: Bool
     let onDelete: (() -> Void)?
     let onUpdate: (([String: AnyCodable]) -> Void)?
+    let isRunningLifecycleAction: Bool
+    let lifecycleActions: [AccountLifecycleAction]
+    let onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)?
     let actions: AnyView?
 
     @State private var draft: [String: String]?
@@ -48,6 +55,9 @@ public struct BaseUserDetails<Content: View>: View {
         isUpdating: Bool = false,
         onDelete: (() -> Void)? = nil,
         onUpdate: (([String: AnyCodable]) -> Void)? = nil,
+        isRunningLifecycleAction: Bool = false,
+        lifecycleActions: [AccountLifecycleAction] = [],
+        onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)? = nil,
         actions: AnyView? = nil,
         renderContent: ((UserDetailsState) -> Content)?
     ) {
@@ -60,12 +70,15 @@ public struct BaseUserDetails<Content: View>: View {
         self.isUpdating = isUpdating
         self.onDelete = onDelete
         self.onUpdate = onUpdate
+        self.isRunningLifecycleAction = isRunningLifecycleAction
+        self.lifecycleActions = lifecycleActions
+        self.onLifecycleAction = onLifecycleAction
         self.actions = actions
         self.content = renderContent
     }
 
     /// - Parameter content: Renders custom UI in place of the default view, from the user, their visible attributes
-    ///   and groups, the loading and error state, and the delete and update actions.
+    ///   and groups, the loading and error state, and the delete, update and lifecycle actions.
     public init(
         user: ManagedUser?,
         groups: [MembershipGroup] = [],
@@ -76,6 +89,9 @@ public struct BaseUserDetails<Content: View>: View {
         isUpdating: Bool = false,
         onDelete: (() -> Void)? = nil,
         onUpdate: (([String: AnyCodable]) -> Void)? = nil,
+        isRunningLifecycleAction: Bool = false,
+        lifecycleActions: [AccountLifecycleAction] = [],
+        onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)? = nil,
         actions: AnyView? = nil,
         @ViewBuilder content: @escaping (UserDetailsState) -> Content
     ) {
@@ -89,6 +105,9 @@ public struct BaseUserDetails<Content: View>: View {
             isUpdating: isUpdating,
             onDelete: onDelete,
             onUpdate: onUpdate,
+            isRunningLifecycleAction: isRunningLifecycleAction,
+            lifecycleActions: lifecycleActions,
+            onLifecycleAction: onLifecycleAction,
             actions: actions,
             renderContent: content
         )
@@ -114,7 +133,10 @@ public struct BaseUserDetails<Content: View>: View {
             isDeleting: isDeleting,
             isUpdating: isUpdating,
             onDelete: isWritable ? onDelete : nil,
-            onUpdate: isWritable ? onUpdate : nil
+            onUpdate: isWritable ? onUpdate : nil,
+            isRunningLifecycleAction: isRunningLifecycleAction,
+            lifecycleActions: onLifecycleAction != nil && user != nil ? lifecycleActions : [],
+            onLifecycleAction: user != nil ? onLifecycleAction : nil
         )
     }
 
@@ -143,21 +165,7 @@ public struct BaseUserDetails<Content: View>: View {
             identifier: "admin-user-details",
             title: name,
             description: i18n.resolve("admin.users.details.subtitle", ["type": user.type]),
-            actions: {
-                HStack(spacing: 8) {
-                    actions
-                    if let onDelete, user.isReadOnly != true {
-                        AdminConfirmButton(
-                            i18n: i18n,
-                            title: i18n.resolve("admin.users.details.delete.action"),
-                            confirmText: i18n.resolve("admin.users.details.delete.confirm", ["name": name]),
-                            isLoading: isDeleting,
-                            identifier: "admin-user-details-delete",
-                            onConfirm: onDelete
-                        )
-                    }
-                }
-            },
+            actions: { headerActions(user, name: name) },
             content: {
                 if let error {
                     AdminErrorBanner(message: error)
@@ -165,6 +173,7 @@ public struct BaseUserDetails<Content: View>: View {
                 HStack(spacing: 12) {
                     AdminAvatar(name: name, size: 48)
                     Text(user.ouHandle ?? user.ouId).foregroundColor(.secondary)
+                    AccessStatusBadge(i18n: i18n, status: user.status?.value)
                 }
                 AdminPanel(
                     title: i18n.resolve("admin.users.details.attributes"),
@@ -181,6 +190,33 @@ public struct BaseUserDetails<Content: View>: View {
                 }
             }
         )
+    }
+
+    private func headerActions(_ user: ManagedUser, name: String) -> some View {
+        HStack(spacing: 8) {
+            actions
+            if let onLifecycleAction {
+                AccountLifecycleButtons(
+                    i18n: i18n,
+                    actions: lifecycleActions,
+                    collectsOperatorNote: true,
+                    isRunning: isRunningLifecycleAction,
+                    name: name,
+                    identifier: "admin-user-details-lifecycle",
+                    onAction: onLifecycleAction
+                )
+            }
+            if let onDelete, user.isReadOnly != true {
+                AdminConfirmButton(
+                    i18n: i18n,
+                    title: i18n.resolve("admin.users.details.delete.action"),
+                    confirmText: i18n.resolve("admin.users.details.delete.confirm", ["name": name]),
+                    isLoading: isDeleting,
+                    identifier: "admin-user-details-delete",
+                    onConfirm: onDelete
+                )
+            }
+        }
     }
 
     private func editAction(_ user: ManagedUser, editable: [(String, String)]) -> AnyView? {
@@ -238,6 +274,9 @@ public extension BaseUserDetails where Content == EmptyView {
         isUpdating: Bool = false,
         onDelete: (() -> Void)? = nil,
         onUpdate: (([String: AnyCodable]) -> Void)? = nil,
+        isRunningLifecycleAction: Bool = false,
+        lifecycleActions: [AccountLifecycleAction] = [],
+        onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)? = nil,
         actions: AnyView? = nil
     ) {
         self.init(
@@ -250,6 +289,9 @@ public extension BaseUserDetails where Content == EmptyView {
             isUpdating: isUpdating,
             onDelete: onDelete,
             onUpdate: onUpdate,
+            isRunningLifecycleAction: isRunningLifecycleAction,
+            lifecycleActions: lifecycleActions,
+            onLifecycleAction: onLifecycleAction,
             actions: actions,
             renderContent: nil
         )
@@ -258,12 +300,18 @@ public extension BaseUserDetails where Content == EmptyView {
 
 /// A user's details, loaded through the management API. Set `editable` to let the signed-in user
 /// edit text attributes and `deletable` to let them delete the user; both are off by default, and a
-/// delete asks for confirmation first.
+/// delete asks for confirmation first. `administrationMode` chooses how the delete runs (`.native` by
+/// default). Set `lifecycleActions` to let them suspend, unsuspend and unlock the user: each action runs
+/// through its administration flow and is offered only when the user's status allows it and the server
+/// configures its flow. The configured flows are read only while it is on, which needs a token that
+/// may read the server configuration.
 public struct UserDetails<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let userId: String
     let editable: Bool
     let deletable: Bool
+    let administrationMode: AdministrationMode
+    let lifecycleActions: Bool
     let hiddenAttributes: Set<String>
     let onDeleted: (() -> Void)?
     let actions: AnyView?
@@ -273,6 +321,8 @@ public struct UserDetails<Content: View>: View {
         userId: String,
         editable: Bool = false,
         deletable: Bool = false,
+        administrationMode: AdministrationMode = .native,
+        lifecycleActions: Bool = false,
         hiddenAttributes: Set<String> = ["password"],
         onDeleted: (() -> Void)? = nil,
         actions: AnyView? = nil,
@@ -281,17 +331,24 @@ public struct UserDetails<Content: View>: View {
         self.userId = userId
         self.editable = editable
         self.deletable = deletable
+        self.administrationMode = administrationMode
+        self.lifecycleActions = lifecycleActions
         self.hiddenAttributes = hiddenAttributes
         self.onDeleted = onDeleted
         self.actions = actions
         self.content = renderContent
     }
 
-    /// - Parameter content: Renders custom UI in place of the default view. See ``BaseUserDetails``.
+    /// - Parameters:
+    ///   - administrationMode: How the delete runs. See ``AdministrationMode``.
+    ///   - lifecycleActions: Whether to offer the account lifecycle actions. Off by default.
+    ///   - content: Renders custom UI in place of the default view. See ``BaseUserDetails``.
     public init(
         userId: String,
         editable: Bool = false,
         deletable: Bool = false,
+        administrationMode: AdministrationMode = .native,
+        lifecycleActions: Bool = false,
         hiddenAttributes: Set<String> = ["password"],
         onDeleted: (() -> Void)? = nil,
         actions: AnyView? = nil,
@@ -301,6 +358,8 @@ public struct UserDetails<Content: View>: View {
             userId: userId,
             editable: editable,
             deletable: deletable,
+            administrationMode: administrationMode,
+            lifecycleActions: lifecycleActions,
             hiddenAttributes: hiddenAttributes,
             onDeleted: onDeleted,
             actions: actions,
@@ -318,6 +377,8 @@ public extension UserDetails where Content == EmptyView {
         userId: String,
         editable: Bool = false,
         deletable: Bool = false,
+        administrationMode: AdministrationMode = .native,
+        lifecycleActions: Bool = false,
         hiddenAttributes: Set<String> = ["password"],
         onDeleted: (() -> Void)? = nil,
         actions: AnyView? = nil
@@ -326,6 +387,8 @@ public extension UserDetails where Content == EmptyView {
             userId: userId,
             editable: editable,
             deletable: deletable,
+            administrationMode: administrationMode,
+            lifecycleActions: lifecycleActions,
             hiddenAttributes: hiddenAttributes,
             onDeleted: onDeleted,
             actions: actions,
@@ -340,13 +403,19 @@ private struct UserDetailsHost<Content: View>: View {
     @StateObject private var groups: ResourceQuery<MembershipGroupListResponse>
     @StateObject private var deletion: ResourceMutation<String, Void>
     @StateObject private var update: ResourceMutation<(id: String, request: UpdateManagedUserRequest), ManagedUser>
+    @StateObject private var lifecycleFlows: ResourceQuery<[AdministrationFlowConfigKey: String]>
+    @StateObject private var lifecycle: ResourceMutation<AccountLifecycleInput, AccountLifecycleResult>
     let props: UserDetails<Content>
 
     init(state: ThunderIDState, props: UserDetails<Content>) {
         _user = StateObject(wrappedValue: state.userQuery(id: props.userId))
         _groups = StateObject(wrappedValue: state.userGroupsQuery(userId: props.userId, limit: 100))
-        _deletion = StateObject(wrappedValue: state.deleteUserMutation())
+        _deletion = StateObject(
+            wrappedValue: state.deleteUserMutation(administrationMode: props.administrationMode)
+        )
         _update = StateObject(wrappedValue: state.updateUserMutation())
+        _lifecycleFlows = StateObject(wrappedValue: state.accountLifecycleFlowsQuery(kind: .user))
+        _lifecycle = StateObject(wrappedValue: state.accountLifecycleMutation(kind: .user))
         self.props = props
     }
 
@@ -358,11 +427,16 @@ private struct UserDetailsHost<Content: View>: View {
             isLoading: user.isLoading,
             error: i18n.managementErrorMessage(user.error, fallbackKey: "admin.users.details.error")
                 ?? i18n.managementErrorMessage(deletion.error, fallbackKey: "admin.users.details.delete.error")
-                ?? i18n.managementErrorMessage(update.error, fallbackKey: "admin.users.details.edit.error"),
+                ?? i18n.managementErrorMessage(update.error, fallbackKey: "admin.users.details.edit.error")
+                ?? i18n.managementErrorMessage(lifecycle.error, fallbackKey: "admin.common.lifecycle.error")
+                ?? i18n.managementErrorMessage(lifecycleFlows.error, fallbackKey: "admin.common.lifecycle.load_error"),
             isDeleting: deletion.isLoading,
             isUpdating: update.isLoading,
             onDelete: props.deletable ? delete : nil,
             onUpdate: props.editable && user.data != nil ? save : nil,
+            isRunningLifecycleAction: lifecycle.isLoading,
+            lifecycleActions: availableLifecycleActions,
+            onLifecycleAction: props.lifecycleActions ? runLifecycleAction : nil,
             actions: props.actions,
             renderContent: props.content
         )
@@ -371,6 +445,19 @@ private struct UserDetailsHost<Content: View>: View {
             async let loadGroups: Void = { _ = await groups.refetch() }()
             _ = await (loadUser, loadGroups)
         }
+        .task(id: props.lifecycleActions) {
+            if props.lifecycleActions { await lifecycleFlows.refetch() }
+        }
+    }
+
+    private var availableLifecycleActions: [AccountLifecycleAction] {
+        guard props.lifecycleActions, let flows = lifecycleFlows.data else { return [] }
+        return AccountLifecycleAction.available(for: .user, status: user.data?.status?.value, configuredFlows: flows)
+    }
+
+    private func runLifecycleAction(_ action: AccountLifecycleAction, operatorNote: String?) {
+        let input = AccountLifecycleInput(subject: props.userId, action: action, operatorNote: operatorNote)
+        Task { await lifecycle.mutate(input) }
     }
 
     private func delete() {

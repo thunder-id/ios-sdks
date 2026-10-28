@@ -86,18 +86,27 @@ private struct IdentityAdminPreview: View {
 
     @ViewBuilder private var userDetails: some View {
         let deletable = values.flag("deletable")
+        let lifecycle = values.flag("lifecycleActions")
         if values.isLive {
-            UserDetails(userId: values.text("userId"), editable: true, deletable: deletable) { onEvent("onDeleted") }
+            UserDetails(
+                userId: values.text("userId"),
+                editable: true,
+                deletable: deletable,
+                administrationMode: values.administrationMode,
+                lifecycleActions: lifecycle
+            ) { onEvent("onDeleted") }
         } else {
+            let user = values.isSampleLoading ? nil : AdminSamples.users.first
             BaseUserDetails(
-                user: values.isSampleLoading ? nil : AdminSamples.users.first,
+                user: user,
                 groups: AdminSamples.userGroups,
                 isLoading: values.isSampleLoading,
                 error: values.sampleError,
-                onDelete: deletable ? { onEvent("onDelete") } : nil
-            ) { attributes in
-                onEvent("onUpdate: \(attributes.keys.sorted().joined(separator: ", "))")
-            }
+                onDelete: deletable ? { onEvent("onDelete") } : nil,
+                onUpdate: { attributes in onEvent("onUpdate: \(attributes.keys.sorted().joined(separator: ", "))") },
+                lifecycleActions: AdminSamples.lifecycleActions(.user, status: user?.status?.value),
+                onLifecycleAction: lifecycle ? logLifecycleAction : nil
+            )
         }
     }
 
@@ -149,16 +158,22 @@ private struct IdentityAdminPreview: View {
 
     @ViewBuilder private var agentDetails: some View {
         let deletable = values.flag("deletable")
+        let lifecycle = values.flag("lifecycleActions")
         if values.isLive {
-            AgentDetails(agentId: values.text("agentId"), deletable: deletable) { onEvent("onDeleted") }
+            AgentDetails(agentId: values.text("agentId"), deletable: deletable, lifecycleActions: lifecycle) {
+                onEvent("onDeleted")
+            }
         } else {
+            let agent = values.isSampleLoading ? nil : AdminSamples.agent
             BaseAgentDetails(
-                agent: values.isSampleLoading ? nil : AdminSamples.agent,
+                agent: agent,
                 groups: AdminSamples.userGroups,
                 roles: AdminSamples.agentRoles,
                 isLoading: values.isSampleLoading,
                 error: values.sampleError,
-                onDelete: deletable ? { onEvent("onDelete") } : nil
+                onDelete: deletable ? { onEvent("onDelete") } : nil,
+                lifecycleActions: AdminSamples.lifecycleActions(.agent, status: agent?.status?.value),
+                onLifecycleAction: lifecycle ? logLifecycleAction : nil
             )
         }
     }
@@ -188,5 +203,9 @@ private struct IdentityAdminPreview: View {
     private func select(_ id: String, _ name: String) {
         selected = id
         onEvent("onSelect: \(name)")
+    }
+
+    private func logLifecycleAction(_ action: AccountLifecycleAction, operatorNote: String?) {
+        onEvent("onLifecycleAction: \(action.rawValue)" + (operatorNote.map { " (\($0))" } ?? ""))
     }
 }

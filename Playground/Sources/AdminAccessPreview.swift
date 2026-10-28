@@ -89,6 +89,7 @@ struct AccessAdminPreview: View {
             GroupMembers(
                 groupId: values.text("groupId"),
                 editable: editable,
+                administrationMode: values.administrationMode,
                 title: values.optional("title"),
                 description: values.optional("description")
             )
@@ -178,6 +179,7 @@ struct AccessAdminPreview: View {
             RoleAssignments(
                 roleId: values.text("roleId"),
                 editable: editable,
+                administrationMode: values.administrationMode,
                 title: values.optional("title"),
                 description: values.optional("description")
             )

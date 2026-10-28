@@ -62,6 +62,7 @@ enum AdminSamples {
     static let users: [ManagedUser] = decode("""
     [
       {"id": "usr-liam", "ouId": "ou-1", "ouHandle": "default", "type": "person", "display": "Liam Chen",
+       "status": {"value": "LOCKED", "details": {"reason": "FAILED_ATTEMPTS"}},
        "attributes": {"email": "liam@example.com", "given_name": "Liam", "family_name": "Chen",
                       "username": "liam"}},
       {"id": "usr-ana", "ouId": "ou-1", "ouHandle": "default", "type": "person",
@@ -88,7 +89,8 @@ enum AdminSamples {
     static let agent: Agent = decode("""
     {"id": "agt-triage", "ouId": "ou-1", "ouHandle": "default", "type": "assistant",
      "name": "Ticket triage agent", "description": "Labels and routes support tickets",
-     "owner": "usr-liam", "clientId": "triage", "attributes": {"model": "triage-v2"}}
+     "owner": "usr-liam", "clientId": "triage", "attributes": {"model": "triage-v2"},
+     "status": {"value": "ACTIVE"}}
     """)
 
     static let agentRoles = ["Agent operator", "Viewer"]
@@ -119,6 +121,17 @@ enum AdminSamples {
        "redirectUris": ["https://console.example.com/callback"],
        "grantTypes": ["authorization_code", "refresh_token"], "responseTypes": ["code"]}}]}
     """)
+
+    /// The lifecycle actions a sample identity offers, as if the server configured every flow.
+    static func lifecycleActions(
+        _ kind: AccountLifecycleSubjectKind,
+        status: AccessStatusValue?
+    ) -> [AccountLifecycleAction] {
+        let flows = kind.flowConfigKeys.values.reduce(into: [AdministrationFlowConfigKey: String]()) { flows, key in
+            flows[key] = "sample-\(key.rawValue)"
+        }
+        return AccountLifecycleAction.available(for: kind, status: status, configuredFlows: flows)
+    }
 
     private static func decode<Value: Decodable>(_ json: String) -> Value {
         do {

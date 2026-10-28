@@ -103,6 +103,13 @@ public struct UserDetailsState {
     public let onDelete: (() -> Void)?
     /// Saves the given attributes. `nil` when editing is not allowed, including for read-only users.
     public let onUpdate: (([String: AnyCodable]) -> Void)?
+    public let isRunningLifecycleAction: Bool
+    /// The account lifecycle actions offered for the user, most expected first. Empty when none is
+    /// allowed.
+    public let lifecycleActions: [AccountLifecycleAction]
+    /// Runs an account lifecycle action, with the operator's note on a suspension. Ask for
+    /// confirmation before suspending or unsuspending. `nil` when no lifecycle action is allowed.
+    public let onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)?
 }
 
 /// What ``BaseAgentDetails`` hands its `content` closure.
@@ -115,6 +122,13 @@ public struct AgentDetailsState {
     public let isDeleting: Bool
     /// Deletes the agent. `nil` when deletion is not allowed, including for read-only agents.
     public let onDelete: (() -> Void)?
+    public let isRunningLifecycleAction: Bool
+    /// The account lifecycle actions offered for the agent, most expected first. Empty when none is
+    /// allowed.
+    public let lifecycleActions: [AccountLifecycleAction]
+    /// Runs an account lifecycle action, with the operator's note on a suspension. Ask for
+    /// confirmation before suspending or unsuspending. `nil` when no lifecycle action is allowed.
+    public let onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)?
 }
 
 /// What ``BaseGroupMembers`` hands its `content` closure.

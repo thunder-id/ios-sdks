@@ -94,14 +94,20 @@ extension ExplorerCatalog {
             isTall: true
         ) { values in
             let head = values.isLive
-                ? "UserDetails(userId: \(quote(values.text("userId"))), deletable: true)"
-                : "BaseUserDetails(user: user, groups: groups, onDelete: {})"
+                ? "UserDetails(userId: \(quote(values.text("userId"))), deletable: true, lifecycleActions: true)"
+                : "BaseUserDetails(user: user, groups: groups, onDelete: {}, lifecycleActions: actions, "
+                    + "onLifecycleAction: { action, note in })"
             return """
             \(head) { details in
                 VStack(alignment: .leading, spacing: 12) {
                     Text(details.displayName).font(.title2.bold())
                     ForEach(details.attributes.keys.sorted(), id: \\.self) { name in
                         LabeledContent(name, value: "\\(details.attributes[name]?.value ?? "")")
+                    }
+                    if let run = details.onLifecycleAction {
+                        ForEach(details.lifecycleActions.filter { !$0.requiresConfirmation }) { action in
+                            Button(action.rawValue.capitalized) { run(action, nil) }
+                        }
                     }
                     if let delete = details.onDelete {
                         Button("Delete", role: .destructive, action: delete)

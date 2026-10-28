@@ -24,11 +24,21 @@ public struct ApplicationDetailsState {
     /// Issues a new client secret. Ask for confirmation first. `nil` when it is not allowed, for a
     /// read-only application, or for one with no confidential OAuth client.
     public let onRegenerateSecret: (() -> Void)?
+    public let isRunningLifecycleAction: Bool
+    /// The account lifecycle actions offered for the application, most expected first. Empty when none
+    /// is allowed.
+    public let lifecycleActions: [AccountLifecycleAction]
+    /// Runs an account lifecycle action. An application's suspension takes no operator note, so the
+    /// note is `nil`. Ask for confirmation before suspending or unsuspending. `nil` when no lifecycle
+    /// action is allowed.
+    public let onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)?
 }
 
 /// An application's overview and OAuth settings, rendered from the data it is given. Editing, deleting
 /// and regenerating the client secret are offered only when their callbacks are set, and never for a
-/// read-only application; deleting and regenerating ask for confirmation first.
+/// read-only application; deleting and regenerating ask for confirmation first. The account lifecycle
+/// actions in `lifecycleActions` (suspend and unsuspend; applications are never locked) are offered only
+/// when `onLifecycleAction` is set, for read-only applications too, and ask for confirmation first.
 public struct BaseApplicationDetails<Content: View>: View {
     @EnvironmentObject private var i18n: ThunderIDI18n
     let application: Application?
@@ -42,6 +52,9 @@ public struct BaseApplicationDetails<Content: View>: View {
     let onDelete: (() -> Void)?
     let onUpdate: ((ApplicationEdit) -> Void)?
     let onRegenerateSecret: (() -> Void)?
+    let isRunningLifecycleAction: Bool
+    let lifecycleActions: [AccountLifecycleAction]
+    let onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)?
     let actions: AnyView?
     let content: ((ApplicationDetailsState) -> Content)?
 
@@ -59,6 +72,9 @@ public struct BaseApplicationDetails<Content: View>: View {
         onDelete: (() -> Void)? = nil,
         onUpdate: ((ApplicationEdit) -> Void)? = nil,
         onRegenerateSecret: (() -> Void)? = nil,
+        isRunningLifecycleAction: Bool = false,
+        lifecycleActions: [AccountLifecycleAction] = [],
+        onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)? = nil,
         actions: AnyView? = nil,
         renderContent: ((ApplicationDetailsState) -> Content)?
     ) {
@@ -73,12 +89,16 @@ public struct BaseApplicationDetails<Content: View>: View {
         self.onDelete = onDelete
         self.onUpdate = onUpdate
         self.onRegenerateSecret = onRegenerateSecret
+        self.isRunningLifecycleAction = isRunningLifecycleAction
+        self.lifecycleActions = lifecycleActions
+        self.onLifecycleAction = onLifecycleAction
         self.actions = actions
         self.content = renderContent
     }
 
     /// - Parameter content: Renders custom UI in place of the default view, from the application, the
-    ///   loading and error state, the issued client secret, and the actions the app allows.
+    ///   loading and error state, the issued client secret, and the actions the app allows, including the
+    ///   lifecycle actions.
     public init(
         application: Application?,
         isLoading: Bool = false,
@@ -91,6 +111,9 @@ public struct BaseApplicationDetails<Content: View>: View {
         onDelete: (() -> Void)? = nil,
         onUpdate: ((ApplicationEdit) -> Void)? = nil,
         onRegenerateSecret: (() -> Void)? = nil,
+        isRunningLifecycleAction: Bool = false,
+        lifecycleActions: [AccountLifecycleAction] = [],
+        onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)? = nil,
         actions: AnyView? = nil,
         @ViewBuilder content: @escaping (ApplicationDetailsState) -> Content
     ) {
@@ -106,6 +129,9 @@ public struct BaseApplicationDetails<Content: View>: View {
             onDelete: onDelete,
             onUpdate: onUpdate,
             onRegenerateSecret: onRegenerateSecret,
+            isRunningLifecycleAction: isRunningLifecycleAction,
+            lifecycleActions: lifecycleActions,
+            onLifecycleAction: onLifecycleAction,
             actions: actions,
             renderContent: content
         )
@@ -139,7 +165,10 @@ public struct BaseApplicationDetails<Content: View>: View {
             onSecretDone: onSecretDone,
             onDelete: isWritable ? onDelete : nil,
             onUpdate: isWritable ? onUpdate : nil,
-            onRegenerateSecret: isWritable && hasSecret ? onRegenerateSecret : nil
+            onRegenerateSecret: isWritable && hasSecret ? onRegenerateSecret : nil,
+            isRunningLifecycleAction: isRunningLifecycleAction,
+            lifecycleActions: onLifecycleAction != nil && application != nil ? lifecycleActions : [],
+            onLifecycleAction: application != nil ? onLifecycleAction : nil
         )
     }
 
@@ -200,6 +229,16 @@ public struct BaseApplicationDetails<Content: View>: View {
                 Button(i18n.resolve("admin.applications.details.edit.action")) { isEditing = true }
                     .accessibilityIdentifier("admin-application-details-edit")
             }
+            if let run = state.onLifecycleAction {
+                AccountLifecycleButtons(
+                    i18n: i18n,
+                    actions: state.lifecycleActions,
+                    isRunning: isRunningLifecycleAction,
+                    name: application.name,
+                    identifier: "admin-application-details-lifecycle",
+                    onAction: run
+                )
+            }
             if let regenerate = state.onRegenerateSecret {
                 AdminConfirmButton(
                     i18n: i18n,
@@ -237,6 +276,9 @@ public extension BaseApplicationDetails where Content == EmptyView {
         onDelete: (() -> Void)? = nil,
         onUpdate: ((ApplicationEdit) -> Void)? = nil,
         onRegenerateSecret: (() -> Void)? = nil,
+        isRunningLifecycleAction: Bool = false,
+        lifecycleActions: [AccountLifecycleAction] = [],
+        onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)? = nil,
         actions: AnyView? = nil
     ) {
         self.init(
@@ -251,6 +293,9 @@ public extension BaseApplicationDetails where Content == EmptyView {
             onDelete: onDelete,
             onUpdate: onUpdate,
             onRegenerateSecret: onRegenerateSecret,
+            isRunningLifecycleAction: isRunningLifecycleAction,
+            lifecycleActions: lifecycleActions,
+            onLifecycleAction: onLifecycleAction,
             actions: actions,
             renderContent: nil
         )

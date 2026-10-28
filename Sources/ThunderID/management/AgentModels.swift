@@ -46,6 +46,8 @@ public struct Agent: Codable {
     public let assertion: TokenConfig?
     public let loginConsent: AgentLoginConsentConfig?
     public let isReadOnly: Bool?
+    /// The effective access status, set by the server on a read.
+    public let status: AccessStatus?
 }
 
 /// The summary of an agent returned in list responses.

@@ -97,9 +97,16 @@ extension ExplorerCatalog {
             id: id,
             name: name,
             group: group,
-            defaults: common.merging([idKey: value, "error": forbidden, "deletable": "false"]) { _, new in new },
+            defaults: common.merging([
+                idKey: value,
+                "error": forbidden,
+                "deletable": "false",
+                "lifecycleActions": "false",
+                "administrationMode": "native"
+            ]) { _, new in new },
             controls: [sourceControl, stateControl(["data", "loading", "error"])]
                 + (name == "RolePermissions" ? textControls : [StoryControl(name: "deletable", kind: .bool)])
+                + detailFlowControls(name)
                 + [StoryControl(name: idKey, kind: .text), errorControl],
             stories: states(["data", "loading", "error"]),
             isTall: true
@@ -123,6 +130,24 @@ extension ExplorerCatalog {
         ) { values in AdminSnippets.create(name: name, values: values) }
     }
 
+    private static let administrationModeControl = StoryControl(
+        name: "administrationMode",
+        kind: .options([AdministrationMode.native.rawValue, AdministrationMode.flow.rawValue])
+    )
+
+    /// The lifecycle actions a details view offers, and how its data-changing operations run, where the
+    /// component supports them.
+    private static func detailFlowControls(_ name: String) -> [StoryControl] {
+        switch name {
+        case "UserDetails", "ApplicationDetails":
+            return [StoryControl(name: "lifecycleActions", kind: .bool), administrationModeControl]
+        case "AgentDetails":
+            return [StoryControl(name: "lifecycleActions", kind: .bool)]
+        default:
+            return []
+        }
+    }
+
     /// Group members or role assignments, read-only or with the add and remove pickers.
     private static func membership(_ id: String, _ name: String, group: String, idKey: String, id value: String)
         -> ComponentSpec {
@@ -130,9 +155,14 @@ extension ExplorerCatalog {
             id: id,
             name: name,
             group: group,
-            defaults: common.merging([idKey: value, "editable": "true", "error": forbidden]) { _, new in new },
+            defaults: common.merging([
+                idKey: value,
+                "editable": "true",
+                "error": forbidden,
+                "administrationMode": "native"
+            ]) { _, new in new },
             controls: [sourceControl, stateControl(["data", "loading", "empty", "error"])]
-                + [StoryControl(name: "editable", kind: .bool)]
+                + [StoryControl(name: "editable", kind: .bool), administrationModeControl]
                 + textControls
                 + [StoryControl(name: idKey, kind: .text), errorControl],
             stories: states(["data", "loading", "empty", "error"]),
@@ -149,4 +179,9 @@ extension PropValues {
     }
 
     var isLive: Bool { self["source"] == "live" }
+
+    /// How the connected component's data-changing operations run. `.native` unless the story says `flow`.
+    var administrationMode: AdministrationMode {
+        AdministrationMode(rawValue: text("administrationMode")) ?? .native
+    }
 }

@@ -71,11 +71,20 @@ public extension ThunderIDState {
         }
     }
 
-    func removeGroupMembersMutation(fetcher: ThunderIDFetcher? = nil)
-        -> ResourceMutation<GroupMembersInput, ManagedGroup> {
+    /// Removes members from a group. In `.flow` mode the configured membership removal flow runs once
+    /// for each member instead, revoking what the member held through the group.
+    func removeGroupMembersMutation(
+        administrationMode: AdministrationMode = .native,
+        fetcher: ThunderIDFetcher? = nil
+    ) -> ResourceMutation<GroupMembersInput, ManagedGroup> {
         let client = client
         return mutation(invalidating: membershipKeys) { input in
-            try await client.groups.removeMembers(id: input.groupId, input.members, fetcher: fetcher)
+            try await client.groups.removeMembers(
+                id: input.groupId,
+                input.members,
+                administrationMode: administrationMode,
+                fetcher: fetcher
+            )
         }
     }
 }

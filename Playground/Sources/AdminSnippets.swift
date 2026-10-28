@@ -25,9 +25,11 @@ enum AdminSnippets {
                     + state(values) + texts(values))
         }
         let deletable = values.flag("deletable")
+        let lifecycle = values.flag("lifecycleActions")
         if values.isLive {
             let deletion = deletable ? ["deletable: true", "onDeleted: { /* deleted */ }"] : []
-            return call(name, ["\(idKey): \(id)"] + deletion)
+            return call(name, ["\(idKey): \(id)"] + administrationMode(values)
+                + (lifecycle ? ["lifecycleActions: true"] : []) + deletion)
         }
         let record: [String]
         switch name {
@@ -36,7 +38,8 @@ enum AdminSnippets {
         default: record = ["agent: agent", "groups: groups", "roles: roles"]
         }
         return call("Base\(name)", record + state(values)
-            + (deletable ? ["onDelete: { /* delete */ }"] : []))
+            + (deletable ? ["onDelete: { /* delete */ }"] : [])
+            + (lifecycle ? ["lifecycleActions: actions", "onLifecycleAction: { action, note in /* run */ }"] : []))
     }
 
     static func create(name: String, values: PropValues) -> String {
@@ -58,7 +61,7 @@ enum AdminSnippets {
         let isGroup = name == "GroupMembers"
         if values.isLive {
             return call(name, ["\(idKey): \(ExplorerCatalog.quote(values.text(idKey)))"]
-                + (values.flag("editable") ? ["editable: true"] : []) + texts(values))
+                + (values.flag("editable") ? ["editable: true"] : []) + administrationMode(values) + texts(values))
         }
         let rows = isGroup ? "members" : "assignments"
         var args = ["\(rows): \(values.text("state") == "empty" ? "[]" : rows)"]
@@ -81,6 +84,10 @@ enum AdminSnippets {
         "onAssign: { assignee in /* assign */ }",
         "onUnassign: { assignment in /* unassign */ }"
     ]
+
+    private static func administrationMode(_ values: PropValues) -> [String] {
+        values.administrationMode == .flow ? ["administrationMode: .flow"] : []
+    }
 
     private static func state(_ values: PropValues) -> [String] {
         switch values.text("state") {
