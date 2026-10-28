@@ -130,7 +130,7 @@ private struct IdentityAdminPreview: View {
                 title: values.optional("title"),
                 description: values.optional("description"),
                 selectedAgentId: selected
-            ) { select($0.id, $0.name) }
+            ) { select($0.id, $0.resolvedName) }
         } else {
             BaseAgentList(
                 agents: values.isSampleEmpty ? [] : AdminSamples.agents,
@@ -142,7 +142,7 @@ private struct IdentityAdminPreview: View {
                 totalResults: values.isSampleEmpty ? 0 : AdminSamples.agents.count,
                 selectedAgentId: selected,
                 onPageChange: { onEvent("onPageChange: \($0)") },
-                onSelect: { select($0.id, $0.name) }
+                onSelect: { select($0.id, $0.resolvedName) }
             )
         }
     }

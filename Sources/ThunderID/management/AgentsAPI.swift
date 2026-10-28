@@ -115,7 +115,6 @@ extension UpdateAgentRequest {
         self.init()
         ouId = agent.ouId
         type = agent.type
-        name = agent.name
         description = agent.description
         logoUrl = agent.logoUrl
         owner = agent.owner

@@ -43,7 +43,7 @@ enum AdminCandidates {
     }
 
     static func agents(_ page: AgentListResponse?) -> [IdentityCandidate] {
-        (page?.agents ?? []).map { IdentityCandidate(id: $0.id, label: $0.name) }
+        (page?.agents ?? []).map { IdentityCandidate(id: $0.id, label: $0.resolvedName) }
     }
 
     static func groups(_ page: GroupListResponse?) -> [IdentityCandidate] {

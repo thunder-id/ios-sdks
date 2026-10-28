@@ -30,7 +30,9 @@ public struct Agent: Codable {
     public let ouId: String
     public let ouHandle: String?
     public let type: String
-    public let name: String
+    /// The name the server resolved from the agent type's display attribute. Returned only by reads
+    /// made with `include=display`. ``resolvedName`` falls back to the `name` attribute.
+    public let display: String?
     public let description: String?
     public let logoUrl: String?
     public let owner: String?
@@ -54,10 +56,13 @@ public struct BasicAgent: Codable {
     public let ouId: String
     public let ouHandle: String?
     public let type: String
-    public let name: String
+    /// The name the server resolved from the agent type's display attribute. Returned only by reads
+    /// made with `include=display`. ``resolvedName`` falls back to the `name` attribute.
+    public let display: String?
     public let description: String?
     public let logoUrl: String?
     public let clientId: String?
+    public let attributes: [String: AnyCodable]?
     public let isReadOnly: Bool?
 }
 
@@ -69,29 +74,29 @@ public struct AgentListResponse: Codable {
     public let agents: [BasicAgent]
 }
 
-/// The payload used to create an agent.
+/// The payload used to create an agent. The agent's name is an attribute of its type, so it goes in
+/// `attributes["name"]`.
 public struct CreateAgentRequest: Codable {
     public var ouId: String
     public var type: String
-    public var name: String
     public var description: String?
     public var logoUrl: String?
     public var owner: String?
     public var attributes: [String: AnyCodable]?
     public var inboundAuthConfig: [AgentInboundAuthConfig]?
 
-    public init(ouId: String, type: String, name: String) {
+    public init(ouId: String, type: String, attributes: [String: AnyCodable]? = nil) {
         self.ouId = ouId
         self.type = type
-        self.name = name
+        self.attributes = attributes
     }
 }
 
-/// The payload used to update an agent.
+/// The payload used to update an agent. The agent's name is an attribute of its type, so it goes in
+/// `attributes["name"]`.
 public struct UpdateAgentRequest: Codable {
     public var ouId: String?
     public var type: String?
-    public var name: String?
     public var description: String?
     public var logoUrl: String?
     public var owner: String?

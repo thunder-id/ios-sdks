@@ -114,7 +114,19 @@ final class AdminComponentTests: XCTestCase {
             #""attributes":{"given_name":"Ada","family_name":"Lovelace"}}]}"#
         )
 
+        let agents: AgentListResponse = try decode(
+            #"{"totalResults":3,"startIndex":1,"count":3,"agents":["# +
+            #"{"id":"ag-1","ouId":"ou","type":"bot","display":"Triage","attributes":{"name":"triage"}},"# +
+            #"{"id":"ag-2","ouId":"ou","type":"bot","attributes":{"name":"Billing"}},"# +
+            #"{"id":"ag-3","ouId":"ou","type":"bot"}]}"#
+        )
+
         XCTAssertEqual(AdminCandidates.users(users), [IdentityCandidate(id: "u-1", label: "Ada Lovelace")])
+        XCTAssertEqual(AdminCandidates.agents(agents), [
+            IdentityCandidate(id: "ag-1", label: "Triage"),
+            IdentityCandidate(id: "ag-2", label: "Billing"),
+            IdentityCandidate(id: "ag-3", label: "ag-3")
+        ])
         XCTAssertEqual(AdminCandidates.agents(nil), [])
     }
 

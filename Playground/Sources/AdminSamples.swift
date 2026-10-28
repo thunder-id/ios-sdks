@@ -78,17 +78,21 @@ enum AdminSamples {
     static let agents: [BasicAgent] = decode("""
     [
       {"id": "agt-triage", "ouId": "ou-1", "ouHandle": "default", "type": "assistant",
-       "name": "Ticket triage agent", "description": "Labels and routes support tickets", "clientId": "triage"},
+       "display": "Ticket triage agent", "attributes": {"name": "Ticket triage agent"},
+       "description": "Labels and routes support tickets", "clientId": "triage"},
       {"id": "agt-billing", "ouId": "ou-1", "ouHandle": "default", "type": "assistant",
-       "name": "Billing assistant", "description": "Answers invoice questions"},
-      {"id": "agt-sync", "ouId": "ou-1", "type": "service", "name": "Directory sync", "isReadOnly": true}
+       "display": "Billing assistant", "attributes": {"name": "Billing assistant"},
+       "description": "Answers invoice questions"},
+      {"id": "agt-sync", "ouId": "ou-1", "type": "service", "display": "Directory sync",
+       "attributes": {"name": "Directory sync"}, "isReadOnly": true}
     ]
     """)
 
     static let agent: Agent = decode("""
     {"id": "agt-triage", "ouId": "ou-1", "ouHandle": "default", "type": "assistant",
-     "name": "Ticket triage agent", "description": "Labels and routes support tickets",
-     "owner": "usr-liam", "clientId": "triage", "attributes": {"model": "triage-v2"}}
+     "display": "Ticket triage agent", "description": "Labels and routes support tickets",
+     "owner": "usr-liam", "clientId": "triage",
+     "attributes": {"name": "Ticket triage agent", "model": "triage-v2"}}
     """)
 
     static let agentRoles = ["Agent operator", "Viewer"]
