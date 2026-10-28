@@ -4,8 +4,11 @@
 import SwiftUI
 import ThunderID
 
-/// An agent's overview, groups and roles, rendered from the data it is given. Deleting is offered
-/// only when `onDelete` is set, and never for a read-only agent.
+/// An agent's overview, access status, groups and roles, rendered from the data it is given. Deleting
+/// is offered only when `onDelete` is set, and never for a read-only agent. The account lifecycle
+/// actions in `lifecycleActions` (suspend, unsuspend, unlock) are offered only when `onLifecycleAction`
+/// is set; they change only runtime state, so they apply to read-only agents too. Suspending and
+/// unsuspending ask for confirmation first, and a suspension takes an optional operator note.
 public struct BaseAgentDetails<Content: View>: View {
     @EnvironmentObject private var i18n: ThunderIDI18n
     let agent: Agent?
@@ -15,6 +18,9 @@ public struct BaseAgentDetails<Content: View>: View {
     let error: String?
     let isDeleting: Bool
     let onDelete: (() -> Void)?
+    let isRunningLifecycleAction: Bool
+    let lifecycleActions: [AccountLifecycleAction]
+    let onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)?
     let actions: AnyView?
     let content: ((AgentDetailsState) -> Content)?
 
@@ -26,6 +32,9 @@ public struct BaseAgentDetails<Content: View>: View {
         error: String? = nil,
         isDeleting: Bool = false,
         onDelete: (() -> Void)? = nil,
+        isRunningLifecycleAction: Bool = false,
+        lifecycleActions: [AccountLifecycleAction] = [],
+        onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)? = nil,
         actions: AnyView? = nil,
         renderContent: ((AgentDetailsState) -> Content)?
     ) {
@@ -36,12 +45,15 @@ public struct BaseAgentDetails<Content: View>: View {
         self.error = error
         self.isDeleting = isDeleting
         self.onDelete = onDelete
+        self.isRunningLifecycleAction = isRunningLifecycleAction
+        self.lifecycleActions = lifecycleActions
+        self.onLifecycleAction = onLifecycleAction
         self.actions = actions
         self.content = renderContent
     }
 
     /// - Parameter content: Renders custom UI in place of the default view, from the agent, its groups and roles,
-    ///   the loading and error state, and the delete action.
+    ///   the loading and error state, and the delete and lifecycle actions.
     public init(
         agent: Agent?,
         groups: [MembershipGroup] = [],
@@ -50,6 +62,9 @@ public struct BaseAgentDetails<Content: View>: View {
         error: String? = nil,
         isDeleting: Bool = false,
         onDelete: (() -> Void)? = nil,
+        isRunningLifecycleAction: Bool = false,
+        lifecycleActions: [AccountLifecycleAction] = [],
+        onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)? = nil,
         actions: AnyView? = nil,
         @ViewBuilder content: @escaping (AgentDetailsState) -> Content
     ) {
@@ -61,6 +76,9 @@ public struct BaseAgentDetails<Content: View>: View {
             error: error,
             isDeleting: isDeleting,
             onDelete: onDelete,
+            isRunningLifecycleAction: isRunningLifecycleAction,
+            lifecycleActions: lifecycleActions,
+            onLifecycleAction: onLifecycleAction,
             actions: actions,
             renderContent: content
         )
@@ -82,7 +100,10 @@ public struct BaseAgentDetails<Content: View>: View {
             isLoading: isLoading,
             error: error,
             isDeleting: isDeleting,
-            onDelete: agent != nil && agent?.isReadOnly != true ? onDelete : nil
+            onDelete: agent != nil && agent?.isReadOnly != true ? onDelete : nil,
+            isRunningLifecycleAction: isRunningLifecycleAction,
+            lifecycleActions: onLifecycleAction != nil && agent != nil ? lifecycleActions : [],
+            onLifecycleAction: agent != nil ? onLifecycleAction : nil
         )
     }
 
@@ -107,6 +128,9 @@ public struct BaseAgentDetails<Content: View>: View {
             (i18n.resolve("admin.agents.details.owner"), agent.owner ?? i18n.resolve("admin.agents.details.no_owner")),
             (i18n.resolve("admin.common.columns.organization_unit"), agent.ouHandle ?? agent.ouId)
         ]
+        if let status = agent.status {
+            overview.append((i18n.resolve("admin.common.columns.status"), i18n.accessStatusLabel(status.value)))
+        }
         if let clientId = agent.clientId {
             overview.append((i18n.resolve("admin.agents.list.columns.client_id"), clientId))
         }
@@ -114,21 +138,7 @@ public struct BaseAgentDetails<Content: View>: View {
             identifier: "admin-agent-details",
             title: agent.name,
             description: agent.description,
-            actions: {
-                HStack(spacing: 8) {
-                    actions
-                    if let onDelete, agent.isReadOnly != true {
-                        AdminConfirmButton(
-                            i18n: i18n,
-                            title: i18n.resolve("admin.agents.details.delete.action"),
-                            confirmText: i18n.resolve("admin.agents.details.delete.confirm", ["name": agent.name]),
-                            isLoading: isDeleting,
-                            identifier: "admin-agent-details-delete",
-                            onConfirm: onDelete
-                        )
-                    }
-                }
-            },
+            actions: { headerActions(agent) },
             content: {
                 if let error {
                     AdminErrorBanner(message: error)
@@ -153,6 +163,33 @@ public struct BaseAgentDetails<Content: View>: View {
             }
         )
     }
+
+    private func headerActions(_ agent: Agent) -> some View {
+        HStack(spacing: 8) {
+            actions
+            if let onLifecycleAction {
+                AccountLifecycleButtons(
+                    i18n: i18n,
+                    actions: lifecycleActions,
+                    collectsOperatorNote: true,
+                    isRunning: isRunningLifecycleAction,
+                    name: agent.name,
+                    identifier: "admin-agent-details-lifecycle",
+                    onAction: onLifecycleAction
+                )
+            }
+            if let onDelete, agent.isReadOnly != true {
+                AdminConfirmButton(
+                    i18n: i18n,
+                    title: i18n.resolve("admin.agents.details.delete.action"),
+                    confirmText: i18n.resolve("admin.agents.details.delete.confirm", ["name": agent.name]),
+                    isLoading: isDeleting,
+                    identifier: "admin-agent-details-delete",
+                    onConfirm: onDelete
+                )
+            }
+        }
+    }
 }
 
 public extension BaseAgentDetails where Content == EmptyView {
@@ -164,6 +201,9 @@ public extension BaseAgentDetails where Content == EmptyView {
         error: String? = nil,
         isDeleting: Bool = false,
         onDelete: (() -> Void)? = nil,
+        isRunningLifecycleAction: Bool = false,
+        lifecycleActions: [AccountLifecycleAction] = [],
+        onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)? = nil,
         actions: AnyView? = nil
     ) {
         self.init(
@@ -174,6 +214,9 @@ public extension BaseAgentDetails where Content == EmptyView {
             error: error,
             isDeleting: isDeleting,
             onDelete: onDelete,
+            isRunningLifecycleAction: isRunningLifecycleAction,
+            lifecycleActions: lifecycleActions,
+            onLifecycleAction: onLifecycleAction,
             actions: actions,
             renderContent: nil
         )
@@ -181,11 +224,16 @@ public extension BaseAgentDetails where Content == EmptyView {
 }
 
 /// An agent's details, loaded through the management API. Set `deletable` to let the signed-in
-/// user delete the agent; it is off by default, and a delete asks for confirmation first.
+/// user delete the agent; it is off by default, and a delete asks for confirmation first. Set
+/// `lifecycleActions` to let them suspend, unsuspend and unlock the agent: each action runs through its
+/// administration flow and is offered only when the agent's status allows it and the server configures
+/// its flow. The configured flows are read only while it is on, which needs a token that may read the
+/// server configuration. The agent API has no flow-backed delete, so there is no `administrationMode`.
 public struct AgentDetails<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let agentId: String
     let deletable: Bool
+    let lifecycleActions: Bool
     let onDeleted: (() -> Void)?
     let actions: AnyView?
     let content: ((AgentDetailsState) -> Content)?
@@ -193,21 +241,26 @@ public struct AgentDetails<Content: View>: View {
     init(
         agentId: String,
         deletable: Bool = false,
+        lifecycleActions: Bool = false,
         onDeleted: (() -> Void)? = nil,
         actions: AnyView? = nil,
         renderContent: ((AgentDetailsState) -> Content)?
     ) {
         self.agentId = agentId
         self.deletable = deletable
+        self.lifecycleActions = lifecycleActions
         self.onDeleted = onDeleted
         self.actions = actions
         self.content = renderContent
     }
 
-    /// - Parameter content: Renders custom UI in place of the default view. See ``BaseAgentDetails``.
+    /// - Parameters:
+    ///   - lifecycleActions: Whether to offer the account lifecycle actions. Off by default.
+    ///   - content: Renders custom UI in place of the default view. See ``BaseAgentDetails``.
     public init(
         agentId: String,
         deletable: Bool = false,
+        lifecycleActions: Bool = false,
         onDeleted: (() -> Void)? = nil,
         actions: AnyView? = nil,
         @ViewBuilder content: @escaping (AgentDetailsState) -> Content
@@ -215,6 +268,7 @@ public struct AgentDetails<Content: View>: View {
         self.init(
             agentId: agentId,
             deletable: deletable,
+            lifecycleActions: lifecycleActions,
             onDeleted: onDeleted,
             actions: actions,
             renderContent: content
@@ -230,12 +284,14 @@ public extension AgentDetails where Content == EmptyView {
     init(
         agentId: String,
         deletable: Bool = false,
+        lifecycleActions: Bool = false,
         onDeleted: (() -> Void)? = nil,
         actions: AnyView? = nil
     ) {
         self.init(
             agentId: agentId,
             deletable: deletable,
+            lifecycleActions: lifecycleActions,
             onDeleted: onDeleted,
             actions: actions,
             renderContent: nil
@@ -249,6 +305,8 @@ private struct AgentDetailsHost<Content: View>: View {
     @StateObject private var groups: ResourceQuery<MembershipGroupListResponse>
     @StateObject private var roles: ResourceQuery<AgentRoleListResponse>
     @StateObject private var deletion: ResourceMutation<String, Void>
+    @StateObject private var lifecycleFlows: ResourceQuery<[AdministrationFlowConfigKey: String]>
+    @StateObject private var lifecycle: ResourceMutation<AccountLifecycleInput, AccountLifecycleResult>
     let props: AgentDetails<Content>
 
     init(state: ThunderIDState, props: AgentDetails<Content>) {
@@ -256,6 +314,8 @@ private struct AgentDetailsHost<Content: View>: View {
         _groups = StateObject(wrappedValue: state.agentGroupsQuery(agentId: props.agentId, limit: 100))
         _roles = StateObject(wrappedValue: state.agentRolesQuery(agentId: props.agentId, limit: 100))
         _deletion = StateObject(wrappedValue: state.deleteAgentMutation())
+        _lifecycleFlows = StateObject(wrappedValue: state.accountLifecycleFlowsQuery(kind: .agent))
+        _lifecycle = StateObject(wrappedValue: state.accountLifecycleMutation(kind: .agent))
         self.props = props
     }
 
@@ -266,9 +326,14 @@ private struct AgentDetailsHost<Content: View>: View {
             roles: roles.data?.roles ?? [],
             isLoading: agent.isLoading,
             error: i18n.managementErrorMessage(agent.error, fallbackKey: "admin.agents.details.error")
-                ?? i18n.managementErrorMessage(deletion.error, fallbackKey: "admin.agents.details.delete.error"),
+                ?? i18n.managementErrorMessage(deletion.error, fallbackKey: "admin.agents.details.delete.error")
+                ?? i18n.managementErrorMessage(lifecycle.error, fallbackKey: "admin.common.lifecycle.error")
+                ?? i18n.managementErrorMessage(lifecycleFlows.error, fallbackKey: "admin.common.lifecycle.load_error"),
             isDeleting: deletion.isLoading,
             onDelete: props.deletable ? delete : nil,
+            isRunningLifecycleAction: lifecycle.isLoading,
+            lifecycleActions: availableLifecycleActions,
+            onLifecycleAction: props.lifecycleActions ? runLifecycleAction : nil,
             actions: props.actions,
             renderContent: props.content
         )
@@ -278,6 +343,19 @@ private struct AgentDetailsHost<Content: View>: View {
             async let loadRoles: Void = { _ = await roles.refetch() }()
             _ = await (loadAgent, loadGroups, loadRoles)
         }
+        .task(id: props.lifecycleActions) {
+            if props.lifecycleActions { await lifecycleFlows.refetch() }
+        }
+    }
+
+    private var availableLifecycleActions: [AccountLifecycleAction] {
+        guard props.lifecycleActions, let flows = lifecycleFlows.data else { return [] }
+        return AccountLifecycleAction.available(for: .agent, status: agent.data?.status?.value, configuredFlows: flows)
+    }
+
+    private func runLifecycleAction(_ action: AccountLifecycleAction, operatorNote: String?) {
+        let input = AccountLifecycleInput(subject: props.agentId, action: action, operatorNote: operatorNote)
+        Task { await lifecycle.mutate(input) }
     }
 
     private func delete() {

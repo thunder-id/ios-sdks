@@ -77,13 +77,22 @@ public extension ThunderIDState {
         )
     }
 
-    func removeRoleAssignmentsMutation(fetcher: ThunderIDFetcher? = nil)
-        -> ResourceMutation<RoleAssignmentsInput, Void> {
+    /// Removes role assignments. In `.flow` mode the configured assignment removal flow runs once for
+    /// each assignee instead, revoking the scopes the assignment conveyed.
+    func removeRoleAssignmentsMutation(
+        administrationMode: AdministrationMode = .native,
+        fetcher: ThunderIDFetcher? = nil
+    ) -> ResourceMutation<RoleAssignmentsInput, Void> {
         let client = client
         return mutation(
             invalidating: { _ in [[RoleQueryKeys.roleAssignments]] },
             perform: { input in
-                try await client.roles.removeAssignments(id: input.roleId, input.assignments, fetcher: fetcher)
+                try await client.roles.removeAssignments(
+                    id: input.roleId,
+                    input.assignments,
+                    administrationMode: administrationMode,
+                    fetcher: fetcher
+                )
             }
         )
     }
