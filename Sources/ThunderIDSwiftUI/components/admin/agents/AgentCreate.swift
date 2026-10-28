@@ -234,7 +234,11 @@ public struct AgentCreate<Content: View>: View {
                     onCancel: onCancel,
                     onSubmit: { submission in
                         host.submit { ouId in
-                            var request = CreateAgentRequest(ouId: ouId, type: submission.type, name: submission.name)
+                            var request = CreateAgentRequest(
+                                ouId: ouId,
+                                type: submission.type,
+                                attributes: ["name": AnyCodable(submission.name)]
+                            )
                             request.description = submission.description
                             request.owner = owner
                             return request

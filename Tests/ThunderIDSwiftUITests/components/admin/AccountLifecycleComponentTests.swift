@@ -161,7 +161,7 @@ final class AccountLifecycleComponentTests: XCTestCase {
 
     func testAgentDetailsHandTheLifecycleActionsToCustomContent() throws {
         let agent: Agent = try decode(
-            #"{"id":"a-1","name":"Billing bot","ouId":"ou-1","type":"bot","status":{"value":"SUSPENDED"}}"#
+            #"{"id":"a-1","display":"Billing bot","ouId":"ou-1","type":"bot","status":{"value":"SUSPENDED"}}"#
         )
         let captured = Captured<AgentDetailsState>()
         var runs: [AccountLifecycleAction] = []
@@ -172,7 +172,7 @@ final class AccountLifecycleComponentTests: XCTestCase {
                 runs.append(action)
             }) { state in
                 let _ = (captured.value = state)
-                Text(state.agent?.name ?? "")
+                Text(state.agent?.resolvedName ?? "")
             }
         )
 
