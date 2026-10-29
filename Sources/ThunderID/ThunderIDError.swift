@@ -36,6 +36,10 @@ public enum ThunderIDErrorCode: String {
     case confirmationCodeInvalid = "CONFIRMATION_CODE_INVALID"
     case confirmationCodeExpired = "CONFIRMATION_CODE_EXPIRED"
 
+    // Verification
+    /// The server refused a self user attribute verification: an `ERROR` step or an HTTP 4xx.
+    case verificationFailed = "VERIFICATION_FAILED"
+
     // Passkey / WebAuthn
     case passkeyNotSupported = "PASSKEY_NOT_SUPPORTED"
     case passkeyCancelled = "PASSKEY_CANCELLED"

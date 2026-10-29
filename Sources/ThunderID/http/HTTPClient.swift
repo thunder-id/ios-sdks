@@ -83,6 +83,23 @@ final class HTTPClient {
         isSensitive: Bool = false,
         fetcher: ThunderIDFetcher? = nil
     ) async throws -> T {
+        let request = try await authorizedRequest(method: method, url: url, body: body)
+        debugLogRequest(request, body: nil)
+        return try await perform(request, isSensitive: isSensitive, fetcher: fetcher)
+    }
+
+    /// Sends an authenticated request to an absolute URL and returns the response whatever its status,
+    /// through the same transport as ``send(method:url:body:isSensitive:fetcher:)``. It logs neither the request nor
+    /// the response, so a caller can report a refusal without the response body.
+    func exchange(method: String, url: URL, body: Data?) async throws -> (Data, HTTPURLResponse) {
+        let request = try await authorizedRequest(method: method, url: url, body: body)
+        if let transport {
+            return try await transport(request, nil)
+        }
+        return try await rawData(for: request)
+    }
+
+    private func authorizedRequest(method: String, url: URL, body: Data?) async throws -> URLRequest {
         guard url.scheme == "https" else {
             throw ThunderIDError(code: .invalidConfiguration, message: "Request URL must use HTTPS")
         }
@@ -96,8 +113,7 @@ final class HTTPClient {
             let token = try await provider()
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        debugLogRequest(request, body: nil)
-        return try await perform(request, isSensitive: isSensitive, fetcher: fetcher)
+        return request
     }
 
     private func buildRequest(
