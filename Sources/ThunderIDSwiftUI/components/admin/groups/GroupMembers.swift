@@ -144,11 +144,13 @@ public extension BaseGroupMembers where Content == EmptyView {
 }
 
 /// A group's members, loaded through the management API. Set `editable` to let the signed-in user
-/// add users and agents and remove members; it is off by default.
+/// add users and agents and remove members; it is off by default. Set `ouId` to offer only the users
+/// and agents of that organization unit.
 public struct GroupMembers<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let groupId: String
     let editable: Bool
+    let ouId: String?
     let title: String?
     let description: String?
     let content: ((GroupMembersState) -> Content)?
@@ -156,12 +158,14 @@ public struct GroupMembers<Content: View>: View {
     init(
         groupId: String,
         editable: Bool = false,
+        ouId: String? = nil,
         title: String? = nil,
         description: String? = nil,
         renderContent: ((GroupMembersState) -> Content)?
     ) {
         self.groupId = groupId
         self.editable = editable
+        self.ouId = ouId
         self.title = title
         self.description = description
         self.content = renderContent
@@ -171,6 +175,7 @@ public struct GroupMembers<Content: View>: View {
     public init(
         groupId: String,
         editable: Bool = false,
+        ouId: String? = nil,
         title: String? = nil,
         description: String? = nil,
         @ViewBuilder content: @escaping (GroupMembersState) -> Content
@@ -178,14 +183,21 @@ public struct GroupMembers<Content: View>: View {
         self.init(
             groupId: groupId,
             editable: editable,
+            ouId: ouId,
             title: title,
             description: description,
             renderContent: content
         )
     }
 
+    /// The filter the candidates are listed with, `nil` to list them from every organization unit.
+    var candidateFilter: String? {
+        ouId.flatMap { ManagementFilter.equality(attribute: "ouId", value: $0) }
+    }
+
     public var body: some View {
-        GroupMembersHost(state: thunderState, props: self).id("\(groupId)|\(editable)")
+        // A new organization unit starts new queries, so no candidate from the previous one is offered.
+        GroupMembersHost(state: thunderState, props: self).id("\(groupId)|\(editable)|\(candidateFilter ?? "")")
     }
 }
 
@@ -193,12 +205,14 @@ public extension GroupMembers where Content == EmptyView {
     init(
         groupId: String,
         editable: Bool = false,
+        ouId: String? = nil,
         title: String? = nil,
         description: String? = nil
     ) {
         self.init(
             groupId: groupId,
             editable: editable,
+            ouId: ouId,
             title: title,
             description: description,
             renderContent: nil
@@ -217,8 +231,8 @@ private struct GroupMembersHost<Content: View>: View {
 
     init(state: ThunderIDState, props: GroupMembers<Content>) {
         _members = StateObject(wrappedValue: state.groupMembersQuery(groupId: props.groupId, limit: 100))
-        _users = StateObject(wrappedValue: state.usersQuery(limit: 100))
-        _agents = StateObject(wrappedValue: state.agentsQuery(limit: 100))
+        _users = StateObject(wrappedValue: state.usersQuery(limit: 100, filter: props.candidateFilter))
+        _agents = StateObject(wrappedValue: state.agentsQuery(limit: 100, filter: props.candidateFilter))
         _add = StateObject(wrappedValue: state.addGroupMembersMutation())
         _remove = StateObject(wrappedValue: state.removeGroupMembersMutation())
         self.props = props
