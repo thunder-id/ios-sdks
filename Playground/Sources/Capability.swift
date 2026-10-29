@@ -13,6 +13,7 @@ enum CapabilityID: String, CaseIterable {
     case tokenRefresh
     case secureStorage
     case userInfo
+    case attributeVerification
     case organizations
     case theming
     case translations
@@ -136,6 +137,13 @@ enum CapabilityCatalog {
                 mode: .automatic
             ),
             Capability(id: .userInfo, name: "User info", api: "getUser()", mode: .automatic),
+            Capability(
+                id: .attributeVerification,
+                name: "Attribute verification",
+                api: "verifyAttribute(_:) · verifiedAttributes",
+                // Starting a verification sends the user an email, so it only runs on tap.
+                mode: .interactive
+            ),
             Capability(
                 id: .organizations,
                 name: "Organizations",

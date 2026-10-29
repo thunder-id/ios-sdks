@@ -164,8 +164,31 @@ enum ExplorerCatalog {
             isTall: true
         ) { values in
             "ChangeCredential(attribute: \(quote(values.text("attribute")))) {\n    // updated\n}"
+        },
+        ComponentSpec(
+            id: "verifyAttribute",
+            name: "VerifyAttribute",
+            group: "User",
+            defaults: ["attribute": "email", "flowHandle": defaultVerificationHandle],
+            controls: [
+                StoryControl(name: "attribute", kind: .text),
+                StoryControl(name: "flowHandle", kind: .text)
+            ],
+            stories: [
+                Story(id: "email", name: "Email", preset: ["attribute": "email"]),
+                Story(id: "mobile", name: "Mobile number", preset: ["attribute": "mobile_number"])
+            ],
+            isTall: true
+        ) { values in
+            "VerifyAttribute(\n    attribute: \(quote(values.text("attribute"))),\n"
+                + "    flowHandle: \(quote(values.text("flowHandle"))),\n"
+                + "    onComplete: { /* verified */ },\n    onCancel: { /* close */ }\n)"
+                + "\n.id(\(quote(values.text("attribute"))))"
         }
     ]
+
+    /// The server's shipped self attribute verification flow.
+    private static let defaultVerificationHandle = "default-self-attribute-verification-flow"
 
     // MARK: - Presentation and branding
 

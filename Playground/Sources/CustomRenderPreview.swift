@@ -5,7 +5,7 @@ import SwiftUI
 import ThunderID
 import ThunderIDSwiftUI
 
-/// Renders the custom rendering stories: admin components whose `content` closure draws the UI.
+/// Renders the custom rendering stories: components whose `content` closure draws the UI.
 struct CustomRenderPreview: View {
     @EnvironmentObject private var state: ThunderIDState
     let id: String
@@ -13,7 +13,9 @@ struct CustomRenderPreview: View {
     let onEvent: (String) -> Void
 
     var body: some View {
-        if values.isLive && !state.isSignedIn {
+        if id == "customVerifyAttribute" {
+            CustomVerifyAttributeStory(values: values, onEvent: onEvent)
+        } else if values.isLive && !state.isSignedIn {
             PreviewHint(text: "Sign in to load live data. The management API uses the signed-in user's token.")
         } else {
             switch id {
@@ -228,5 +230,148 @@ private struct UserCard: View {
     private func stringValue(_ value: AnyCodable?) -> String {
         guard let value else { return "" }
         return (value.value as? String) ?? "\(value.value)"
+    }
+}
+
+/// Verifies an attribute of the signed-in user with the step drawn by the app. Both variants send a code.
+private struct CustomVerifyAttributeStory: View {
+    @EnvironmentObject private var state: ThunderIDState
+    let values: PropValues
+    let onEvent: (String) -> Void
+
+    var body: some View {
+        let attribute = values.text("attribute")
+        if !state.isSignedIn {
+            PreviewHint(text: "Sign in first. Showing this story sends a code or a link to the attribute.")
+        } else if values.text("variant") == "base" {
+            BaseVerifyAttribute(
+                attribute: attribute,
+                onComplete: { onEvent("onComplete") },
+                onDone: { onEvent("onDone") },
+                onCancel: { onEvent("onCancel") },
+                onError: { onEvent("onError \($0.localizedDescription)") },
+                content: { VerificationCard(step: $0) }
+            )
+            .id("base|\(attribute)")
+        } else {
+            VerifyAttribute(
+                attribute: attribute,
+                onComplete: { onEvent("onComplete") },
+                onDone: { onEvent("onDone") },
+                onCancel: { onEvent("onCancel") },
+                onError: { onEvent("onError \($0.localizedDescription)") },
+                content: { VerificationCard(step: $0) }
+            )
+            .id("connected|\(attribute)")
+        }
+    }
+}
+
+/// A verification step drawn as a card: plain fields and buttons bound to the SDK's state.
+private struct VerificationCard: View {
+    @ObservedObject var step: VerifyAttributeState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            switch step.phase {
+            case .loading:
+                ProgressView()
+            case .active:
+                activeStep
+            case .complete:
+                Label(step.successMessage, systemImage: "checkmark.seal.fill")
+                    .foregroundColor(.green)
+            case .failed:
+                Text(step.error ?? "").foregroundColor(.red)
+            }
+            if let cancel = step.onCancel {
+                Button(step.phase == .active || step.phase == .loading ? "Cancel" : "Close", action: cancel)
+                    .disabled(step.isLoading)
+            }
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Palette.text(0.05)))
+    }
+
+    @ViewBuilder private var activeStep: some View {
+        Text(step.title).font(.system(size: 20, weight: .semibold))
+        Text(step.subtitle)
+            .font(.system(size: 14))
+            .foregroundColor(.secondary)
+        if let sentTo = step.destinationMessage {
+            Text(sentTo)
+                .font(.system(size: 13))
+                .foregroundColor(.secondary)
+        }
+        if let error = step.error {
+            Text(error)
+                .font(.system(size: 13))
+                .foregroundColor(.red)
+        }
+        ForEach(StepPart.parts(of: step), id: \.id) { part in
+            partView(part)
+        }
+        if step.isAwaitingLink {
+            Button("I opened the link", action: step.done)
+                .buttonStyle(.borderedProminent)
+                .disabled(step.isLoading)
+        }
+    }
+
+    @ViewBuilder private func partView(_ part: StepPart) -> some View {
+        switch part.kind {
+        case .field:
+            VStack(alignment: .leading, spacing: 4) {
+                TextField(step.text(part.label) ?? "Code", text: step.binding(for: part.id))
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("thunderid-field-\(part.id)")
+                if let message = step.fieldErrors[part.id] {
+                    Text(message)
+                        .font(.system(size: 12))
+                        .foregroundColor(.red)
+                }
+            }
+        case .submit:
+            Button(step.text(part.label) ?? "Verify") { step.submit(actionId: part.id) }
+                .accessibilityIdentifier("thunderid-action-\(part.id)")
+                .buttonStyle(.borderedProminent)
+                .disabled(step.isLoading)
+        case .resend:
+            Button(step.text(part.label) ?? "Send a new code") { step.resend(actionId: part.id) }
+                .accessibilityIdentifier("thunderid-action-\(part.id)")
+                .disabled(step.isLoading)
+        }
+    }
+}
+
+/// A field or action of the step, read from its components, or from its inputs and actions when it has none.
+private struct StepPart {
+    enum Kind { case field, submit, resend }
+
+    let id: String
+    let kind: Kind
+    let label: String?
+
+    @MainActor
+    static func parts(of step: VerifyAttributeState) -> [StepPart] {
+        guard !step.components.isEmpty else {
+            return step.inputs.map { StepPart(id: $0.name, kind: .field, label: nil) }
+                + step.actions.map { StepPart(id: $0.id, kind: .submit, label: $0.label) }
+        }
+        return flatten(step.components)
+    }
+
+    private static func flatten(_ components: [FlowComponent]) -> [StepPart] {
+        components.flatMap { component -> [StepPart] in
+            let id = component.id ?? component.ref ?? ""
+            switch component.type {
+            case "BLOCK": return flatten(component.components ?? [])
+            case "ACTION": return [StepPart(id: id, kind: .submit, label: component.label)]
+            case "RESEND": return [StepPart(id: id, kind: .resend, label: component.label)]
+            case let type? where type.hasSuffix("_INPUT"):
+                return [StepPart(id: component.ref ?? component.id ?? "", kind: .field, label: component.label)]
+            default: return []
+            }
+        }
     }
 }

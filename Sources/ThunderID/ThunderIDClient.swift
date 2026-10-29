@@ -11,7 +11,7 @@ public final class ThunderIDClient {
     private var tokenRefresher: TokenRefresher?
     private var tokenValidator: TokenValidator?
     private var jwksCache: JWKSCache?
-    private var flowClient: FlowExecutionClient?
+    var flowClient: FlowExecutionClient?
     var pkceManager = PKCEManager()
     private var _isLoading: Bool = false
     var currentUser: User?

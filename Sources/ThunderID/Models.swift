@@ -58,6 +58,10 @@ public struct UserProfile: Codable {
     public let attributes: [String: AnyCodable]
     public let display: String?
     public let isReadOnly: Bool
+    /// The user's verified attributes, keyed by attribute name. Read-only: only the server records a
+    /// verification. `nil` when the server does not report verification, so every status is unknown;
+    /// empty when none is verified.
+    public let verifiedAttributes: [String: VerifiedAttribute]?
 
     public init(
         id: String,
@@ -65,7 +69,8 @@ public struct UserProfile: Codable {
         type: String? = nil,
         attributes: [String: AnyCodable] = [:],
         display: String? = nil,
-        isReadOnly: Bool = false
+        isReadOnly: Bool = false,
+        verifiedAttributes: [String: VerifiedAttribute]? = nil
     ) {
         self.id = id
         self.ouId = ouId
@@ -73,6 +78,7 @@ public struct UserProfile: Codable {
         self.attributes = attributes
         self.display = display
         self.isReadOnly = isReadOnly
+        self.verifiedAttributes = verifiedAttributes
     }
 }
 
@@ -279,6 +285,9 @@ public enum FlowType: String {
     case registration = "REGISTRATION"
     case passwordRecovery = "PASSWORD_RECOVERY"
     case invitedUserRegistration = "INVITED_USER_REGISTRATION"
+    /// An operation the signed-in user runs on their own account, such as verifying their email address.
+    /// The flow is named by its handle, and the server takes the user from the access token.
+    case selfService = "SELF_SERVICE"
 }
 
 public enum FlowStatus: Codable {

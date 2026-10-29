@@ -43,6 +43,7 @@ struct CheckContext {
         .tokenRefresh: { try await $0.tokenRefresh() },
         .secureStorage: { try await $0.secureStorage() },
         .userInfo: { try await $0.userInfo() },
+        .attributeVerification: { try await $0.attributeVerification() },
         .translations: { try $0.translations() }
     ]
 
@@ -174,6 +175,23 @@ struct CheckContext {
         let user = try await client.getUser()
         log.record("user:loaded", "sub=\(user.sub ?? "?")", kind: .success)
         return "sub \(user.sub ?? "?"), \(user.claims.count) claims"
+    }
+
+    /// Reads the email's verification status from `/users/me` and, when it is unverified, starts verifying
+    /// it, which sends a code or a link. The verification is finished from `UserProfile` or `VerifyAttribute`.
+    func attributeVerification() async throws -> String {
+        try await requireSignedIn()
+        let profile = try await client.getUserProfile()
+        guard let verified = profile.verifiedAttributes else {
+            throw CheckFailure("/users/me has no verifiedAttributes, so the server does not report verification")
+        }
+        if let record = verified["email"] {
+            return "email is already verified (\(record.verifiedAt ?? "no timestamp")), so nothing was sent"
+        }
+        let step = try await client.verifyAttribute("email")
+        let destination = step.data?.additionalData?[AttributeVerification.maskedDestinationKey]?.value as? String
+        log.record("verification:started", "sent to \(destination ?? "?")", kind: .success)
+        return "Sent to \(destination ?? "the stored email"). Finish it from UserProfile in Components."
     }
 
     // MARK: - UI

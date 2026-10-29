@@ -11,26 +11,45 @@ func isPictureField(_ name: String) -> Bool {
     pictureClaimKeys.contains { $0.compare(name, options: .caseInsensitive) == .orderedSame }
 }
 
-/// Editable, schema-driven user profile.
+/// Editable, schema-driven user profile. Each stored email or mobile value shows whether it is verified,
+/// when the server reports it, and an unverified one offers a Verify action that runs the
+/// `verificationFlowHandle` flow. Saving a changed email opens its verification.
 public struct UserProfile: View {
     @EnvironmentObject private var i18n: ThunderIDI18n
     public let attributeMapping: [String: [String]]
+    public let verificationFlowHandle: String
     public let onSaved: (() -> Void)?
     public let onError: (() -> Void)?
 
     public init(
         attributeMapping: [String: [String]] = [:],
+        verificationFlowHandle: String = AttributeVerification.defaultFlowHandle,
         onSaved: (() -> Void)? = nil,
         onError: (() -> Void)? = nil
     ) {
         self.attributeMapping = attributeMapping
+        self.verificationFlowHandle = verificationFlowHandle
         self.onSaved = onSaved
         self.onError = onError
     }
 
     public var body: some View {
         BaseUserProfile(attributeMapping: attributeMapping, onSaved: onSaved, onError: onError) { state in
-            UserProfileContent(state: state, i18n: i18n)
+            UserProfileContent(state: state, i18n: i18n, verificationFlowHandle: verificationFlowHandle)
+        }
+    }
+}
+
+/// The one sheet the profile shows at a time: a field's editor, or its verification. Saving a changed
+/// email swaps the first for the second.
+private enum ProfileSheet: Identifiable {
+    case edit(ProfileField)
+    case verify(ProfileField)
+
+    var id: String {
+        switch self {
+        case .edit(let field): return "edit-\(field.name)"
+        case .verify(let field): return "verify-\(field.name)"
         }
     }
 }
@@ -40,19 +59,27 @@ public struct UserProfile: View {
 private struct UserProfileContent: View {
     @ObservedObject var state: UserProfileState
     let i18n: ThunderIDI18n
+    let verificationFlowHandle: String
     @Environment(\.colorScheme) private var colorScheme
 
     /// Only one field can be mid-edit at a time (`UserProfileState.editingFields` is exclusive in
-    /// practice), so the currently-editing field doubles as the sheet's `item`. Dismissing the
-    /// sheet by any means (Save, Cancel, or a swipe-down) routes back through `state.cancel` so the
-    /// underlying edit state and the sheet's presence never drift apart.
-    private var editingField: Binding<ProfileField?> {
+    /// practice), so the currently-editing field doubles as the sheet's `item`, ahead of the field being
+    /// verified. Dismissing the sheet by any means (Save, Cancel, or a swipe-down) routes back through
+    /// `state.cancel` or `state.closeVerification` so the underlying state and the sheet's presence never
+    /// drift apart.
+    private var activeSheet: Binding<ProfileSheet?> {
         Binding(
-            get: { state.fields.first { state.isEditing($0.name) } },
+            get: {
+                if let field = state.fields.first(where: { state.isEditing($0.name) }) { return .edit(field) }
+                return state.fields.first { $0.name == state.verifyingField }.map(ProfileSheet.verify)
+            },
             set: { newValue in
                 guard newValue == nil else { return }
-                guard let field = state.fields.first(where: { state.isEditing($0.name) }) else { return }
-                state.cancel(field.name)
+                if let field = state.fields.first(where: { state.isEditing($0.name) }) {
+                    state.cancel(field.name)
+                } else {
+                    state.closeVerification()
+                }
             }
         )
     }
@@ -83,8 +110,13 @@ private struct UserProfileContent: View {
                 }
             }
         }
-        .sheet(item: editingField) { field in
-            ProfileFieldEditSheet(field: field, state: state, i18n: i18n)
+        .sheet(item: activeSheet) { sheet in
+            switch sheet {
+            case .edit(let field):
+                ProfileFieldEditSheet(field: field, state: state, i18n: i18n)
+            case .verify(let field):
+                ProfileVerificationSheet(field: field, state: state, flowHandle: verificationFlowHandle)
+            }
         }
     }
 
@@ -146,7 +178,7 @@ private struct UserProfileContent: View {
 
             VStack(spacing: 0) {
                 ForEach(Array(visibleFields.enumerated()), id: \.element.id) { index, field in
-                    ProfileFieldRow(field: field, state: state)
+                    ProfileFieldRow(field: field, state: state, i18n: i18n)
                     if index < visibleFields.count - 1 {
                         Divider()
                             .background(colorScheme.userProfileBorder)
@@ -163,6 +195,7 @@ private struct UserProfileContent: View {
 private struct ProfileFieldRow: View {
     let field: ProfileField
     @ObservedObject var state: UserProfileState
+    let i18n: ThunderIDI18n
     @Environment(\.colorScheme) private var colorScheme
 
     private var label: String { field.schema.displayName ?? field.schema.description ?? field.name }
@@ -170,6 +203,15 @@ private struct ProfileFieldRow: View {
     private var isEditable: Bool { !field.isReadonly && !isComplex }
 
     var body: some View {
+        VStack(spacing: 0) {
+            rowButton
+            if let status = state.verificationStatus(field) {
+                ProfileVerificationLine(field: field, status: status, state: state, i18n: i18n)
+            }
+        }
+    }
+
+    private var rowButton: some View {
         Button {
             state.edit(field.name)
         } label: {
@@ -198,6 +240,98 @@ private struct ProfileFieldRow: View {
         }
         .buttonStyle(.plain)
         .disabled(!isEditable)
+    }
+}
+
+/// The field's verification status, and the Verify action when it is unverified. It sits below the row's
+/// button, since a button inside another button's label does not receive taps.
+private struct ProfileVerificationLine: View {
+    let field: ProfileField
+    let status: AttributeVerificationStatus
+    @ObservedObject var state: UserProfileState
+    let i18n: ThunderIDI18n
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var isVerified: Bool { status != .unverified }
+
+    private var statusText: String {
+        i18n.resolve(isVerified ? "verifyAttribute.status.verified" : "verifyAttribute.status.unverified")
+    }
+
+    var body: some View {
+        let verifiedAt = verifiedAtText(status, i18n: i18n)
+        HStack(spacing: 10) {
+            Spacer()
+            // The time is shown, not left to a tooltip, and read with the status as one element.
+            HStack(spacing: 8) {
+                if let verifiedAt {
+                    Text(verifiedAt)
+                        .font(.system(size: 12))
+                        .foregroundColor(colorScheme.userProfileTextSecondary)
+                }
+                Text(statusText)
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .overlay(Capsule().stroke(lineWidth: 1))
+                    .foregroundColor(
+                        isVerified ? colorScheme.userProfileVerified : colorScheme.userProfileTextSecondary
+                    )
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel([statusText, verifiedAt].compactMap { $0 }.joined(separator: ", "))
+            .accessibilityIdentifier("thunderid-verification-status-\(field.name)")
+            if state.canVerify(field) {
+                Button(i18n.resolve("verifyAttribute.verify")) { state.verify(field.name) }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.userProfileAccent)
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("thunderid-verify-\(field.name)")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
+    }
+}
+
+/// "Verified on {date}" for a verified status with a time, formatted for the active locale. A time the SDK
+/// cannot parse is shown as the server sent it.
+func verifiedAtText(_ status: AttributeVerificationStatus, i18n: ThunderIDI18n) -> String? {
+    guard case .verified(let verifiedAt?) = status, !verifiedAt.isEmpty else { return nil }
+    let parser = ISO8601DateFormatter()
+    let fractional = ISO8601DateFormatter()
+    fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    let style = Date.FormatStyle(date: .abbreviated, time: .shortened).locale(Locale(identifier: i18n.activeLocale))
+    let date = (parser.date(from: verifiedAt) ?? fractional.date(from: verifiedAt)).map { $0.formatted(style) }
+        ?? verifiedAt
+    return i18n.resolve("verifyAttribute.status.verifiedAt").replacingOccurrences(of: "{date}", with: date)
+}
+
+/// Sheet that verifies one field. A recorded verification, or Done after a link, shows the profile read
+/// again; the user closes the sheet.
+private struct ProfileVerificationSheet: View {
+    let field: ProfileField
+    @ObservedObject var state: UserProfileState
+    let flowHandle: String
+
+    var body: some View {
+        // Shows the profile the verification read again, so the status updates without a second read.
+        let showProfile: (ThunderID.UserProfile?) -> Void = { profile in
+            if let profile { state.apply(profile) }
+        }
+        VerifyAttribute(
+            attribute: field.name,
+            flowHandle: flowHandle,
+            attributeDisplayName: field.schema.displayName,
+            onComplete: nil,
+            onDone: { state.closeVerification() },
+            onCancel: { state.closeVerification() },
+            onError: nil,
+            onProfileRead: showProfile
+        )
+        .id(field.name)
+        .padding(20)
+        .presentationDetents([.medium, .large])
     }
 }
 
@@ -305,6 +439,7 @@ private extension ColorScheme {
     var userProfileSheetField: Color { self == .dark ? Color(hex: "16233a") : Color(hex: "f1f3f7") }
     var userProfileText: Color { self == .dark ? Color(hex: "E0EAFF") : Color(hex: "05213F") }
     var userProfileError: Color { Color(hex: "d95757") }
+    var userProfileVerified: Color { self == .dark ? Color(hex: "4ADE80") : Color(hex: "15803D") }
 
     var userProfileTextSecondary: Color {
         self == .dark ? Color(hex: "E0EAFF").opacity(0.48) : Color(hex: "5A7085")

@@ -3,16 +3,17 @@
 
 import Foundation
 
-/// Stories that replace an admin component's default UI through its `content` closure. The closure
-/// gets the component's state (rows and paging, bindings and submit, or the loaded record), so any
-/// SwiftUI layout can draw it.
+/// Stories that replace a component's default UI through its `content` closure. The closure gets the
+/// component's state (rows and paging, bindings and submit, the loaded record, or a verification step),
+/// so any SwiftUI layout can draw it.
 extension ExplorerCatalog {
     static func customRender(ids: AdminStoryIds) -> [ComponentSpec] {
         [
             customUserList,
             customGroupCreate,
             customUserDetails(userId: ids.userId),
-            customApplicationDetails(applicationId: ids.applicationId)
+            customApplicationDetails(applicationId: ids.applicationId),
+            customVerifyAttribute
         ]
     }
 
@@ -110,5 +111,43 @@ extension ExplorerCatalog {
             }
             """
         }
+    }
+
+    private static let customVerifyAttribute = ComponentSpec(
+        id: "customVerifyAttribute",
+        name: "VerifyAttribute → code card",
+        group: "Custom rendering",
+        defaults: ["variant": "connected", "attribute": "email"],
+        controls: [
+            StoryControl(name: "variant", kind: .options(["connected", "base"])),
+            StoryControl(name: "attribute", kind: .text)
+        ],
+        stories: [
+            Story(id: "connected", name: "Live (sends a code)", preset: ["variant": "connected"]),
+            Story(id: "base", name: "Base, live (sends a code)", preset: ["variant": "base"])
+        ],
+        isTall: true
+    ) { values in
+        let name = values.text("variant") == "base" ? "BaseVerifyAttribute" : "VerifyAttribute"
+        return """
+        \(name)(attribute: \(quote(values.text("attribute"))), onCancel: { /* close */ }) { step in
+            // step.components carries the server's layout, labels and RESEND; inputs and actions are the flat form.
+            VStack(alignment: .leading, spacing: 12) {
+                Text(step.title).font(.title2.bold())
+                Text(step.subtitle)
+                if let error = step.error { Text(error).foregroundColor(.red) }
+                ForEach(step.inputs) { input in
+                    TextField(input.name, text: step.binding(for: input.name))
+                }
+                ForEach(step.actions, id: \\.id) { action in
+                    Button(step.text(action.label) ?? "Verify") { step.submit(actionId: action.id) }
+                        .disabled(step.isLoading)
+                }
+                if step.phase == .complete { Label(step.successMessage, systemImage: "checkmark.seal") }
+                if let cancel = step.onCancel { Button("Cancel", action: cancel) }
+            }
+        }
+        .id(\(quote(values.text("attribute"))))
+        """
     }
 }

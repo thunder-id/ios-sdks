@@ -84,6 +84,19 @@ private struct UserPreview: View {
             signedInOnly {
                 ThunderIDSwiftUI.UserProfile(onSaved: { onEvent("onSaved") }, onError: { onEvent("onError") })
             }
+        case "verifyAttribute":
+            signedInOnly {
+                // Each showing sends a code or a link, so a new attribute or handle gets a new view identity.
+                VerifyAttribute(
+                    attribute: values.text("attribute"),
+                    flowHandle: values.text("flowHandle"),
+                    onComplete: { onEvent("onComplete") },
+                    onDone: { onEvent("onDone") },
+                    onCancel: { onEvent("onCancel") },
+                    onError: { onEvent("onError: \(describe($0))") }
+                )
+                .id("\(values.text("attribute"))|\(values.text("flowHandle"))")
+            }
         default:
             signedInOnly {
                 ChangeCredential(attribute: values.text("attribute")) { onEvent("onSuccess") }
