@@ -84,6 +84,12 @@ final class AdminComponentTests: XCTestCase {
         XCTAssertNil(BaseRoleAssignments(assignments: []).onUnassign)
     }
 
+    func testGroupMembersListCandidatesFromTheGivenOrganizationUnit() {
+        XCTAssertEqual(GroupMembers(groupId: "g-1", ouId: "ou-1").candidateFilter, "ouId eq \"ou-1\"")
+        XCTAssertNil(GroupMembers(groupId: "g-1").candidateFilter)
+        XCTAssertNil(GroupMembers(groupId: "g-1", ouId: " ").candidateFilter)
+    }
+
     func testRoleAssignmentsListCandidatesFromTheGivenOrganizationUnit() {
         XCTAssertEqual(RoleAssignments(roleId: "r-1", ouId: "ou-1").candidateFilter, "ouId eq \"ou-1\"")
         XCTAssertNil(RoleAssignments(roleId: "r-1").candidateFilter)

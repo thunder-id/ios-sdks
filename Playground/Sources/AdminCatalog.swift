@@ -166,7 +166,7 @@ extension ExplorerCatalog {
                 + [StoryControl(name: "editable", kind: .bool), administrationModeControl]
                 + textControls
                 + [StoryControl(name: idKey, kind: .text)]
-                + (name == "RoleAssignments" ? [StoryControl(name: "ouId", kind: .text)] : [])
+                + [StoryControl(name: "ouId", kind: .text)]
                 + [errorControl],
             stories: states(["data", "loading", "empty", "error"]),
             isTall: true
