@@ -37,12 +37,14 @@ public final class ThunderIDClient {
             throw ThunderIDError(code: .alreadyInitialized, message: "SDK is already initialized")
         }
         try validateConfig(config)
+        // With sign-in on a backend, `baseUrl` is the backend's, and API paths such as `/users/me` resolve
+        // against its proxy, which maps them to the API.
         let backendEndpoints = try config.endpoints.backend.map {
-            try ResolvedBackendEndpoints.resolve($0, apiBaseUrl: config.baseUrl)
+            try ResolvedBackendEndpoints.resolve($0, baseUrl: config.baseUrl)
         }
         self.config = config
         let adapter = storage ?? config.storage ?? KeychainStorageAdapter(service: "dev.\(config.vendor).sdk")
-        let http = HTTPClient(baseUrl: config.baseUrl, session: session)
+        let http = HTTPClient(baseUrl: backendEndpoints?.proxy ?? config.baseUrl, session: session)
         tokenStore = TokenStore(storage: adapter)
         jwksCache = JWKSCache(httpClient: http)
         tokenValidator = TokenValidator(jwksCache: jwksCache!, config: config)

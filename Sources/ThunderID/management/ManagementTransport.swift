@@ -5,7 +5,8 @@ import Foundation
 
 /// Sends management API requests for one resource collection. The collection URL comes from the
 /// `endpoints` override when set, otherwise `{baseUrl}/{collection}`. Server-level requests, such as
-/// the administration flows, always go to `baseUrl`.
+/// the administration flows, always go to `baseUrl`. With sign-in on a backend, `baseUrl` here is the
+/// backend's proxy (`{baseUrl}{endpoints.backend.proxy}`), which maps the requests to the API.
 struct ManagementTransport {
     let httpClient: HTTPClient
     /// The server URL. Server-level requests go here whatever `collectionUrl` is.

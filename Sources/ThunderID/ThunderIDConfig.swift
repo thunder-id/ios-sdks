@@ -161,7 +161,8 @@ public struct ThunderIDEndpoints {
     public var variables: String?
     /// The app backend's auth endpoints. Setting them hands sign-in to the backend: the SDK then signs in,
     /// reads the session, and sends API calls through the backend, and never holds the user's tokens.
-    /// `baseUrl` is then the API base whose requests go through the backend's proxy. Unset by default.
+    /// `baseUrl` is then the backend's base URL, and API calls go to its proxy
+    /// (`{baseUrl}{backend.proxy}`), which maps them to the API. Unset by default.
     public var backend: ThunderIDBackendEndpoints?
 
     public init(
