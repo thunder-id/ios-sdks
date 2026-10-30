@@ -6,8 +6,9 @@ import XCTest
 
 /// Sets up a client whose sign-in runs on a stubbed backend.
 class BackendTestCase: XCTestCase {
-    let apiBase = "https://api.example.com"
     let backendBase = "https://app.example.com"
+    /// The backend's proxy, `{baseUrl}{proxy}` with the default proxy path.
+    let proxyBase = "https://app.example.com/api/auth/proxy"
     let dataPlane = "https://dp.example.com/api"
     let signedIn = #"{"isSignedIn":true,"user":{"sub":"u1","name":"Ada"},"expiresAt":1900000000}"#
 
@@ -37,12 +38,12 @@ class BackendTestCase: XCTestCase {
     ) async throws {
         if let handle { try TokenStore(storage: storage).saveSessionHandle(handle) }
         let config = ThunderIDConfig(
-            baseUrl: apiBase,
+            baseUrl: backendBase,
             afterSignInUrl: "myapp://callback",
             afterSignOutUrl: "myapp://signedout",
             session: .init(checkInterval: checkInterval),
             endpoints: .init(
-                backend: .init(baseUrl: backendBase, bypass: .init(urls: [dataPlane], attachToken: attachToken))
+                backend: .init(bypass: .init(urls: [dataPlane], attachToken: attachToken))
             )
         )
         client = ThunderIDClient()

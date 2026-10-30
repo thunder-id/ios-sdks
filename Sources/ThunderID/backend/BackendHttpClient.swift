@@ -3,10 +3,10 @@
 
 import Foundation
 
-/// The transport used when sign-in runs on the backend. It sends each request under the API base through
-/// the backend's proxy with the session handle instead of a token, and refreshes the session once when the
-/// backend reports it expired. Requests under `bypass` go straight there, with the access token the backend
-/// issued unless that is turned off, and never with the session handle.
+/// The transport used when sign-in runs on the backend. It sends each API call (a path, or a URL already
+/// under the proxy) through the backend's proxy with the session handle instead of a token, and refreshes
+/// the session once when the backend reports it expired. Requests under `bypass` go straight there, with
+/// the access token the backend issued unless that is turned off, and never with the session handle.
 struct BackendHttpClient {
     let backend: BackendClient
     /// Sends the requests. It logs nothing, as each one carries the session handle or a token.
@@ -16,7 +16,7 @@ struct BackendHttpClient {
     /// answer reaches the caller untouched.
     ///
     /// - Parameter fetcher: The caller's own transport for the final hop, when it passed one.
-    /// - Throws: `unsupportedOperation` for a URL outside the API base and outside `bypass`, which is
+    /// - Throws: `unsupportedOperation` for an absolute URL outside the proxy and outside `bypass`, which is
     ///   refused rather than sent without the session.
     func send(_ request: URLRequest, fetcher: ThunderIDFetcher? = nil) async throws -> (Data, HTTPURLResponse) {
         guard let url = request.url else {
@@ -29,7 +29,7 @@ struct BackendHttpClient {
         guard let proxyURL = endpoints.proxyURL(for: url) else {
             throw ThunderIDError(
                 code: .unsupportedOperation,
-                message: "A request outside the API base cannot be sent when sign-in runs on a backend"
+                message: "A request outside the backend's proxy cannot be sent when sign-in runs on a backend"
             )
         }
         var proxied = request

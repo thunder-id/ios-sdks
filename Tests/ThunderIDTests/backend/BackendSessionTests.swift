@@ -80,7 +80,7 @@ final class BackendSessionTests: BackendTestCase {
         XCTAssertFalse(client.isLoading())
 
         StubBackend.reply("/api/auth/proxy/users/me", #"{"id":"u1"}"#)
-        _ = try await client.httpRequest(request("\(apiBase)/users/me"))
+        _ = try await client.httpRequest(request("\(proxyBase)/users/me"))
         XCTAssertEqual(StubBackend.requests(to: "/api/auth/proxy/users/me").first?.header("X-Session-Handle"), "h2")
     }
 
@@ -103,11 +103,11 @@ final class BackendSessionTests: BackendTestCase {
 
     // MARK: - Proxy and 401 handling
 
-    func testSendsRequestsUnderTheApiBaseThroughTheProxyWithTheHandle() async throws {
+    func testSendsAUrlAlreadyUnderTheProxyAsItIsWithTheHandle() async throws {
         try await makeClient()
         StubBackend.reply("/api/auth/proxy/users", #"{"users":[]}"#)
 
-        let (data, response) = try await client.httpRequest(request("\(apiBase)/users?limit=5"))
+        let (data, response) = try await client.httpRequest(request("\(proxyBase)/users?limit=5"))
 
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(String(data: data, encoding: .utf8), #"{"users":[]}"#)
@@ -117,6 +117,28 @@ final class BackendSessionTests: BackendTestCase {
         XCTAssertNil(sent.header("Authorization"))
     }
 
+    func testSendsAPathThroughTheProxy() async throws {
+        try await makeClient()
+        StubBackend.reply("/api/auth/proxy/users", #"{"users":[]}"#)
+
+        _ = try await client.httpRequest(request("/users?limit=5"))
+
+        let sent = try XCTUnwrap(StubBackend.requests.first)
+        XCTAssertEqual(sent.request.url?.absoluteString, "\(proxyBase)/users?limit=5")
+        XCTAssertEqual(sent.header("X-Session-Handle"), "h1")
+    }
+
+    func testRefusesAnAbsoluteUrlOutsideTheProxy() async throws {
+        try await makeClient()
+
+        for url in ["https://api.example.com/users", "\(backendBase)/users"] {
+            await assertThrows(.unsupportedOperation) {
+                _ = try await self.client.httpRequest(self.request(url))
+            }
+        }
+        XCTAssertTrue(StubBackend.requests.isEmpty)
+    }
+
     func testProfileOperationsGoThroughTheProxy() async throws {
         try await makeClient()
         StubBackend.reply("/api/auth/proxy/users/me", #"{"id":"u1","attributes":{},"isReadOnly":false}"#)
@@ -124,7 +146,19 @@ final class BackendSessionTests: BackendTestCase {
         let profile = try await client.getUserProfile()
 
         XCTAssertEqual(profile.id, "u1")
+        XCTAssertEqual(StubBackend.requests.first?.request.url?.absoluteString, "\(proxyBase)/users/me")
         XCTAssertEqual(StubBackend.requests.first?.header("X-Session-Handle"), "h1")
+    }
+
+    func testManagementRequestsGoToTheProxy() async throws {
+        try await makeClient()
+        StubBackend.reply("/api/auth/proxy/users", #"{"totalResults":0,"startIndex":1,"count":0,"users":[]}"#)
+
+        _ = try await client.users.list(limit: 5)
+
+        let sent = try XCTUnwrap(StubBackend.requests(to: "/api/auth/proxy/users").first)
+        XCTAssertEqual(sent.request.url?.absoluteString.hasPrefix("\(proxyBase)/users"), true)
+        XCTAssertEqual(sent.header("X-Session-Handle"), "h1")
     }
 
     func testSessionExpiredRefreshesOnceAndRetries() async throws {
@@ -133,7 +167,7 @@ final class BackendSessionTests: BackendTestCase {
         StubBackend.reply("/api/auth/proxy/users", #"{"users":[]}"#)
         StubBackend.reply("/api/auth/refresh")
 
-        let (_, response) = try await client.httpRequest(request("\(apiBase)/users"))
+        let (_, response) = try await client.httpRequest(request("\(proxyBase)/users"))
 
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(StubBackend.requests(to: "/api/auth/refresh").count, 1)
@@ -146,7 +180,7 @@ final class BackendSessionTests: BackendTestCase {
         StubBackend.reply("/api/auth/proxy/users", status: 401, #"{"error":"session_expired"}"#)
         StubBackend.reply("/api/auth/refresh")
 
-        let (_, response) = try await client.httpRequest(request("\(apiBase)/users"))
+        let (_, response) = try await client.httpRequest(request("\(proxyBase)/users"))
 
         XCTAssertEqual(response.statusCode, 401)
         XCTAssertEqual(StubBackend.requests(to: "/api/auth/refresh").count, 1)
@@ -161,7 +195,7 @@ final class BackendSessionTests: BackendTestCase {
         StubBackend.reply("/api/auth/proxy/users", status: 401, #"{"error":"session_expired"}"#)
         StubBackend.reply("/api/auth/refresh", status: 401, #"{"error":"login_required"}"#)
 
-        let (_, response) = try await client.httpRequest(request("\(apiBase)/users"))
+        let (_, response) = try await client.httpRequest(request("\(proxyBase)/users"))
 
         XCTAssertEqual(response.statusCode, 401)
         XCTAssertEqual(StubBackend.requests(to: "/api/auth/proxy/users").count, 1)
@@ -173,7 +207,7 @@ final class BackendSessionTests: BackendTestCase {
         try await makeClient()
         StubBackend.reply("/api/auth/proxy/users", status: 401, #"{"error":"login_required"}"#)
 
-        let (_, response) = try await client.httpRequest(request("\(apiBase)/users"))
+        let (_, response) = try await client.httpRequest(request("\(proxyBase)/users"))
 
         XCTAssertEqual(response.statusCode, 401)
         XCTAssertTrue(StubBackend.requests(to: "/api/auth/refresh").isEmpty)
@@ -189,7 +223,7 @@ final class BackendSessionTests: BackendTestCase {
         let body = #"{"error":"invalid_token","detail":"API says no"}"#
         StubBackend.reply("/api/auth/proxy/users", status: 401, body)
 
-        let (data, response) = try await client.httpRequest(request("\(apiBase)/users"))
+        let (data, response) = try await client.httpRequest(request("\(proxyBase)/users"))
 
         XCTAssertEqual(response.statusCode, 401)
         XCTAssertEqual(String(data: data, encoding: .utf8), body)
@@ -198,7 +232,7 @@ final class BackendSessionTests: BackendTestCase {
         XCTAssertEqual(storedHandle, "h1")
     }
 
-    func testRefusesAUrlOutsideTheApiBaseAndTheBypassList() async throws {
+    func testRefusesAUrlOutsideTheProxyAndTheBypassList() async throws {
         try await makeClient()
 
         for url in ["https://other.example.com/users", "https://api.example.com.attacker.test/users", "\(dataPlane)v2"] {

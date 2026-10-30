@@ -91,7 +91,13 @@ actor BackendClient {
         // A new session starts clean: a token issued for an earlier session is not reused.
         tokenStore.clear()
         try tokenStore.saveSessionHandle(handle)
-        let started = BackendSession(isSignedIn: true, user: session.user, expiresAt: session.expiresAt, handle: nil)
+        let started = BackendSession(
+            isSignedIn: true,
+            user: session.user,
+            expiresAt: session.expiresAt,
+            scope: session.scope,
+            handle: nil
+        )
         cachedSession = started
         wasSignedIn = true
         loading.settle()
@@ -259,7 +265,13 @@ actor BackendClient {
             return signedOutSession()
         }
         wasSignedIn = true
-        return BackendSession(isSignedIn: true, user: session.user, expiresAt: session.expiresAt, handle: nil)
+        return BackendSession(
+            isSignedIn: true,
+            user: session.user,
+            expiresAt: session.expiresAt,
+            scope: session.scope,
+            handle: nil
+        )
     }
 
     private func signedOutSession() -> BackendSession {
