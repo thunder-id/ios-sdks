@@ -46,16 +46,20 @@ struct ApplicationAdminPreview: View {
 
     @ViewBuilder private var details: some View {
         let deletable = values.flag("deletable")
+        let lifecycle = values.flag("lifecycleActions")
         if values.isLive {
             ApplicationDetails(
                 applicationId: values.text("applicationId"),
                 editable: true,
                 deletable: deletable,
-                secretRegenerable: deletable
+                secretRegenerable: deletable,
+                administrationMode: values.administrationMode,
+                lifecycleActions: lifecycle
             ) { onEvent("onDeleted") }
         } else {
+            let application = values.isSampleLoading ? nil : AdminSamples.application
             BaseApplicationDetails(
-                application: values.isSampleLoading ? nil : AdminSamples.application,
+                application: application,
                 isLoading: values.isSampleLoading,
                 error: values.sampleError,
                 clientSecret: secret,
@@ -67,7 +71,12 @@ struct ApplicationAdminPreview: View {
                         secret = "sample-secret-shown-once"
                         onEvent("onRegenerateSecret")
                     }
-                    : nil
+                    : nil,
+                lifecycleActions: AdminSamples.lifecycleActions(
+                    .application,
+                    status: application?.status?.accessStatus
+                ),
+                onLifecycleAction: lifecycle ? { action, _ in onEvent("onLifecycleAction: \(action.rawValue)") } : nil
             )
         }
     }

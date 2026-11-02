@@ -14,6 +14,8 @@ public struct ManagedUser: Codable {
     public let attributes: [String: AnyCodable]?
     public let display: String?
     public let isReadOnly: Bool?
+    /// The effective access status, set by the server on a read.
+    public let status: AccessStatus?
 }
 
 /// A pagination link returned alongside a list response.

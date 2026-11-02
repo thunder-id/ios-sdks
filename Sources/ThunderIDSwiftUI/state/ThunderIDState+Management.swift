@@ -111,11 +111,18 @@ public extension ThunderIDState {
         )
     }
 
-    func deleteUserMutation(fetcher: ThunderIDFetcher? = nil) -> ResourceMutation<String, Void> {
+    /// Deletes a user. In `.flow` mode the configured user deletion flow runs instead, revoking the
+    /// user's grants and ending their sessions before the record goes.
+    func deleteUserMutation(
+        administrationMode: AdministrationMode = .native,
+        fetcher: ThunderIDFetcher? = nil
+    ) -> ResourceMutation<String, Void> {
         let client = client
         return mutation(
             invalidating: { _ in [[UserQueryKeys.users]] },
-            perform: { id in try await client.users.delete(id: id, fetcher: fetcher) }
+            perform: { id in
+                try await client.users.delete(id: id, administrationMode: administrationMode, fetcher: fetcher)
+            }
         )
     }
 

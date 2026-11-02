@@ -180,11 +180,14 @@ public extension BaseRoleAssignments where Content == EmptyView {
 
 /// The identities a role is assigned to, loaded through the management API. Set `editable` to let
 /// the signed-in user assign the role to users, groups and agents and remove assignments; it is
-/// off by default. Set `ouId` to offer only the users, groups and agents of that organization unit.
+/// off by default. `administrationMode` chooses how an assignment is removed: `.flow` runs the
+/// assignment removal flow the server configures, which can revoke the scopes it conveyed first. It
+/// defaults to `.native`. Set `ouId` to offer only the users, groups and agents of that organization unit.
 public struct RoleAssignments<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let roleId: String
     let editable: Bool
+    let administrationMode: AdministrationMode
     let filterable: Bool
     let ouId: String?
     let title: String?
@@ -195,6 +198,7 @@ public struct RoleAssignments<Content: View>: View {
     init(
         roleId: String,
         editable: Bool = false,
+        administrationMode: AdministrationMode = .native,
         filterable: Bool = true,
         ouId: String? = nil,
         title: String? = nil,
@@ -203,6 +207,7 @@ public struct RoleAssignments<Content: View>: View {
     ) {
         self.roleId = roleId
         self.editable = editable
+        self.administrationMode = administrationMode
         self.filterable = filterable
         self.ouId = ouId
         self.title = title
@@ -210,10 +215,13 @@ public struct RoleAssignments<Content: View>: View {
         self.content = renderContent
     }
 
-    /// - Parameter content: Renders custom UI in place of the default table and picker. See ``BaseRoleAssignments``.
+    /// - Parameters:
+    ///   - administrationMode: How an assignment is removed. See ``AdministrationMode``.
+    ///   - content: Renders custom UI in place of the default table and picker. See ``BaseRoleAssignments``.
     public init(
         roleId: String,
         editable: Bool = false,
+        administrationMode: AdministrationMode = .native,
         filterable: Bool = true,
         ouId: String? = nil,
         title: String? = nil,
@@ -223,6 +231,7 @@ public struct RoleAssignments<Content: View>: View {
         self.init(
             roleId: roleId,
             editable: editable,
+            administrationMode: administrationMode,
             filterable: filterable,
             ouId: ouId,
             title: title,
@@ -252,6 +261,7 @@ public extension RoleAssignments where Content == EmptyView {
     init(
         roleId: String,
         editable: Bool = false,
+        administrationMode: AdministrationMode = .native,
         filterable: Bool = true,
         ouId: String? = nil,
         title: String? = nil,
@@ -260,6 +270,7 @@ public extension RoleAssignments where Content == EmptyView {
         self.init(
             roleId: roleId,
             editable: editable,
+            administrationMode: administrationMode,
             filterable: filterable,
             ouId: ouId,
             title: title,
@@ -294,7 +305,9 @@ private struct RoleAssignmentsHost<Content: View>: View {
         _groups = StateObject(wrappedValue: state.groupsQuery(limit: 100, filter: props.candidateFilter))
         _agents = StateObject(wrappedValue: state.agentsQuery(limit: 100, filter: props.candidateFilter))
         _assign = StateObject(wrappedValue: state.addRoleAssignmentsMutation())
-        _unassign = StateObject(wrappedValue: state.removeRoleAssignmentsMutation())
+        _unassign = StateObject(
+            wrappedValue: state.removeRoleAssignmentsMutation(administrationMode: props.administrationMode)
+        )
         self.props = props
         self.typeFilter = typeFilter
         self.onTypeFilterChange = onTypeFilterChange

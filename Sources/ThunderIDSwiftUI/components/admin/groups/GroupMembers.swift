@@ -144,11 +144,14 @@ public extension BaseGroupMembers where Content == EmptyView {
 }
 
 /// A group's members, loaded through the management API. Set `editable` to let the signed-in user
-/// add users and agents and remove members; it is off by default.
+/// add users and agents and remove members; it is off by default. `administrationMode` chooses how a
+/// member is removed: `.flow` runs the membership removal flow the server configures, which can revoke
+/// what the member held through the group first. It defaults to `.native`.
 public struct GroupMembers<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let groupId: String
     let editable: Bool
+    let administrationMode: AdministrationMode
     let title: String?
     let description: String?
     let content: ((GroupMembersState) -> Content)?
@@ -156,21 +159,26 @@ public struct GroupMembers<Content: View>: View {
     init(
         groupId: String,
         editable: Bool = false,
+        administrationMode: AdministrationMode = .native,
         title: String? = nil,
         description: String? = nil,
         renderContent: ((GroupMembersState) -> Content)?
     ) {
         self.groupId = groupId
         self.editable = editable
+        self.administrationMode = administrationMode
         self.title = title
         self.description = description
         self.content = renderContent
     }
 
-    /// - Parameter content: Renders custom UI in place of the default table and picker. See ``BaseGroupMembers``.
+    /// - Parameters:
+    ///   - administrationMode: How a member is removed. See ``AdministrationMode``.
+    ///   - content: Renders custom UI in place of the default table and picker. See ``BaseGroupMembers``.
     public init(
         groupId: String,
         editable: Bool = false,
+        administrationMode: AdministrationMode = .native,
         title: String? = nil,
         description: String? = nil,
         @ViewBuilder content: @escaping (GroupMembersState) -> Content
@@ -178,6 +186,7 @@ public struct GroupMembers<Content: View>: View {
         self.init(
             groupId: groupId,
             editable: editable,
+            administrationMode: administrationMode,
             title: title,
             description: description,
             renderContent: content
@@ -193,12 +202,14 @@ public extension GroupMembers where Content == EmptyView {
     init(
         groupId: String,
         editable: Bool = false,
+        administrationMode: AdministrationMode = .native,
         title: String? = nil,
         description: String? = nil
     ) {
         self.init(
             groupId: groupId,
             editable: editable,
+            administrationMode: administrationMode,
             title: title,
             description: description,
             renderContent: nil
@@ -220,7 +231,9 @@ private struct GroupMembersHost<Content: View>: View {
         _users = StateObject(wrappedValue: state.usersQuery(limit: 100))
         _agents = StateObject(wrappedValue: state.agentsQuery(limit: 100))
         _add = StateObject(wrappedValue: state.addGroupMembersMutation())
-        _remove = StateObject(wrappedValue: state.removeGroupMembersMutation())
+        _remove = StateObject(
+            wrappedValue: state.removeGroupMembersMutation(administrationMode: props.administrationMode)
+        )
         self.props = props
     }
 
