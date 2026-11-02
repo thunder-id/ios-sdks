@@ -8,14 +8,19 @@ import Foundation
 /// flow and keeps the tokens, and API calls go through it. The app only holds an opaque session
 /// handle, kept in the configured storage (the Keychain by default).
 ///
-/// Each endpoint is a path under ``baseUrl`` and defaults to a fixed path under `/api/auth`.
+/// The config's `baseUrl` is then the backend's base URL. An endpoint is either a path that starts with `/`,
+/// resolved against `baseUrl`, or an absolute HTTPS URL, used as is. Each defaults to a fixed path under
+/// `/api/auth`. API calls go to the backend's ``proxy``, which maps them to the API from its own
+/// configuration, so the app never knows the API's address: an API path such as `/users` is sent to
+/// `{baseUrl}{proxy}/users`.
 ///
 /// ```swift
-/// endpoints: .init(backend: .init(baseUrl: "https://app.example.com"))
+/// ThunderIDConfig(
+///     baseUrl: "https://app.example.com",
+///     endpoints: .init(backend: .init(proxy: "/api/proxy"))
+/// )
 /// ```
 public struct ThunderIDBackendEndpoints {
-    /// Base URL of the backend. Required, and it must use HTTPS.
-    public var baseUrl: String
     /// Starts sign-in. Defaults to `/api/auth/signin`.
     public var signIn: String
     /// Starts and reports the session. Defaults to `/api/auth/session`.
@@ -27,8 +32,9 @@ public struct ThunderIDBackendEndpoints {
     public var refresh: String
     /// Ends the session. Defaults to `/api/auth/signout`.
     public var signOut: String
-    /// Prefix of the API proxy. Requests under the config's `baseUrl` are sent through it. Defaults to
-    /// `/api/auth/proxy`.
+    /// The backend's API proxy. Every API call goes under it: the SDK's own (`/users/me` and the management
+    /// API) and the app's, sent as a path such as `/users` or as a URL already under the proxy. The backend
+    /// maps the proxy to the API. Defaults to `/api/auth/proxy`.
     public var proxy: String
     /// Issues the access token for ``bypass``, as an OAuth token response without a refresh token.
     /// Defaults to `/api/auth/token`.
@@ -37,7 +43,6 @@ public struct ThunderIDBackendEndpoints {
     public var bypass: ThunderIDBackendBypass
 
     public init(
-        baseUrl: String,
         signIn: String = "/api/auth/signin",
         session: String = "/api/auth/session",
         checkSession: String = "/api/auth/checksession",
@@ -47,7 +52,6 @@ public struct ThunderIDBackendEndpoints {
         token: String = "/api/auth/token",
         bypass: ThunderIDBackendBypass = .init()
     ) {
-        self.baseUrl = baseUrl
         self.signIn = signIn
         self.session = session
         self.checkSession = checkSession
@@ -79,11 +83,10 @@ public struct ThunderIDBackendBypass {
     }
 }
 
-/// The backend endpoints as absolute URLs, with the API base whose requests go through the proxy.
+/// The backend endpoints as absolute URLs.
 struct ResolvedBackendEndpoints: Equatable {
-    /// The backend's base URL, which every backend endpoint is under.
+    /// The backend's base URL (the config's `baseUrl`), which relative endpoints resolve against.
     let baseUrl: String
-    let apiBaseUrl: String
     let signIn: URL
     let session: URL
     let checkSession: URL
@@ -94,12 +97,13 @@ struct ResolvedBackendEndpoints: Equatable {
     let bypassUrls: [String]
     let attachToken: Bool
 
-    /// Resolves `endpoints` against the backend base URL. Fails, before any network call, when the base
-    /// URL or a bypass URL does not use HTTPS, or when an endpoint is not a path under the base URL.
-    static func resolve(_ endpoints: ThunderIDBackendEndpoints, apiBaseUrl: String) throws -> Self {
-        let base = trimmingTrailingSlashes(endpoints.baseUrl)
-        guard URL(string: base)?.scheme == "https", URL(string: base)?.host != nil else {
-            throw ThunderIDError(code: .invalidConfiguration, message: "endpoints.backend.baseUrl must use HTTPS")
+    /// Resolves `endpoints` against the backend's base URL, the config's `baseUrl`. Fails, before any network
+    /// call, when the base URL or a bypass URL does not use HTTPS, or when an endpoint is neither a path that
+    /// starts with `/` nor an HTTPS URL.
+    static func resolve(_ endpoints: ThunderIDBackendEndpoints, baseUrl: String) throws -> Self {
+        let base = trimmingTrailingSlashes(baseUrl)
+        guard isHTTPS(base) else {
+            throw ThunderIDError(code: .invalidConfiguration, message: "baseUrl must use HTTPS")
         }
         let bypassUrls = try endpoints.bypass.urls.map { url in
             guard URL(string: url)?.scheme == "https" else {
@@ -112,7 +116,6 @@ struct ResolvedBackendEndpoints: Equatable {
         }
         return Self(
             baseUrl: base,
-            apiBaseUrl: trimmingTrailingSlashes(apiBaseUrl),
             signIn: try url(base, endpoints.signIn, "signIn"),
             session: try url(base, endpoints.session, "session"),
             checkSession: try url(base, endpoints.checkSession, "checkSession"),
@@ -125,13 +128,13 @@ struct ResolvedBackendEndpoints: Equatable {
         )
     }
 
-    /// Maps an API URL to its proxy URL, or returns `nil` when the URL is not under the API base and so
-    /// cannot be sent with the session.
+    /// The URL an API call is sent to: a URL already under the proxy as it is, a path such as `/users` under
+    /// the proxy, and `nil` for any other URL, which cannot be sent with the session.
     func proxyURL(for url: URL) -> URL? {
         let target = url.absoluteString
-        guard Self.isUnder(target, base: apiBaseUrl) else { return nil }
-        let rest = String(target.dropFirst(apiBaseUrl.count))
-        return URL(string: proxy + (rest.hasPrefix("/") ? rest : "/\(rest)"))
+        if Self.isUnder(target, base: proxy) { return url }
+        guard url.host == nil, target.hasPrefix("/"), !target.hasPrefix("//") else { return nil }
+        return URL(string: proxy + target)
     }
 
     /// Whether a request to `url` skips the proxy and goes straight there.
@@ -145,14 +148,23 @@ struct ResolvedBackendEndpoints: Equatable {
         url == base || url.hasPrefix("\(base)/") || url.hasPrefix("\(base)?")
     }
 
-    private static func url(_ base: String, _ path: String, _ name: String) throws -> URL {
-        guard path.hasPrefix("/"), !path.hasPrefix("//"), let url = URL(string: base + path) else {
-            throw ThunderIDError(
-                code: .invalidConfiguration,
-                message: "endpoints.backend.\(name) must be a path under endpoints.backend.baseUrl"
-            )
+    /// A path that starts with `/` resolves against `base`; an absolute HTTPS URL is used as is.
+    private static func url(_ base: String, _ value: String, _ name: String) throws -> URL {
+        if value.hasPrefix("/"), !value.hasPrefix("//"), let url = URL(string: base + value) {
+            return url
         }
-        return url
+        if isHTTPS(value), let url = URL(string: value) {
+            return url
+        }
+        throw ThunderIDError(
+            code: .invalidConfiguration,
+            message: "endpoints.backend.\(name) must be a path that starts with / or an HTTPS URL"
+        )
+    }
+
+    private static func isHTTPS(_ value: String) -> Bool {
+        guard let url = URL(string: value) else { return false }
+        return url.scheme?.lowercased() == "https" && url.host?.isEmpty == false
     }
 
     private static func trimmingTrailingSlashes(_ value: String) -> String {
@@ -172,7 +184,10 @@ struct BackendSession: Decodable {
     let user: [String: AnyCodable]?
     /// When the backend's access token expires, in seconds since the epoch.
     let expiresAt: Double?
+    /// The scopes the access token was granted, space separated, as the token response's `scope`
+    /// (RFC 6749 §5.1). The app reads its permissions from here, so the token can stay on the backend.
+    let scope: String?
     let handle: String?
 
-    static let signedOut = BackendSession(isSignedIn: false, user: nil, expiresAt: nil, handle: nil)
+    static let signedOut = BackendSession(isSignedIn: false, user: nil, expiresAt: nil, scope: nil, handle: nil)
 }

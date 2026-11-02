@@ -20,9 +20,10 @@ public extension ThunderIDClient {
 
     /// Sends an API request and returns the response whatever its status.
     ///
-    /// When sign-in runs on a backend, a request under `baseUrl` goes through the backend's proxy with the
-    /// session handle, and a request under `endpoints.backend.bypass` goes straight there, with the access
-    /// token unless `attachToken` is off. Otherwise a request under `baseUrl` carries the access token.
+    /// When sign-in runs on a backend, a path such as `/users`, or a URL already under the backend's proxy,
+    /// goes through the proxy with the session handle, and a request under
+    /// `endpoints.backend.bypass` goes straight there, with the access token unless `attachToken` is off.
+    /// Otherwise a request under `baseUrl` carries the access token.
     /// Any other URL is refused with `unsupportedOperation`, rather than sent without credentials.
     func httpRequest(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let config = try requireConfig()
