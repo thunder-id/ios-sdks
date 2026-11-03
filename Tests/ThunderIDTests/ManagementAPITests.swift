@@ -80,6 +80,39 @@ final class ManagementAPITests: XCTestCase {
         XCTAssertEqual(recorder.requests[1].url?.absoluteString, "\(baseUrl)/agents?include=display")
     }
 
+    func testAgentCreateSendsTheNameAsAnAttribute() async throws {
+        let recorder = RecordingFetcher()
+        recorder.respond(#"{"id":"ag-1","ouId":"ou","type":"default","attributes":{"name":"Triage"}}"#)
+        let client = try await makeClient(fetcher: recorder.fetcher)
+        let request = CreateAgentRequest(ouId: "ou", type: "default", attributes: ["name": AnyCodable("Triage")])
+
+        let agent = try await client.agents.create(request)
+
+        XCTAssertEqual(agent.resolvedName, "Triage")
+        let sent = try XCTUnwrap(recorder.requests.first)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: sent.httpBody ?? Data()) as? [String: Any])
+        XCTAssertEqual(Set(body.keys), ["attributes", "ouId", "type"])
+        XCTAssertEqual((body["attributes"] as? [String: Any])?["name"] as? String, "Triage")
+    }
+
+    func testAgentReadsDecodeTheDisplayName() async throws {
+        let recorder = RecordingFetcher()
+        recorder.respond(
+            #"{"totalResults":1,"startIndex":1,"count":1,"agents":[{"id":"ag-1","ouId":"ou","type":"default","#
+                + #""display":"Triage","attributes":{"name":"triage"}}]}"#
+        )
+        let client = try await makeClient(fetcher: recorder.fetcher)
+
+        let page = try await client.agents.list()
+        recorder.respond(#"{"id":"ag-1","ouId":"ou","type":"default","display":"Triage"}"#)
+        let agent = try await client.agents.get(id: "ag-1")
+
+        XCTAssertEqual(page.agents.first?.display, "Triage")
+        XCTAssertEqual(page.agents.first?.resolvedName, "Triage")
+        XCTAssertEqual(agent.display, "Triage")
+        XCTAssertEqual(recorder.requests[1].url?.absoluteString, "\(baseUrl)/agents/ag-1?include=display")
+    }
+
     func testCreateEncodesPayloadAndDecodesStoredResource() async throws {
         let recorder = RecordingFetcher()
         recorder.respond(#"{"id":"new","name":"My SPA","url":"https://app.example.com","createdAt":"2026-01-01"}"#)
@@ -101,12 +134,13 @@ final class ManagementAPITests: XCTestCase {
 
     func testUpdateAndDeleteTargetTheResource() async throws {
         let recorder = RecordingFetcher()
-        recorder.respond(#"{"id":"ag-1","ouId":"ou","type":"default","name":"Renamed"}"#)
+        recorder.respond(#"{"id":"ag-1","ouId":"ou","type":"default","attributes":{"name":"Renamed"}}"#)
         let client = try await makeClient(fetcher: recorder.fetcher)
         var update = UpdateAgentRequest()
-        update.name = "Renamed"
+        update.attributes = ["name": AnyCodable("Renamed")]
 
-        _ = try await client.agents.update(id: "ag-1", update)
+        let updated = try await client.agents.update(id: "ag-1", update)
+        XCTAssertEqual(updated.resolvedName, "Renamed")
         recorder.respond("", status: 204)
         try await client.agents.delete(id: "ag-1")
 

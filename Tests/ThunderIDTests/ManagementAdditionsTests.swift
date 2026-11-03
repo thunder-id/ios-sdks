@@ -181,7 +181,7 @@ final class ManagementAdditionsTests: XCTestCase {
 
     func testRegenerateAgentSecretLeavesServerAndDisplayFieldsOut() async throws {
         let server = ManagementTestServer()
-        server.resource = #"{"id":"a-1","clientId":"client","name":"Bot","ouId":"ou-1","ouHandle":"default","#
+        server.resource = #"{"id":"a-1","clientId":"client","display":"Bot","ouId":"ou-1","ouHandle":"default","#
             + #""type":"bot","inboundAuthConfig":[{"type":"oauth2","config":{"grantTypes":["client_credentials"],"#
             + #""responseTypes":[]}}]}"#
         let client = try await server.makeClient()
@@ -190,7 +190,7 @@ final class ManagementAdditionsTests: XCTestCase {
 
         XCTAssertEqual(server.calls, ["GET \(baseUrl)/agents/a-1?include=display", "PUT \(baseUrl)/agents/a-1"])
         let put = try XCTUnwrap(server.body(of: "PUT"))
-        XCTAssertEqual(Set(put.keys), ["delegated", "inboundAuthConfig", "name", "ouId", "type"])
+        XCTAssertEqual(Set(put.keys), ["delegated", "inboundAuthConfig", "ouId", "type"])
         XCTAssertEqual(put["delegated"] as? Bool, false)
         let inbound = try XCTUnwrap((put["inboundAuthConfig"] as? [[String: Any]])?.first)
         XCTAssertEqual((inbound["config"] as? [String: Any])?["clientSecret"] as? String, result.clientSecret)
@@ -198,7 +198,8 @@ final class ManagementAdditionsTests: XCTestCase {
 
     func testRegenerateAgentSecretKeepsADelegatedAgentDelegated() async throws {
         let server = ManagementTestServer()
-        server.resource = #"{"id":"a-1","name":"Assistant","ouId":"ou-1","type":"bot","inboundAuthConfig":[{"#
+        server.resource = #"{"id":"a-1","attributes":{"name":"Assistant"},"ouId":"ou-1","type":"bot","#
+            + #""inboundAuthConfig":[{"#
             + #""type":"oauth2","config":{"grantTypes":["authorization_code","refresh_token"],"responseTypes":[]}}]}"#
         let client = try await server.makeClient()
 

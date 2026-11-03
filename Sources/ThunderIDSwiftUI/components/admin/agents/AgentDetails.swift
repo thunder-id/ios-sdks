@@ -122,6 +122,10 @@ public struct BaseAgentDetails<Content: View>: View {
         }
     }
 
+    private func deleteConfirmText(_ agent: Agent) -> String {
+        i18n.resolve("admin.agents.details.delete.confirm", ["name": agent.resolvedName])
+    }
+
     private func details(_ agent: Agent) -> some View {
         var overview: [(label: String, value: String)] = [
             (i18n.resolve("admin.agents.details.type"), agent.type),
@@ -136,7 +140,7 @@ public struct BaseAgentDetails<Content: View>: View {
         }
         return AdminSection(
             identifier: "admin-agent-details",
-            title: agent.name,
+            title: agent.resolvedName,
             description: agent.description,
             actions: { headerActions(agent) },
             content: {
@@ -173,7 +177,7 @@ public struct BaseAgentDetails<Content: View>: View {
                     actions: lifecycleActions,
                     collectsOperatorNote: true,
                     isRunning: isRunningLifecycleAction,
-                    name: agent.name,
+                    name: agent.resolvedName,
                     identifier: "admin-agent-details-lifecycle",
                     onAction: onLifecycleAction
                 )
@@ -182,7 +186,7 @@ public struct BaseAgentDetails<Content: View>: View {
                 AdminConfirmButton(
                     i18n: i18n,
                     title: i18n.resolve("admin.agents.details.delete.action"),
-                    confirmText: i18n.resolve("admin.agents.details.delete.confirm", ["name": agent.name]),
+                    confirmText: deleteConfirmText(agent),
                     isLoading: isDeleting,
                     identifier: "admin-agent-details-delete",
                     onConfirm: onDelete

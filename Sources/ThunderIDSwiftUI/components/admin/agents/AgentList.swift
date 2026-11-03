@@ -164,7 +164,7 @@ public struct BaseAgentList<Content: View>: View {
                     },
                     row: { agent in
                         AdminRowLabel(
-                            title: agent.name,
+                            title: agent.resolvedName,
                             details: [agent.type, agent.clientId ?? "", agent.ouHandle ?? agent.ouId]
                         )
                     },
