@@ -90,6 +90,7 @@ struct AccessAdminPreview: View {
                 groupId: values.text("groupId"),
                 editable: editable,
                 administrationMode: values.administrationMode,
+                ouId: values.optional("ouId"),
                 title: values.optional("title"),
                 description: values.optional("description")
             )

@@ -146,12 +146,14 @@ public extension BaseGroupMembers where Content == EmptyView {
 /// A group's members, loaded through the management API. Set `editable` to let the signed-in user
 /// add users and agents and remove members; it is off by default. `administrationMode` chooses how a
 /// member is removed: `.flow` runs the membership removal flow the server configures, which can revoke
-/// what the member held through the group first. It defaults to `.native`.
+/// what the member held through the group first. It defaults to `.native`. Set `ouId` to offer only the
+/// users and agents of that organization unit.
 public struct GroupMembers<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let groupId: String
     let editable: Bool
     let administrationMode: AdministrationMode
+    let ouId: String?
     let title: String?
     let description: String?
     let content: ((GroupMembersState) -> Content)?
@@ -160,6 +162,7 @@ public struct GroupMembers<Content: View>: View {
         groupId: String,
         editable: Bool = false,
         administrationMode: AdministrationMode = .native,
+        ouId: String? = nil,
         title: String? = nil,
         description: String? = nil,
         renderContent: ((GroupMembersState) -> Content)?
@@ -167,6 +170,7 @@ public struct GroupMembers<Content: View>: View {
         self.groupId = groupId
         self.editable = editable
         self.administrationMode = administrationMode
+        self.ouId = ouId
         self.title = title
         self.description = description
         self.content = renderContent
@@ -179,6 +183,7 @@ public struct GroupMembers<Content: View>: View {
         groupId: String,
         editable: Bool = false,
         administrationMode: AdministrationMode = .native,
+        ouId: String? = nil,
         title: String? = nil,
         description: String? = nil,
         @ViewBuilder content: @escaping (GroupMembersState) -> Content
@@ -187,14 +192,21 @@ public struct GroupMembers<Content: View>: View {
             groupId: groupId,
             editable: editable,
             administrationMode: administrationMode,
+            ouId: ouId,
             title: title,
             description: description,
             renderContent: content
         )
     }
 
+    /// The filter the candidates are listed with, `nil` to list them from every organization unit.
+    var candidateFilter: String? {
+        ouId.flatMap { ManagementFilter.equality(attribute: "ouId", value: $0) }
+    }
+
     public var body: some View {
-        GroupMembersHost(state: thunderState, props: self).id("\(groupId)|\(editable)")
+        // A new organization unit starts new queries, so no candidate from the previous one is offered.
+        GroupMembersHost(state: thunderState, props: self).id("\(groupId)|\(editable)|\(candidateFilter ?? "")")
     }
 }
 
@@ -203,6 +215,7 @@ public extension GroupMembers where Content == EmptyView {
         groupId: String,
         editable: Bool = false,
         administrationMode: AdministrationMode = .native,
+        ouId: String? = nil,
         title: String? = nil,
         description: String? = nil
     ) {
@@ -210,6 +223,7 @@ public extension GroupMembers where Content == EmptyView {
             groupId: groupId,
             editable: editable,
             administrationMode: administrationMode,
+            ouId: ouId,
             title: title,
             description: description,
             renderContent: nil
@@ -228,8 +242,8 @@ private struct GroupMembersHost<Content: View>: View {
 
     init(state: ThunderIDState, props: GroupMembers<Content>) {
         _members = StateObject(wrappedValue: state.groupMembersQuery(groupId: props.groupId, limit: 100))
-        _users = StateObject(wrappedValue: state.usersQuery(limit: 100))
-        _agents = StateObject(wrappedValue: state.agentsQuery(limit: 100))
+        _users = StateObject(wrappedValue: state.usersQuery(limit: 100, filter: props.candidateFilter))
+        _agents = StateObject(wrappedValue: state.agentsQuery(limit: 100, filter: props.candidateFilter))
         _add = StateObject(wrappedValue: state.addGroupMembersMutation())
         _remove = StateObject(
             wrappedValue: state.removeGroupMembersMutation(administrationMode: props.administrationMode)
