@@ -11,6 +11,12 @@ public final class ThunderIDState: ObservableObject {
     @Published public private(set) var isLoading: Bool = false
     @Published public private(set) var isInitialized: Bool = false
     @Published public private(set) var error: String?
+    /// The project the app works in, chosen with ``ProjectSwitcher`` or ``setCurrentProject(_:)``. It is
+    /// client-side context, not a sign-in: tokens do not change with it. Only applications and agents
+    /// take a project: ``ApplicationList`` and ``AgentList`` list the project's, and ``ApplicationCreate``
+    /// and ``AgentCreate`` create in it when the app passes no organization unit. Kept per vendor in
+    /// `UserDefaults`, beside the chosen locale.
+    @Published public private(set) var currentProject: Project?
 
     public let client: ThunderIDClient
     public let i18n: ThunderIDI18n
@@ -25,6 +31,8 @@ public final class ThunderIDState: ObservableObject {
     /// issues one request instead of one per view.
     private var userSchema: [String: AttributeSchema]?
     private var schemaTask: Task<[String: AttributeSchema], Error>?
+    /// Where ``currentProject`` is kept, once the vendor is known. `nil` keeps it in memory only.
+    private var currentProjectStorageKey: String?
 
     public var isSignedIn: Bool { user != nil }
 
@@ -37,6 +45,7 @@ public final class ThunderIDState: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         fetchUserProfileEnabled = config.fetchUserProfile
+        restoreCurrentProject(storageKey: "\(config.vendor)_current_project")
         do {
             _ = try await client.initialize(config: config)
             // A session that ends elsewhere, which only sign-in on a backend reports, clears the user.
@@ -99,6 +108,24 @@ public final class ThunderIDState: ObservableObject {
             guard let profile = try? await client.getUserProfile() else { return }
             mergeUserProfile(profile)
         }
+    }
+
+    /// Sets the project the app works in, or clears it with `nil`, and keeps the choice for the next
+    /// launch. It changes no token: only what the components default to.
+    public func setCurrentProject(_ project: Project?) {
+        currentProject = project
+        guard let key = currentProjectStorageKey else { return }
+        if let project, let data = try? JSONEncoder().encode(project) {
+            UserDefaults.standard.set(data, forKey: key)
+        } else {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
+    func restoreCurrentProject(storageKey: String) {
+        currentProjectStorageKey = storageKey
+        guard currentProject == nil, let data = UserDefaults.standard.data(forKey: storageKey) else { return }
+        currentProject = try? JSONDecoder().decode(Project.self, from: data)
     }
 
     /// Switches the active UI locale.

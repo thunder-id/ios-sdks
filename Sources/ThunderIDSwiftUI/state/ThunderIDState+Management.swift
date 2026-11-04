@@ -9,11 +9,17 @@ import ThunderID
 public extension ThunderIDState {
     // MARK: - Applications
 
-    func applicationsQuery(limit: Int? = nil, offset: Int? = nil, fetcher: ThunderIDFetcher? = nil)
-        -> ResourceQuery<ApplicationListResponse> {
+    func applicationsQuery(
+        limit: Int? = nil,
+        offset: Int? = nil,
+        projectId: String? = nil,
+        fetcher: ThunderIDFetcher? = nil
+    ) -> ResourceQuery<ApplicationListResponse> {
         let client = client
-        return query(key: listKey(ApplicationQueryKeys.applications, ["limit": limit, "offset": offset])) {
-            try await client.applications.list(limit: limit, offset: offset, fetcher: fetcher)
+        let key = listKey(ApplicationQueryKeys.applications, ["limit": limit, "offset": offset])
+            + ["projectId=\(projectId ?? "")"]
+        return query(key: key) {
+            try await client.applications.list(limit: limit, offset: offset, projectId: projectId, fetcher: fetcher)
         }
     }
 
@@ -128,12 +134,24 @@ public extension ThunderIDState {
 
     // MARK: - Agents
 
-    func agentsQuery(limit: Int? = nil, offset: Int? = nil, filter: String? = nil, fetcher: ThunderIDFetcher? = nil)
-        -> ResourceQuery<AgentListResponse> {
+    func agentsQuery(
+        limit: Int? = nil,
+        offset: Int? = nil,
+        filter: String? = nil,
+        projectId: String? = nil,
+        fetcher: ThunderIDFetcher? = nil
+    ) -> ResourceQuery<AgentListResponse> {
         let client = client
-        let key = listKey(AgentQueryKeys.agents, ["limit": limit, "offset": offset]) + ["filter=\(filter ?? "")"]
+        let key = listKey(AgentQueryKeys.agents, ["limit": limit, "offset": offset])
+            + ["filter=\(filter ?? "")", "projectId=\(projectId ?? "")"]
         return query(key: key) {
-            try await client.agents.list(limit: limit, offset: offset, filter: filter, fetcher: fetcher)
+            try await client.agents.list(
+                limit: limit,
+                offset: offset,
+                filter: filter,
+                projectId: projectId,
+                fetcher: fetcher
+            )
         }
     }
 

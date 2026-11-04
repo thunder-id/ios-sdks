@@ -23,6 +23,16 @@ public enum ThunderIDErrorCode: String {
     case mfaFailed = "MFA_FAILED"
     case invalidGrant = "INVALID_GRANT"
     case consentRequired = "CONSENT_REQUIRED"
+    /// The organization unit a sign-in or a switch named does not exist, or the application cannot be used
+    /// from it. The server answers both with `unauthorized_client`, so the two are not told apart.
+    case organizationUnitUnavailable = "ORGANIZATION_UNIT_UNAVAILABLE"
+    /// The user denied a backchannel (CIBA) or device authorization request (`access_denied`).
+    case authorizationDenied = "AUTHORIZATION_DENIED"
+    /// A backchannel (CIBA) or device authorization request expired before the user acted (`expired_token`).
+    case authorizationExpired = "AUTHORIZATION_EXPIRED"
+    /// The server's metadata does not advertise the endpoint an optional operation needs, such as
+    /// `backchannel_authentication_endpoint` for CIBA.
+    case endpointNotAdvertised = "ENDPOINT_NOT_ADVERTISED"
 
     // Registration
     case userAlreadyExists = "USER_ALREADY_EXISTS"

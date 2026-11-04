@@ -9,21 +9,30 @@ public struct SignIn: View {
     @EnvironmentObject private var state: ThunderIDState
     @EnvironmentObject var i18n: ThunderIDI18n
     public let applicationId: String
+    /// Bounds the sign-in to this organization unit: it is sent as `ouId` when the flow starts.
+    public let organizationUnitId: String?
     public let onComplete: (() -> Void)?
     public let onError: ((String) -> Void)?
 
     public init(
         applicationId: String,
+        organizationUnitId: String? = nil,
         onComplete: (() -> Void)? = nil,
         onError: ((String) -> Void)? = nil
     ) {
         self.applicationId = applicationId
+        self.organizationUnitId = organizationUnitId
         self.onComplete = onComplete
         self.onError = onError
     }
 
     public var body: some View {
-        BaseSignIn(applicationId: applicationId, onComplete: onComplete, onError: onError) { signInState in
+        BaseSignIn(
+            applicationId: applicationId,
+            organizationUnitId: organizationUnitId,
+            onComplete: onComplete,
+            onError: onError
+        ) { signInState in
             VStack(alignment: .leading, spacing: 20) {
                 if signInState.components.isEmpty, signInState.error == nil {
                     Text(i18n.resolve("signIn.title"))
@@ -235,6 +244,8 @@ public struct BaseSignIn<Content: View>: View {
     @EnvironmentObject private var state: ThunderIDState
     @EnvironmentObject private var i18n: ThunderIDI18n
     public let applicationId: String
+    /// Bounds the sign-in to this organization unit: it is sent as `ouId` when the flow starts.
+    public let organizationUnitId: String?
     public let onComplete: (() -> Void)?
     public let onError: ((String) -> Void)?
     public let content: (SignInState) -> Content
@@ -245,11 +256,13 @@ public struct BaseSignIn<Content: View>: View {
 
     public init(
         applicationId: String,
+        organizationUnitId: String? = nil,
         onComplete: (() -> Void)? = nil,
         onError: ((String) -> Void)? = nil,
         @ViewBuilder content: @escaping (SignInState) -> Content
     ) {
         self.applicationId = applicationId
+        self.organizationUnitId = organizationUnitId
         self.onComplete = onComplete
         self.onError = onError
         self.content = content
@@ -287,7 +300,11 @@ public struct BaseSignIn<Content: View>: View {
         signInState.isLoading = true
         defer { signInState.isLoading = false }
         do {
-            let request = EmbeddedFlowRequestConfig(applicationId: applicationId, flowType: .authentication)
+            let request = EmbeddedFlowRequestConfig(
+                applicationId: applicationId,
+                flowType: .authentication,
+                organizationUnitId: organizationUnitId
+            )
             let payload = EmbeddedSignInPayload(actionId: "__initiate__")
             let response = try await state.client.signIn(payload: payload, request: request)
             await handleResponse(response, actionId: "__initiate__")

@@ -127,6 +127,8 @@ public struct TokenResponse: Codable {
     public let refreshToken: String?
     public let idToken: String?
     public let scope: String?
+    /// Returned with the `device_sso` scope; switches organization units without the browser. Never logged.
+    public let deviceSecret: String?
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
@@ -135,6 +137,7 @@ public struct TokenResponse: Codable {
         case refreshToken = "refresh_token"
         case idToken = "id_token"
         case scope
+        case deviceSecret = "device_secret"
     }
 
     public init(
@@ -143,7 +146,8 @@ public struct TokenResponse: Codable {
         expiresIn: Int? = nil,
         refreshToken: String? = nil,
         idToken: String? = nil,
-        scope: String? = nil
+        scope: String? = nil,
+        deviceSecret: String? = nil
     ) {
         self.accessToken = accessToken
         self.tokenType = tokenType
@@ -151,44 +155,7 @@ public struct TokenResponse: Codable {
         self.refreshToken = refreshToken
         self.idToken = idToken
         self.scope = scope
-    }
-}
-
-public struct AnyCodable: Codable {
-    public let value: Any
-
-    public init(_ value: Any) { self.value = value }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if let val = try? container.decode(String.self) {
-            value = val
-        } else if let val = try? container.decode(Bool.self) {
-            value = val
-        } else if let val = try? container.decode(Int.self) {
-            value = val
-        } else if let val = try? container.decode(Double.self) {
-            value = val
-        } else if let val = try? container.decode([String: AnyCodable].self) {
-            value = val
-        } else if let val = try? container.decode([AnyCodable].self) {
-            value = val
-        } else {
-            value = NSNull()
-        }
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        switch value {
-        case let val as String: try container.encode(val)
-        case let val as Bool: try container.encode(val)
-        case let val as Int: try container.encode(val)
-        case let val as Double: try container.encode(val)
-        case let val as [String: AnyCodable]: try container.encode(val)
-        case let val as [AnyCodable]: try container.encode(val)
-        default: try container.encodeNil()
-        }
+        self.deviceSecret = deviceSecret
     }
 }
 
@@ -197,17 +164,21 @@ public struct SignInOptions {
     public var loginHint: String?
     public var fidp: String?
     public var extra: [String: Any]
+    /// Bounds the sign-in to this organization unit (`/ou/{ouId}/oauth2/authorize`, or `ouId` to a backend).
+    public var organizationUnitId: String?
 
     public init(
         prompt: String? = nil,
         loginHint: String? = nil,
         fidp: String? = nil,
-        extra: [String: Any] = [:]
+        extra: [String: Any] = [:],
+        organizationUnitId: String? = nil
     ) {
         self.prompt = prompt
         self.loginHint = loginHint
         self.fidp = fidp
         self.extra = extra
+        self.organizationUnitId = organizationUnitId
     }
 }
 
@@ -273,10 +244,13 @@ public struct EmbeddedSignInPayload {
 public struct EmbeddedFlowRequestConfig {
     public var applicationId: String
     public var flowType: FlowType
+    /// Bounds an `AUTHENTICATION` flow to this unit: sent as `ouId` when the flow starts, never after.
+    public var organizationUnitId: String?
 
-    public init(applicationId: String, flowType: FlowType = .authentication) {
+    public init(applicationId: String, flowType: FlowType = .authentication, organizationUnitId: String? = nil) {
         self.applicationId = applicationId
         self.flowType = flowType
+        self.organizationUnitId = organizationUnitId
     }
 }
 
@@ -465,19 +439,22 @@ public struct FlowInput: Decodable, Identifiable {
     public let name: String
     public let type: String?
     public let required: Bool?
+    /// The values a `SELECT` input offers, such as a Resolve OU step's units. `nil` for a typed input.
+    public let options: [String]?
 
     enum CodingKeys: String, CodingKey {
         case name
         case identifier
         case ref
         case type
-        case required
+        case required, options
     }
 
-    public init(name: String, type: String? = nil, required: Bool? = nil) {
+    public init(name: String, type: String? = nil, required: Bool? = nil, options: [String]? = nil) {
         self.name = name
         self.type = type
         self.required = required
+        self.options = options
     }
 
     public init(from decoder: Decoder) throws {
@@ -489,5 +466,6 @@ public struct FlowInput: Decodable, Identifiable {
             "input"
         self.type = try? container.decode(String.self, forKey: .type)
         self.required = try? container.decode(Bool.self, forKey: .required)
+        self.options = FlowInput.decodeOptions(container)
     }
 }

@@ -3,7 +3,8 @@
 
 import SwiftUI
 
-/// Locale picker that updates active language for component labels (spec §8.4 Presentation).
+/// Locale picker that updates active language for component labels (spec §8.4 Presentation). With no
+/// `locales`, it offers every locale the SDK ships strings for (``DefaultStrings/locales``).
 public struct LanguageSwitcher: View {
     @EnvironmentObject private var i18n: ThunderIDI18n
     public let locales: [String]
@@ -50,7 +51,7 @@ public struct BaseLanguageSwitcher<Content: View>: View {
     }
 
     public var body: some View {
-        content(locales.isEmpty ? ["en-US"] : locales, i18n.activeLocale) { locale in
+        content(locales.isEmpty ? DefaultStrings.locales : locales, i18n.activeLocale) { locale in
             state.setLocale(locale)
         }
     }

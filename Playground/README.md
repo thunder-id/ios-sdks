@@ -9,9 +9,9 @@ The app has four tabs:
 
 - **Checks**: capability checks that call the real SDK (system browser sign-in, app-native sign-in,
   passkey, sign-out, redirect callback, token refresh, Keychain storage, user info, attribute
-  verification, translations),
-  with run one or run all, a pass/fail reason per check, a summary ring and the server's health.
-  Capabilities the iOS SDK has no API for (biometric unlock, organizations, theming) are shown as
+  verification, translations, the user's organization units and switching between them, pushed
+  authorization requests, CIBA and device authorization), with run one or run all, a pass/fail reason
+  per check, a summary ring and the server's health. Capabilities the iOS SDK has no API for (biometric unlock, theming) are shown as
   unavailable with the reason. Checks that need you (a browser sheet, a sign-in form, ending the
   session, or sending a verification email) run only when tapped; Run all covers the rest.
   - **Management**: the management endpoints, groups (`groups.list/get`), group members,
@@ -37,10 +37,11 @@ The app has four tabs:
 - **Components**: a component explorer for the ThunderIDSwiftUI components. Pick a component and a
   story, edit its props under Controls, preview it in light or dark, and copy the SwiftUI snippet
   generated from the current props under Code. The admin components (`UserList`, `UserDetails`,
-  `UserCreate`, `GroupList`, `GroupCreate`, `GroupMembers`, `RoleList`, `RoleCreate`,
-  `RolePermissions`, `RoleAssignments`, `AgentList`, `AgentDetails`, `AgentCreate`, `ApplicationList`,
-  `ApplicationDetails`, `ApplicationCreate`) are under the
-  `Admin ·` groups. Their Sample, Loading, Empty, Error and Submitting stories render the `Base*`
+  `UserCreate`, `GroupList`, `GroupDetails`, `GroupCreate`, `GroupMembers`, `RoleList`, `RoleDetails`,
+  `RoleCreate`, `RolePermissions`, `RoleAssignments`, `AgentList`, `AgentDetails`, `AgentCreate`,
+  `ApplicationList`, `ApplicationDetails`, `ApplicationCreate`) are under the
+  `Admin ·` groups. The **Projects**, **Organization units**, **Sharing** and **Device grant** groups
+  each have Sample, Live and Custom rendering stories. Their Sample, Loading, Empty, Error and Submitting stories render the `Base*`
   view with sample records (members and assignments can be added and removed locally); Live
   renders the connected view against the management API with the signed-in user's token. Live
   create stories create real records.
@@ -115,6 +116,11 @@ is empty.
 | `THUNDERID_ENDPOINT_CONFIGURATION_VERSIONS` | `endpoints.configurationVersions` |
 | `THUNDERID_ENDPOINT_IMPORT` | `endpoints.import` |
 | `THUNDERID_ENDPOINT_EXPORT` | `endpoints.export` |
+| `THUNDERID_ENDPOINT_CREDENTIAL_CONFIGURATIONS` | `endpoints.credentialConfigurations` |
+| `THUNDERID_ENDPOINT_PRESENTATION_DEFINITIONS` | `endpoints.presentationDefinitions` |
+| `THUNDERID_ENDPOINT_CLIENT_REGISTRATIONS` | `endpoints.clientRegistrations` |
+| `THUNDERID_ENDPOINT_PROJECTS` | `endpoints.projects` |
+| `THUNDERID_ENDPOINT_AUTHORIZATION_DETAIL_TYPES` | `endpoints.authorizationDetailTypes` |
 
 These keys can also be passed as launch arguments, which win over `Config.plist`, for example
 `-THUNDERID_ENDPOINT_GROUPS https://localhost:9090/groups`.

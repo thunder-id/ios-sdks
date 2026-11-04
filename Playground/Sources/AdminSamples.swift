@@ -34,6 +34,13 @@ enum AdminSamples {
     ]
     """)
 
+    /// The role ``RoleDetails`` stories show, with its permissions.
+    static let role: Role = decode("""
+    {"id": "role-viewer", "name": "Viewer", "description": "Read-only access", "ouId": "ou-1",
+     "ouHandle": "default",
+     "permissions": [{"resourceServerId": "rs-system", "permissions": ["system:user:view"]}]}
+    """)
+
     static let assignments: [RoleAssignment] = [
         RoleAssignment(id: "usr-liam", type: .user, display: "Liam Chen"),
         RoleAssignment(id: "grp-eng", type: .group, display: "Engineering"),
@@ -50,6 +57,21 @@ enum AdminSamples {
     ]
 
     static let resourceServerNames = ["rs-system": "ThunderID system API", "rs-orders": "Orders API"]
+
+    /// The resource servers and actions the editable ``RolePermissions`` stories pick from.
+    static let permissionCandidates = [
+        RolePermissionCandidate(
+            resourceServerId: "rs-system",
+            name: "ThunderID system API",
+            permissions: ["system:user:view", "system:user:manage", "system:group:view", "system:role:view"]
+        ),
+        RolePermissionCandidate(
+            resourceServerId: "rs-orders",
+            name: "Orders API",
+            permissions: ["orders:read", "orders:write", "orders:refund"]
+        ),
+        RolePermissionCandidate(resourceServerId: "rs-billing", name: "Billing API", permissions: ["billing:read"])
+    ]
 
     /// Candidates for the membership and assignment pickers.
     static let userCandidates = [

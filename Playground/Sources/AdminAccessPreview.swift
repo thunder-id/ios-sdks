@@ -13,6 +13,7 @@ struct AccessAdminPreview: View {
     @State private var selected: String?
     @State private var members = AdminSamples.members
     @State private var assignments = AdminSamples.assignments
+    @State private var permissions = AdminSamples.permissions
 
     private static let memberCandidates: [GroupMemberType: [IdentityCandidate]] = [
         .user: AdminSamples.userCandidates,
@@ -29,9 +30,11 @@ struct AccessAdminPreview: View {
         case "groupList": groupList
         case "groupCreate": groupCreate
         case "groupMembers": groupMembers
+        case "groupDetails": groupDetails
         case "roleList": roleList
         case "roleCreate": roleCreate
         case "rolePermissions": rolePermissions
+        case "roleDetails": roleDetails
         default: roleAssignments
         }
     }
@@ -108,6 +111,26 @@ struct AccessAdminPreview: View {
         }
     }
 
+    @ViewBuilder private var groupDetails: some View {
+        let deletable = values.flag("deletable")
+        if values.isLive {
+            GroupDetails(
+                groupId: values.text("groupId"),
+                administrationMode: values.administrationMode,
+                editable: values.flag("editable"),
+                deletable: deletable
+            ) { onEvent("onDeleted") }
+        } else {
+            BaseGroupDetails(
+                group: values.isSampleLoading ? nil : AdminSamples.groups.first,
+                isLoading: values.isSampleLoading,
+                error: values.sampleError,
+                onDelete: deletable ? { onEvent("onDelete") } : nil,
+                sections: AnyView(groupMembers)
+            )
+        }
+    }
+
     // MARK: - Roles
 
     @ViewBuilder private var roleList: some View {
@@ -156,20 +179,49 @@ struct AccessAdminPreview: View {
     }
 
     @ViewBuilder private var rolePermissions: some View {
+        let editable = values.flag("editable")
         if values.isLive {
             RolePermissions(
                 roleId: values.text("roleId"),
+                editable: editable,
+                administrationMode: values.administrationMode,
                 title: values.optional("title"),
                 description: values.optional("description")
             )
         } else {
             BaseRolePermissions(
-                permissions: values.isSampleLoading ? [] : AdminSamples.permissions,
+                permissions: values.isSampleLoading ? [] : permissions,
                 resourceServerNames: AdminSamples.resourceServerNames,
+                candidates: editable ? AdminSamples.permissionCandidates : nil,
                 isLoading: values.isSampleLoading,
                 error: values.sampleError,
                 title: values.optional("title"),
-                description: values.optional("description")
+                description: values.optional("description"),
+                onAdd: editable ? addPermission : nil,
+                onRemove: editable ? removePermission : nil
+            )
+        }
+    }
+
+    @ViewBuilder private var roleDetails: some View {
+        let deletable = values.flag("deletable")
+        if values.isLive {
+            RoleDetails(
+                roleId: values.text("roleId"),
+                administrationMode: values.administrationMode,
+                editable: values.flag("editable"),
+                deletable: deletable
+            ) { onEvent("onDeleted") }
+        } else {
+            BaseRoleDetails(
+                role: values.isSampleLoading ? nil : AdminSamples.role,
+                isLoading: values.isSampleLoading,
+                error: values.sampleError,
+                onDelete: deletable ? { onEvent("onDelete") } : nil,
+                sections: AnyView(VStack(alignment: .leading, spacing: 12) {
+                    rolePermissions
+                    roleAssignments
+                })
             )
         }
     }
@@ -224,6 +276,16 @@ struct AccessAdminPreview: View {
     private func unassign(_ assignment: RoleAssignment) {
         assignments.removeAll { $0 == assignment }
         onEvent("onUnassign: \(assignment.id)")
+    }
+
+    private func addPermission(_ permission: RolePermission) {
+        permissions = RolePermission.adding(permission, to: permissions)
+        onEvent("onAdd: \(permission.permission)")
+    }
+
+    private func removePermission(_ permission: RolePermission) {
+        permissions = RolePermission.removing(permission, from: permissions)
+        onEvent("onRemove: \(permission.permission)")
     }
 
     private func label(for id: String) -> String? {

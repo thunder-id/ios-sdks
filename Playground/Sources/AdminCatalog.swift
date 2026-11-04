@@ -23,16 +23,24 @@ extension ExplorerCatalog {
             detail("userDetails", "UserDetails", group: "Admin · Users", idKey: "userId", id: ids.userId),
             create("userCreate", "UserCreate", group: "Admin · Users"),
             list("groupList", "GroupList", group: "Admin · Groups", item: "groups"),
+            detail("groupDetails", "GroupDetails", group: "Admin · Groups", idKey: "groupId", id: ids.groupId),
             create("groupCreate", "GroupCreate", group: "Admin · Groups"),
             membership("groupMembers", "GroupMembers", group: "Admin · Groups", idKey: "groupId", id: ids.groupId),
             list("roleList", "RoleList", group: "Admin · Roles", item: "roles"),
+            detail("roleDetails", "RoleDetails", group: "Admin · Roles", idKey: "roleId", id: ids.roleId),
             create("roleCreate", "RoleCreate", group: "Admin · Roles"),
             detail("rolePermissions", "RolePermissions", group: "Admin · Roles", idKey: "roleId", id: ids.roleId),
             membership("roleAssignments", "RoleAssignments", group: "Admin · Roles", idKey: "roleId", id: ids.roleId),
-            list("agentList", "AgentList", group: "Admin · Agents", item: "agents"),
+            list("agentList", "AgentList", group: "Admin · Agents", item: "agents", projectScoped: true),
             detail("agentDetails", "AgentDetails", group: "Admin · Agents", idKey: "agentId", id: ids.agentId),
             create("agentCreate", "AgentCreate", group: "Admin · Agents"),
-            list("applicationList", "ApplicationList", group: "Admin · Applications", item: "applications"),
+            list(
+                "applicationList",
+                "ApplicationList",
+                group: "Admin · Applications",
+                item: "applications",
+                projectScoped: true
+            ),
             detail(
                 "applicationDetails",
                 "ApplicationDetails",
@@ -75,16 +83,25 @@ extension ExplorerCatalog {
         }
     }
 
-    /// A paged table: `Base*List` with sample rows, or the connected list.
-    private static func list(_ id: String, _ name: String, group: String, item: String) -> ComponentSpec {
+    /// A paged table: `Base*List` with sample rows, or the connected list. `projectScoped` lists take a
+    /// `projectId`; left blank, the live list uses the project chosen in the `ProjectSwitcher` story.
+    private static func list(
+        _ id: String,
+        _ name: String,
+        group: String,
+        item: String,
+        projectScoped: Bool = false
+    ) -> ComponentSpec {
         ComponentSpec(
             id: id,
             name: name,
             group: group,
-            defaults: common.merging(["limit": "20", "error": forbidden]) { _, new in new },
+            defaults: common.merging(["limit": "20", "error": forbidden, "projectId": ""]) { _, new in new },
             controls: [sourceControl, stateControl(["data", "loading", "empty", "error"])]
                 + textControls
-                + [StoryControl(name: "limit", kind: .options(["5", "20", "50"])), errorControl],
+                + [StoryControl(name: "limit", kind: .options(["5", "20", "50"]))]
+                + (projectScoped ? [StoryControl(name: "projectId", kind: .text)] : [])
+                + [errorControl],
             stories: states(["data", "loading", "empty", "error"]),
             isTall: true
         ) { values in AdminSnippets.list(name: name, item: item, values: values) }
@@ -101,6 +118,7 @@ extension ExplorerCatalog {
                 idKey: value,
                 "error": forbidden,
                 "deletable": "false",
+                "editable": "false",
                 "lifecycleActions": "false",
                 "administrationMode": "native"
             ]) { _, new in new },
@@ -114,6 +132,7 @@ extension ExplorerCatalog {
     }
 
     /// A create form: `Base*Create` with a submit callback, or the connected form that creates for real.
+    /// With `ouId` blank, the live application and agent creates use the current project, if one is chosen.
     private static func create(_ id: String, _ name: String, group: String) -> ComponentSpec {
         ComponentSpec(
             id: id,
@@ -143,6 +162,8 @@ extension ExplorerCatalog {
             return [StoryControl(name: "lifecycleActions", kind: .bool), administrationModeControl]
         case "AgentDetails":
             return [StoryControl(name: "lifecycleActions", kind: .bool)]
+        case "GroupDetails", "RoleDetails", "RolePermissions":
+            return [StoryControl(name: "editable", kind: .bool), administrationModeControl]
         default:
             return []
         }

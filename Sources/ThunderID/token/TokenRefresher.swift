@@ -45,16 +45,13 @@ final class TokenRefresher {
             guard let refreshToken = tokenStore.refreshToken() else {
                 throw ThunderIDError(code: .sessionExpired, message: "No refresh token available")
             }
-            let body: [String: Any] = [
-                "grant_type": "refresh_token",
-                "refresh_token": refreshToken,
-                "client_id": clientId
+            // Form-encoded, as the token endpoint reads. A refresh token from a bounded sign-in carries its unit.
+            let form: [(String, String)] = [
+                ("grant_type", "refresh_token"),
+                ("refresh_token", refreshToken),
+                ("client_id", clientId)
             ]
-            let response: TokenResponse = try await httpClient.post(
-                path: "/oauth2/token",
-                body: body,
-                requiresAuth: false
-            )
+            let response: TokenResponse = try await httpClient.postForm(path: "/oauth2/token", form: form)
             try tokenStore.save(response)
             return response
         }

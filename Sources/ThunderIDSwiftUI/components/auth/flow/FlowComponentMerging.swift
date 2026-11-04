@@ -42,7 +42,8 @@ enum FlowComponentMerging {
     static func inputNames(in components: [FlowComponent]) -> [String] {
         var result: [String] = []
         for component in components {
-            if let type = component.type, type.hasSuffix("_INPUT"), let name = component.ref ?? component.id {
+            if let type = component.type, type.hasSuffix("_INPUT") || FlowInputField.isSelection(type),
+               let name = component.ref ?? component.id {
                 result.append(name)
             }
             if let children = component.components {

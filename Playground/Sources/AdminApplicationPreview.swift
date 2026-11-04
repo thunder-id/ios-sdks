@@ -24,6 +24,7 @@ struct ApplicationAdminPreview: View {
         if values.isLive {
             ApplicationList(
                 limit: values.limit,
+                projectId: values.optional("projectId"),
                 title: values.optional("title"),
                 description: values.optional("description"),
                 selectedApplicationId: selected

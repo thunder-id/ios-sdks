@@ -21,6 +21,11 @@ public struct ThunderIDConfig {
     public var signInOptions: [String: Any]
     public var signOutOptions: [String: Any]
     public var signUpOptions: [String: Any]
+    /// Pushes every redirect-mode authorization request to `/oauth2/par` (RFC 9126) and authorizes with the
+    /// returned `request_uri`. Off by default. Turning it off never stops pushing when the server's metadata
+    /// sets `require_pushed_authorization_requests`. Use ``ThunderIDClient/signInURL(options:)``, which
+    /// pushes when either asks for it.
+    public var pushedAuthorizationRequests: Bool
 
     // MARK: - Application Identity
     public var applicationId: String?
@@ -72,6 +77,7 @@ public struct ThunderIDConfig {
         signInOptions: [String: Any] = [:],
         signOutOptions: [String: Any] = [:],
         signUpOptions: [String: Any] = [:],
+        pushedAuthorizationRequests: Bool = false,
         applicationId: String? = nil,
         organizationHandle: String? = nil,
         fetchUserProfile: Bool = true,
@@ -96,6 +102,7 @@ public struct ThunderIDConfig {
         self.signInOptions = signInOptions
         self.signOutOptions = signOutOptions
         self.signUpOptions = signUpOptions
+        self.pushedAuthorizationRequests = pushedAuthorizationRequests
         self.applicationId = applicationId
         self.organizationHandle = organizationHandle
         self.fetchUserProfile = fetchUserProfile
@@ -133,9 +140,15 @@ public struct ThunderIDEndpoints {
     /// Defaults to `{baseUrl}/agent-types`.
     public var agentTypes: String?
     public var applications: String?
+    /// Defaults to `{baseUrl}/authorization-detail-types`.
+    public var authorizationDetailTypes: String?
+    /// Defaults to `{baseUrl}/oauth2/dcr/register`.
+    public var clientRegistrations: String?
     /// Defaults to `{baseUrl}/configuration-versions`.
     public var configurationVersions: String?
     public var connections: String?
+    /// Defaults to `{baseUrl}/openid4vci/credential-configurations`.
+    public var credentialConfigurations: String?
     /// The design collection, which holds `themes`, `layouts` and `resolve`.
     public var design: String?
     public var export: String?
@@ -149,6 +162,10 @@ public struct ThunderIDEndpoints {
     public var notificationTemplates: String?
     /// Defaults to `{baseUrl}/organization-units`.
     public var organizationUnits: String?
+    /// Defaults to `{baseUrl}/openid4vp/presentation-definitions`.
+    public var presentationDefinitions: String?
+    /// Defaults to `{baseUrl}/projects`. Only the Control Plane serves projects.
+    public var projects: String?
     /// Defaults to `{baseUrl}/resource-servers`.
     public var resourceServers: String?
     public var roles: String?
@@ -169,8 +186,11 @@ public struct ThunderIDEndpoints {
         agents: String? = nil,
         agentTypes: String? = nil,
         applications: String? = nil,
+        authorizationDetailTypes: String? = nil,
+        clientRegistrations: String? = nil,
         configurationVersions: String? = nil,
         connections: String? = nil,
+        credentialConfigurations: String? = nil,
         design: String? = nil,
         export: String? = nil,
         flows: String? = nil,
@@ -180,6 +200,8 @@ public struct ThunderIDEndpoints {
         import: String? = nil,
         notificationTemplates: String? = nil,
         organizationUnits: String? = nil,
+        presentationDefinitions: String? = nil,
+        projects: String? = nil,
         resourceServers: String? = nil,
         roles: String? = nil,
         secrets: String? = nil,
@@ -192,8 +214,11 @@ public struct ThunderIDEndpoints {
         self.agents = agents
         self.agentTypes = agentTypes
         self.applications = applications
+        self.authorizationDetailTypes = authorizationDetailTypes
+        self.clientRegistrations = clientRegistrations
         self.configurationVersions = configurationVersions
         self.connections = connections
+        self.credentialConfigurations = credentialConfigurations
         self.design = design
         self.export = export
         self.flows = flows
@@ -203,6 +228,8 @@ public struct ThunderIDEndpoints {
         self.import = `import`
         self.notificationTemplates = notificationTemplates
         self.organizationUnits = organizationUnits
+        self.presentationDefinitions = presentationDefinitions
+        self.projects = projects
         self.resourceServers = resourceServers
         self.roles = roles
         self.secrets = secrets

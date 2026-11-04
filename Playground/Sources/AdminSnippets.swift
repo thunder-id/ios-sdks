@@ -8,7 +8,8 @@ enum AdminSnippets {
     static func list(name: String, item: String, values: PropValues) -> String {
         let singular = String(item.dropLast())
         if values.isLive {
-            return call(name, ["limit: \(values.text("limit"))"] + texts(values)
+            let projectId = values.optional("projectId").map { ["projectId: \(ExplorerCatalog.quote($0))"] } ?? []
+            return call(name, ["limit: \(values.text("limit"))"] + projectId + texts(values)
                 + ["onSelect: { \(singular) in /* open \(singular).id */ }"])
         }
         return call("Base\(name)", [
@@ -19,22 +20,28 @@ enum AdminSnippets {
     static func detail(name: String, idKey: String, values: PropValues) -> String {
         let id = ExplorerCatalog.quote(values.text(idKey))
         if name == "RolePermissions" {
+            let editable = values.flag("editable")
             return values.isLive
-                ? call(name, ["roleId: \(id)"] + texts(values))
+                ? call(name, ["roleId: \(id)"] + (editable ? ["editable: true"] + administrationMode(values) : [])
+                    + texts(values))
                 : call("BaseRolePermissions", ["permissions: role.permissions", "resourceServerNames: names"]
+                    + (editable ? ["candidates: candidates", "onAdd: { add($0) }", "onRemove: { remove($0) }"] : [])
                     + state(values) + texts(values))
         }
         let deletable = values.flag("deletable")
         let lifecycle = values.flag("lifecycleActions")
         if values.isLive {
             let deletion = deletable ? ["deletable: true", "onDeleted: { /* deleted */ }"] : []
-            return call(name, ["\(idKey): \(id)"] + administrationMode(values)
+            let editable = values.flag("editable") ? ["editable: true"] : []
+            return call(name, ["\(idKey): \(id)"] + administrationMode(values) + editable
                 + (lifecycle ? ["lifecycleActions: true"] : []) + deletion)
         }
         let record: [String]
         switch name {
         case "UserDetails": record = ["user: user", "groups: groups"]
         case "ApplicationDetails": record = ["application: application"]
+        case "GroupDetails": record = ["group: group", "sections: AnyView(BaseGroupMembers(members: members))"]
+        case "RoleDetails": record = ["role: role", "sections: AnyView(BaseRoleAssignments(assignments: assignments))"]
         default: record = ["agent: agent", "groups: groups", "roles: roles"]
         }
         return call("Base\(name)", record + state(values)

@@ -26,6 +26,9 @@ struct ComponentPreview: View {
         case "Actions": actionPreview
         case "User": UserPreview(id: spec.id, values: values, onEvent: onEvent)
         case "Flows": FlowPreview(id: spec.id, values: values, onEvent: onEvent)
+        case "Organization": OrganizationUnitSwitcherPreview(values: values, onEvent: onEvent)
+        case "Projects", "Organization units", "Sharing", "Device grant":
+            ResourcePreview(id: spec.id, values: values, onEvent: onEvent)
         default: miscPreview
         }
     }

@@ -65,6 +65,14 @@ extension CheckContext {
         "secrets": { _ = try await $0.secrets.list(limit: 1, fetcher: $1) },
         "configuration-versions": { _ = try await $0.configuration.versions(fetcher: $1) },
         "import": { _ = try await $0.configuration.importConfiguration(ImportRequest(dryRun: true), fetcher: $1) },
-        "export": { _ = try await $0.configuration.exportConfiguration(ExportRequest(), fetcher: $1) }
+        "export": { _ = try await $0.configuration.exportConfiguration(ExportRequest(), fetcher: $1) },
+        "openid4vci/credential-configurations": { _ = try await $0.credentialConfigurations.list(fetcher: $1) },
+        "openid4vp/presentation-definitions": { _ = try await $0.presentationDefinitions.list(fetcher: $1) },
+        "projects": { _ = try await $0.projects.list(limit: 1, fetcher: $1) },
+        "authorization-detail-types": { _ = try await $0.authorizationDetailTypes.list(limit: 1, fetcher: $1) },
+        // The probe fetcher stops the request, so this registers nothing.
+        "oauth2/dcr/register": {
+            _ = try await $0.clientRegistrations.register(ClientRegistrationRequest(redirectUris: []), fetcher: $1)
+        }
     ]
 }

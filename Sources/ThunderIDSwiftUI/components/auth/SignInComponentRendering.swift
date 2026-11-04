@@ -15,7 +15,7 @@ extension SignIn {
             return AnyView(textComponentView(component, signInState: signInState))
         } else if type == "BLOCK" {
             return AnyView(blockComponentView(component, signInState: signInState))
-        } else if type.hasSuffix("_INPUT") {
+        } else if type.hasSuffix("_INPUT") || FlowInputField.isSelection(type) {
             return AnyView(inputComponentView(component, signInState: signInState))
         } else if type == "RICH_TEXT" {
             return AnyView(richTextComponentView(component, signInState: signInState))
@@ -62,7 +62,8 @@ extension SignIn {
             type: component.type,
             label: label,
             placeholder: placeholder,
-            binding: signInState.binding(for: name)
+            binding: signInState.binding(for: name),
+            options: signInState.inputs.first { $0.name == name }?.options
         )
     }
 

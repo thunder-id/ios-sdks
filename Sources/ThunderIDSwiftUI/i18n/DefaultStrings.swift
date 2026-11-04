@@ -3,9 +3,40 @@
 
 import Foundation
 
-/// English default strings for all ThunderIDSwiftUI components.
+/// The strings ThunderIDSwiftUI components ship with: English defaults, and a translation for each
+/// shipped locale.
 public enum DefaultStrings {
+    /// The English (`en-US`) strings, the last fallback for every key.
     public static let all: [String: String] = core.merging(AdminDefaultStrings.all) { current, _ in current }
+
+    /// The locales the SDK ships strings for, the same set the JavaScript SDK ships.
+    public static let locales: [String] = [
+        "en-US", "fr-FR", "hi-IN", "ja-JP", "pt-BR", "pt-PT", "si-LK", "ta-IN", "te-IN"
+    ]
+
+    /// The shipped strings for `locale`, matched exactly (`pt-PT`), then by language alone (`pt` or
+    /// `pt-AO` gets `pt-BR`, the first shipped `pt` locale). `nil` when no shipped locale matches.
+    public static func strings(for locale: String) -> [String: String]? {
+        let normalized = locale.replacingOccurrences(of: "_", with: "-")
+        if let exact = bundles.first(where: { $0.key.caseInsensitiveCompare(normalized) == .orderedSame }) {
+            return exact.value
+        }
+        let language = normalized.split(separator: "-").first.map { String($0).lowercased() } ?? ""
+        guard let match = locales.first(where: { $0.lowercased().hasPrefix("\(language)-") }) else { return nil }
+        return bundles[match]
+    }
+
+    private static let bundles: [String: [String: String]] = [
+        "en-US": all,
+        "fr-FR": FrFRStrings.all,
+        "hi-IN": HiINStrings.all,
+        "ja-JP": JaJPStrings.all,
+        "pt-BR": PtBRStrings.all,
+        "pt-PT": PtPTStrings.all,
+        "si-LK": SiLKStrings.all,
+        "ta-IN": TaINStrings.all,
+        "te-IN": TeINStrings.all
+    ]
 
     private static let core: [String: String] = [
         "signIn.button": "Sign in",
@@ -26,6 +57,17 @@ public enum DefaultStrings {
         "signOut.loading": "Signing out…",
         "callback.loading": "Completing sign-in…",
         "callback.error": "Could not complete sign-in",
+        "organizationUnitSwitcher.title": "Organization units",
+        "organizationUnitSwitcher.current": "Current",
+        "organizationUnitSwitcher.loading": "Loading organization units…",
+        "organizationUnitSwitcher.switching": "Switching…",
+        "organizationUnitSwitcher.empty": "No organization units",
+        "organizationUnitSwitcher.previous": "Previous",
+        "organizationUnitSwitcher.next": "Next",
+        "organizationUnitSwitcher.error.load": "Could not load your organization units. Please try again.",
+        "organizationUnitSwitcher.error.switch": "Could not switch to this organization unit. Please try again.",
+        "organizationUnitSwitcher.error.unavailable": "This organization unit is not available to this application.",
+        "organizationUnitSwitcher.signInRequired": "Sign in again to switch to {name}.",
         "user.anonymous": "Anonymous",
         "userProfile.title": "Profile",
         "userProfile.section": "Personal info",
@@ -68,6 +110,22 @@ public enum DefaultStrings {
         "verifyAttribute.done": "Done",
         "verifyAttribute.status.verified": "Verified",
         "verifyAttribute.status.unverified": "Unverified",
-        "languageSwitcher.title": "Language"
+                "languageSwitcher.title": "Language",
+        "deviceGrant.title": "Authorize a device",
+        "deviceGrant.description": "Enter the code shown on your device.",
+        "deviceGrant.userCode": "Device code",
+        "deviceGrant.submit": "Continue",
+        "deviceGrant.loading": "Loading…",
+        "deviceGrant.errors.start": "Could not start device verification. Please try again.",
+        "deviceGrant.errors.continue": "Could not continue device authorization. Please try again.",
+        "deviceGrant.errors.invalidCode": "This code is invalid or no longer available. Try again.",
+        "deviceGrant.messages.complete": "Device authorized",
+        "deviceGrant.messages.completeDescription": "You can return to your device.",
+        "deviceGrant.messages.denied": "Device not authorized",
+        "deviceGrant.messages.deniedDescription": "Access was not granted. Return to your device and start again.",
+        "deviceGrant.messages.expired": "Code expired",
+        "deviceGrant.messages.expiredDescription": "The time to finish ran out. Return to your device and start again.",
+        "deviceGrant.messages.failed": "Device authorization failed",
+        "deviceGrant.messages.failedDescription": "Return to your device and start again."
     ]
 }

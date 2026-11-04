@@ -55,7 +55,28 @@ struct ManagementCollection: Identifiable {
             field: \.configurationVersions
         ),
         ManagementCollection(path: "import", configKey: "THUNDERID_ENDPOINT_IMPORT", field: \.import),
-        ManagementCollection(path: "export", configKey: "THUNDERID_ENDPOINT_EXPORT", field: \.export)
+        ManagementCollection(path: "export", configKey: "THUNDERID_ENDPOINT_EXPORT", field: \.export),
+        ManagementCollection(
+            path: "openid4vci/credential-configurations",
+            configKey: "THUNDERID_ENDPOINT_CREDENTIAL_CONFIGURATIONS",
+            field: \.credentialConfigurations
+        ),
+        ManagementCollection(
+            path: "openid4vp/presentation-definitions",
+            configKey: "THUNDERID_ENDPOINT_PRESENTATION_DEFINITIONS",
+            field: \.presentationDefinitions
+        ),
+        ManagementCollection(path: "projects", configKey: "THUNDERID_ENDPOINT_PROJECTS", field: \.projects),
+        ManagementCollection(
+            path: "authorization-detail-types",
+            configKey: "THUNDERID_ENDPOINT_AUTHORIZATION_DETAIL_TYPES",
+            field: \.authorizationDetailTypes
+        ),
+        ManagementCollection(
+            path: "oauth2/dcr/register",
+            configKey: "THUNDERID_ENDPOINT_CLIENT_REGISTRATIONS",
+            field: \.clientRegistrations
+        )
     ]
 }
 

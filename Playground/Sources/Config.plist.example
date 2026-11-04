@@ -36,5 +36,10 @@
     <!-- <key>THUNDERID_ENDPOINT_CONFIGURATION_VERSIONS</key><string>https://localhost:9090/configuration-versions</string> -->
     <!-- <key>THUNDERID_ENDPOINT_IMPORT</key><string>https://localhost:9090/import</string> -->
     <!-- <key>THUNDERID_ENDPOINT_EXPORT</key><string>https://localhost:9090/export</string> -->
+    <!-- <key>THUNDERID_ENDPOINT_CREDENTIAL_CONFIGURATIONS</key><string>https://localhost:9090/openid4vci/credential-configurations</string> -->
+    <!-- <key>THUNDERID_ENDPOINT_PRESENTATION_DEFINITIONS</key><string>https://localhost:9090/openid4vp/presentation-definitions</string> -->
+    <!-- <key>THUNDERID_ENDPOINT_CLIENT_REGISTRATIONS</key><string>https://localhost:9090/oauth2/dcr/register</string> -->
+    <!-- <key>THUNDERID_ENDPOINT_PROJECTS</key><string>https://localhost:9090/projects</string> -->
+    <!-- <key>THUNDERID_ENDPOINT_AUTHORIZATION_DETAIL_TYPES</key><string>https://localhost:9090/authorization-detail-types</string> -->
 </dict>
 </plist>

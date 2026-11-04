@@ -5,7 +5,9 @@ import Foundation
 
 /// Resolves localized strings for ThunderIDSwiftUI components (spec §8.1 i18n).
 ///
-/// Resolution order: custom bundle for active locale → custom bundle for fallback locale → English defaults.
+/// Resolution order: custom bundle for the active locale → shipped strings for the active locale →
+/// custom bundle for the fallback locale → shipped strings for the fallback locale → English defaults.
+/// The SDK ships the locales in ``DefaultStrings/locales``.
 public final class ThunderIDI18n: ObservableObject {
     @Published public private(set) var activeLocale: String
 
@@ -29,7 +31,9 @@ public final class ThunderIDI18n: ObservableObject {
     /// Returns the localized string for `key`, falling back through the chain.
     public func resolve(_ key: String) -> String {
         bundles[activeLocale]?[key]
+            ?? DefaultStrings.strings(for: activeLocale)?[key]
             ?? bundles[fallbackLocale]?[key]
+            ?? DefaultStrings.strings(for: fallbackLocale)?[key]
             ?? DefaultStrings.all[key]
             ?? key
     }

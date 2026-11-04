@@ -97,7 +97,11 @@ extension ThunderIDClient {
         )
     }
 
-    func backendSignInURL(_ backend: BackendClient, config: ThunderIDConfig) throws -> URL {
+    func backendSignInURL(
+        _ backend: BackendClient,
+        config: ThunderIDConfig,
+        organizationUnitId: String? = nil
+    ) throws -> URL {
         guard let redirectUri = config.afterSignInUrl, !redirectUri.isEmpty else {
             throw ThunderIDError(
                 code: .invalidConfiguration,
@@ -105,7 +109,11 @@ extension ThunderIDClient {
             )
         }
         let (_, challenge) = pkceManager.generate()
-        return try backend.signInURL(redirectUri: redirectUri, codeChallenge: challenge)
+        return try backend.signInURL(
+            redirectUri: redirectUri,
+            codeChallenge: challenge,
+            organizationUnitId: organizationUnitId
+        )
     }
 
     /// Completes the sign-in handoff: the callback carries a one-time `session_code`, which is exchanged,
