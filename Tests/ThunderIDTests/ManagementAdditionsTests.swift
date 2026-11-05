@@ -208,6 +208,22 @@ final class ManagementAdditionsTests: XCTestCase {
         XCTAssertEqual(server.body(of: "PUT")?["delegated"] as? Bool, true)
     }
 
+    func testRegenerateAgentSecretSendsTheOwnerBackAsAnObject() async throws {
+        let server = ManagementTestServer()
+        server.resource = #"{"id":"a-1","ouId":"ou-1","type":"bot","#
+            + #""owner":{"id":"jane@example.com","idType":"email","isLocal":false},"#
+            + #""inboundAuthConfig":[{"type":"oauth2","config":{"grantTypes":["client_credentials"],"#
+            + #""responseTypes":[]}}]}"#
+        let client = try await server.makeClient()
+
+        _ = try await client.agents.regenerateSecret(id: "a-1")
+
+        let owner = try XCTUnwrap(server.body(of: "PUT")?["owner"] as? [String: Any])
+        XCTAssertEqual(owner["id"] as? String, "jane@example.com")
+        XCTAssertEqual(owner["idType"] as? String, "email")
+        XCTAssertEqual(owner["isLocal"] as? Bool, false)
+    }
+
     func testDelegationFollowsTheGrantTypes() {
         func agent(_ grants: [String]) -> [AgentInboundAuthConfig] {
             [AgentInboundAuthConfig(config: OAuth2Config(grantTypes: grants, responseTypes: []))]

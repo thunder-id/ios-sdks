@@ -84,6 +84,21 @@ final class AdminComponentTests: XCTestCase {
         XCTAssertNil(BaseRoleAssignments(assignments: []).onUnassign)
     }
 
+    func testAgentDetailsShowTheOwnersId() {
+        XCTAssertEqual(
+            i18n.agentOwner(AgentOwner(id: "jane@example.com", idType: .email, isLocal: false)),
+            "jane@example.com"
+        )
+        XCTAssertEqual(i18n.agentOwner(nil), "No owner")
+    }
+
+    func testAgentCreateKeepsTheOwnerItIsGiven() {
+        let owner = AgentOwner(id: "jane@example.com", idType: .email, isLocal: false)
+
+        XCTAssertEqual(AgentCreate(owner: owner).owner, owner)
+        XCTAssertNil(AgentCreate().owner)
+    }
+
     func testGroupMembersListCandidatesFromTheGivenOrganizationUnit() {
         XCTAssertEqual(GroupMembers(groupId: "g-1", ouId: "ou-1").candidateFilter, "ouId eq \"ou-1\"")
         XCTAssertNil(GroupMembers(groupId: "g-1").candidateFilter)
