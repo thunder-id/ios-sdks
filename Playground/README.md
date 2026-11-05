@@ -8,11 +8,12 @@ always runs the SDK code in your checkout. For a minimal app to copy from, use t
 The app has four tabs:
 
 - **Checks**: capability checks that call the real SDK (system browser sign-in, app-native sign-in,
-  passkey, sign-out, redirect callback, token refresh, Keychain storage, user info, translations),
+  passkey, sign-out, redirect callback, token refresh, Keychain storage, user info, attribute
+  verification, translations),
   with run one or run all, a pass/fail reason per check, a summary ring and the server's health.
   Capabilities the iOS SDK has no API for (biometric unlock, organizations, theming) are shown as
   unavailable with the reason. Checks that need you (a browser sheet, a sign-in form, ending the
-  session) run only when tapped; Run all covers the rest.
+  session, or sending a verification email) run only when tapped; Run all covers the rest.
   - **Management**: the management endpoints, groups (`groups.list/get`), group members,
     roles (`roles.list/get`), role assignments (with the `type` filter), the signed-in user's
     groups and the user types, agent types, and an agent's groups and roles, the first user

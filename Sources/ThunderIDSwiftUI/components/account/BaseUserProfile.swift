@@ -198,18 +198,61 @@ private func deepUnwrapValue(_ value: Any) -> Any {
     }
 }
 
+/// A profile attribute's verification status, from the profile's `verifiedAttributes`.
+public enum AttributeVerificationStatus: Equatable {
+    case verified(verifiedAt: String?)
+    case unverified
+}
+
+/// The status shown for `field`: `nil` when the server does not report verification, while the field is
+/// being edited, or for anything but a stored, single-valued `email` or `mobile` value.
+func verificationStatus(
+    of field: ProfileField,
+    in verifiedAttributes: [String: VerifiedAttribute]?,
+    isEditing: Bool
+) -> AttributeVerificationStatus? {
+    guard let verifiedAttributes, !isEditing, !field.isMultiValued,
+          AttributeVerification.isVerifiableType(field.schema.type),
+          let value = field.rawValue as? String,
+          !value.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+    if let record = verifiedAttributes[field.name] {
+        return .verified(verifiedAt: record.verifiedAt)
+    }
+    return .unverified
+}
+
+/// Whether saving `savedValue` over `previousValue` opens verification: only for a changed `email` that the
+/// saved profile stores and reports as unverified. An unknown status opens nothing.
+func opensVerificationAfterSave(
+    _ field: ProfileField,
+    previousValue: Any?,
+    savedValue: String,
+    savedProfile: ThunderID.UserProfile
+) -> Bool {
+    let trimmed = savedValue.trimmingCharacters(in: .whitespaces)
+    guard !savedProfile.isReadOnly, !field.isReadonly,
+          AttributeVerification.opensAfterSave(field.schema.type), !field.isMultiValued, !trimmed.isEmpty,
+          savedValue != stringifyFieldValue(previousValue),
+          savedProfile.attributes[field.name]?.value as? String == savedValue,
+          let verifiedAttributes = savedProfile.verifiedAttributes else { return false }
+    return verifiedAttributes[field.name] == nil
+}
+
 /// State container passed to the BaseUserProfile builder.
 @MainActor
 public final class UserProfileState: ObservableObject {
-    @Published public fileprivate(set) var profile: ThunderID.UserProfile?
-    @Published public fileprivate(set) var fields: [ProfileField] = []
+    @Published public internal(set) var profile: ThunderID.UserProfile?
+    @Published public internal(set) var fields: [ProfileField] = []
     @Published public fileprivate(set) var displayName: String = ""
     @Published public fileprivate(set) var email: String?
     @Published public fileprivate(set) var isLoading: Bool = false
     @Published public fileprivate(set) var error: String?
 
-    @Published fileprivate var editedValues: [String: String] = [:]
-    @Published fileprivate var editingFields: [String: Bool] = [:]
+    /// The attribute whose verification is open.
+    @Published public fileprivate(set) var verifyingField: String?
+
+    @Published var editedValues: [String: String] = [:]
+    @Published var editingFields: [String: Bool] = [:]
     @Published fileprivate var fieldErrors: [String: String] = [:]
 
     /// Held here, not as view `@State`, so saves always read the schema the load resolved.
@@ -219,6 +262,7 @@ public final class UserProfileState: ObservableObject {
     fileprivate var onCancel: (String) -> Void = { _ in }
     fileprivate var onFieldChange: (String, String) -> Void = { _, _ in }
     fileprivate var onSave: (String) -> Void = { _ in }
+    fileprivate var onApply: (ThunderID.UserProfile) -> Void = { _ in }
 
     public func isEditing(_ name: String) -> Bool { editingFields[name] == true }
 
@@ -235,9 +279,62 @@ public final class UserProfileState: ObservableObject {
     public func setFieldValue(_ name: String, _ value: String) { onFieldChange(name, value) }
 
     public func save(_ name: String) { onSave(name) }
+
+    /// The field's verification status, or `nil` when none is shown.
+    public func verificationStatus(_ field: ProfileField) -> AttributeVerificationStatus? {
+        ThunderIDSwiftUI.verificationStatus(
+            of: field,
+            in: profile?.verifiedAttributes,
+            isEditing: isEditing(field.name)
+        )
+    }
+
+    /// Whether the verify action is offered: an unverified, stored email or mobile value not being edited.
+    public func canVerify(_ field: ProfileField) -> Bool {
+        profile?.isReadOnly == false && !field.isReadonly
+            && verificationStatus(field) == .unverified && verifyingField != field.name
+    }
+
+    /// Opens verification for `name` when ``canVerify(_:)`` allows it.
+    public func verify(_ name: String) {
+        guard let field = fields.first(where: { $0.name == name }), canVerify(field) else { return }
+        verifyingField = name
+    }
+
+    public func closeVerification() { verifyingField = nil }
+
+    /// Shows a profile read again, such as after a verification was recorded.
+    public func apply(_ profile: ThunderID.UserProfile) { onApply(profile) }
+
+    /// Saves `value` for `field`. The field stays in edit mode until the server has stored the value, so
+    /// while the save is in flight or after it fails, the status and Verify action of the stored value stay
+    /// hidden and none is offered for what the user typed.
+    func commitSave(
+        _ field: ProfileField,
+        value: String,
+        update: ([String: Any]) async throws -> ThunderID.UserProfile,
+        apply: (ThunderID.UserProfile) -> Void
+    ) async throws {
+        isLoading = true
+        defer { isLoading = false }
+        let currentAttributes = profile.map { deepUnwrapAttributes($0.attributes) } ?? [:]
+        let fieldPayload = buildUpdatePayload(field.name, value, field.isMultiValued)
+        let saved = try await update(deepMergeAttributes(currentAttributes, fieldPayload))
+        apply(saved)
+        editingFields[field.name] = false
+        editedValues.removeValue(forKey: field.name)
+        if opensVerificationAfterSave(field, previousValue: field.rawValue, savedValue: value, savedProfile: saved) {
+            verifyingField = field.name
+        }
+    }
 }
 
 /// Unstyled base variant (spec §8.3).
+///
+/// A custom render shows each field's ``UserProfileState/verificationStatus(_:)``, offers
+/// ``UserProfileState/verify(_:)`` where ``UserProfileState/canVerify(_:)`` allows it, and draws a
+/// `VerifyAttribute` for ``UserProfileState/verifyingField``. That verification hands the profile it read again
+/// to this state, so the status updates without a second read.
 public struct BaseUserProfile<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     public let attributeMapping: [String: [String]]
@@ -261,6 +358,9 @@ public struct BaseUserProfile<Content: View>: View {
 
     public var body: some View {
         content(state)
+            .environment(\.verifiedProfileSink) { [state] profile in
+                if let profile { state.apply(profile) }
+            }
             .task {
                 wireCallbacks()
                 guard thunderState.fetchUserProfileEnabled else { return }
@@ -308,6 +408,7 @@ public struct BaseUserProfile<Content: View>: View {
 
     private func editField(_ name: String) {
         guard let field = state.fields.first(where: { $0.name == name }) else { return }
+        if state.verifyingField == name { state.verifyingField = nil }
         state.editedValues[name] = stringifyFieldValue(field.rawValue)
         state.editingFields[name] = true
         state.fieldErrors.removeValue(forKey: name)
@@ -331,18 +432,17 @@ public struct BaseUserProfile<Content: View>: View {
     }
 
     private func performSave(name: String, field: ProfileField, value: String) async {
-        state.isLoading = true
-        defer { state.isLoading = false }
+        let client = thunderState.client
         do {
-            let fieldPayload = buildUpdatePayload(name, value, field.isMultiValued)
-            let currentAttributes = state.profile.map { deepUnwrapAttributes($0.attributes) } ?? [:]
-            let payload = deepMergeAttributes(currentAttributes, fieldPayload)
-            applyProfile(try await thunderState.client.updateUserProfile(payload: payload))
-            state.editingFields[name] = false
-            state.editedValues.removeValue(forKey: name)
+            try await state.commitSave(
+                field,
+                value: value,
+                update: { try await client.updateUserProfile(payload: $0) },
+                apply: applyProfile
+            )
             onSaved?()
         } catch {
-            state.fieldErrors[name] = error.localizedDescription
+            state.fieldErrors[name] = thunderState.i18n.resolve("userProfile.error.save")
             onError?()
         }
     }
@@ -352,5 +452,6 @@ public struct BaseUserProfile<Content: View>: View {
         state.onCancel = cancelField
         state.onFieldChange = { state.editedValues[$0] = $1 }
         state.onSave = saveField
+        state.onApply = applyProfile
     }
 }
