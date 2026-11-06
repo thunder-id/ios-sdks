@@ -9,24 +9,28 @@ final class ComponentTests: XCTestCase {
     // MARK: - ThunderIDI18n
 
     func testI18nResolvesDefaultString() {
-        let i18n = ThunderIDI18n()
+        let i18n = ThunderIDI18n(language: "en-US")
         XCTAssertEqual(i18n.resolve("signIn.button"), "Sign in")
     }
 
     func testI18nResolvesCustomBundle() {
-        let i18n = ThunderIDI18n(bundles: ["en-US": ["signIn.button": "Log in"]])
+        let i18n = ThunderIDI18n(bundles: ["en-US": ["signIn.button": "Log in"]], language: "en-US")
         XCTAssertEqual(i18n.resolve("signIn.button"), "Log in")
     }
 
     func testI18nFallsBackToDefaultForMissingKey() {
-        let i18n = ThunderIDI18n(bundles: ["en-US": [:]])
+        let i18n = ThunderIDI18n(bundles: ["en-US": [:]], language: "en-US")
         XCTAssertEqual(i18n.resolve("signOut.button"), "Sign out")
     }
 
     func testI18nSetsLocale() {
+        // A test-only storage key, so the locale it persists never reaches another test's default ThunderIDI18n.
+        let storageKey = "component_tests_locale"
+        defer { UserDefaults.standard.removeObject(forKey: storageKey) }
         let i18n = ThunderIDI18n(
             bundles: ["fr-FR": ["signIn.button": "Se connecter"]],
-            language: "en-US"
+            language: "en-US",
+            storageKey: storageKey
         )
         i18n.setLocale("fr-FR")
         XCTAssertEqual(i18n.activeLocale, "fr-FR")

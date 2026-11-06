@@ -184,6 +184,53 @@ final class AdministrationFlowStateTests: XCTestCase {
         XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/server-config/flow"), 0)
     }
 
+    func testDeletesGroupsAndRolesThroughTheirDeletionFlowsInFlowMode() async throws {
+        let server = FlowServer(
+            configured: ["groupDeletionFlow": "delete-group", "roleDeletionFlow": "delete-role"],
+            resource: "{}"
+        )
+        let state = try await makeState(serving: server)
+
+        let group: Void? = await state.deleteGroupMutation(administrationMode: .flow).mutate("g-1")
+        let role: Void? = await state.deleteRoleMutation(administrationMode: .flow).mutate("r-1")
+
+        XCTAssertNotNil(group)
+        XCTAssertNotNil(role)
+        XCTAssertEqual(server.executions.map { $0["flowId"] as? String }, ["id-delete-group", "id-delete-role"])
+        XCTAssertEqual(
+            server.executions.map { $0["inputs"] as? [String: String] },
+            [["targetGroupId": "g-1"], ["targetRoleId": "r-1"]]
+        )
+        XCTAssertFalse(server.requests.contains { $0.httpMethod == "DELETE" })
+    }
+
+    func testDeletesGroupsAndRolesDirectlyByDefault() async throws {
+        let server = FlowServer(
+            configured: ["groupDeletionFlow": "delete-group", "roleDeletionFlow": "delete-role"],
+            resource: "{}"
+        )
+        let state = try await makeState(serving: server)
+
+        await state.deleteGroupMutation().mutate("g-1")
+        await state.deleteRoleMutation().mutate("r-1")
+
+        XCTAssertEqual(server.requests.map { $0.httpMethod ?? "" }, ["DELETE", "DELETE"])
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/groups/g-1"), 1)
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/roles/r-1"), 1)
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/server-config/flow"), 0)
+    }
+
+    func testDeletesAGroupDirectlyInFlowModeWhenNoFlowIsConfigured() async throws {
+        let server = FlowServer(configured: [:], resource: "{}")
+        let state = try await makeState(serving: server)
+
+        let result: Void? = await state.deleteGroupMutation(administrationMode: .flow).mutate("g-1")
+
+        XCTAssertNotNil(result)
+        XCTAssertTrue(server.executions.isEmpty)
+        XCTAssertEqual(server.requests.filter { $0.httpMethod == "DELETE" }.map { $0.url?.path }, ["/groups/g-1"])
+    }
+
     func testRemovesMembersAndAssignmentsThroughTheirFlowsInFlowMode() async throws {
         let server = FlowServer(
             configured: [

@@ -54,13 +54,20 @@ public extension ThunderIDState {
         )
     }
 
-    func deleteGroupMutation(fetcher: ThunderIDFetcher? = nil) -> ResourceMutation<String, Void> {
+    /// Deletes a group. In `.flow` mode the configured group deletion flow runs instead, revoking what
+    /// the group's members held through it before the group goes.
+    func deleteGroupMutation(
+        administrationMode: AdministrationMode = .native,
+        fetcher: ThunderIDFetcher? = nil
+    ) -> ResourceMutation<String, Void> {
         let client = client
         return mutation(
             invalidating: { _ in
                 [[GroupQueryKeys.groups], [GroupQueryKeys.memberships], [RoleQueryKeys.roleAssignments]]
             },
-            perform: { id in try await client.groups.delete(id: id, fetcher: fetcher) }
+            perform: { id in
+                try await client.groups.delete(id: id, administrationMode: administrationMode, fetcher: fetcher)
+            }
         )
     }
 

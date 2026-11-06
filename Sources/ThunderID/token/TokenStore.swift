@@ -11,6 +11,7 @@ private enum StoreKey {
     static let scope = "thunder.scope"
     static let createdAt = "thunder.created_at"
     static let sessionHandle = "thunder.session_handle"
+    static let deviceSecret = "thunder.device_secret"
 }
 
 /// Persists and retrieves the token set using the configured StorageAdapter.
@@ -41,7 +42,27 @@ final class TokenStore {
         if let scope = tokenResponse.scope {
             try storage.store(key: StoreKey.scope, value: scope)
         }
+        if let secret = tokenResponse.deviceSecret {
+            try storage.store(key: StoreKey.deviceSecret, value: secret)
+        }
     }
+
+    /// Replaces the stored session with `tokenResponse`: nothing of the previous one, such as a refresh
+    /// token bound to another organization unit, carries over. The device secret is kept when the response
+    /// brings none, since it belongs to the device's SSO session rather than to one sign-in.
+    func replace(_ tokenResponse: TokenResponse) throws {
+        let secret = tokenResponse.deviceSecret == nil ? deviceSecret() : nil
+        [
+            StoreKey.accessToken, StoreKey.refreshToken, StoreKey.idToken, StoreKey.tokenExpiry,
+            StoreKey.scope, StoreKey.createdAt
+        ].forEach(storage.delete)
+        try save(tokenResponse)
+        if let secret { try storage.store(key: StoreKey.deviceSecret, value: secret) }
+    }
+
+    /// The device secret a code exchange with the `device_sso` scope returned. It is a credential: it is
+    /// never logged.
+    func deviceSecret() -> String? { storage.retrieve(key: StoreKey.deviceSecret) }
 
     func accessToken() -> String? { storage.retrieve(key: StoreKey.accessToken) }
     func refreshToken() -> String? { storage.retrieve(key: StoreKey.refreshToken) }

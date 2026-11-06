@@ -4,7 +4,9 @@
 import Foundation
 
 /// The error envelope the ThunderID server returns with a failed request. A failed response carries it
-/// as ``ThunderIDError/serverError``.
+/// as ``ThunderIDError/serverError``. An OAuth error (`{"error", "error_description"}`), as the dynamic
+/// client registration endpoints return, is read into it too: `error` as the `code` and
+/// `error_description` as the `message`.
 public struct ServerError: Decodable, Equatable {
     /// The server's error code, such as `USR-1027`.
     public let code: String
@@ -33,7 +35,25 @@ public struct ServerError: Decodable, Equatable {
     /// Reads the envelope from a raw response body, or returns `nil` when the body is not one.
     static func parse(_ data: Data) -> ServerError? {
         guard !data.isEmpty else { return nil }
-        return try? JSONDecoder().decode(ServerError.self, from: data)
+        if let envelope = try? JSONDecoder().decode(ServerError.self, from: data) {
+            return envelope
+        }
+        guard let oauth = try? JSONDecoder().decode(OAuthErrorBody.self, from: data) else { return nil }
+        return ServerError(
+            code: oauth.error,
+            message: oauth.errorDescription.map { ServerErrorMessage(defaultValue: $0) }
+        )
+    }
+}
+
+/// The OAuth 2.0 error body (RFC 6749 section 5.2).
+private struct OAuthErrorBody: Decodable {
+    let error: String
+    let errorDescription: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case error
+        case errorDescription = "error_description"
     }
 }
 

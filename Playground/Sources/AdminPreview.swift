@@ -136,6 +136,7 @@ private struct IdentityAdminPreview: View {
         if values.isLive {
             AgentList(
                 limit: values.limit,
+                projectId: values.optional("projectId"),
                 title: values.optional("title"),
                 description: values.optional("description"),
                 selectedAgentId: selected

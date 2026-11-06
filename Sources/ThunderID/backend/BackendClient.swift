@@ -180,14 +180,22 @@ actor BackendClient {
 
     /// The URL that starts sign-in at the backend, bound to the PKCE `codeChallenge` and coming back to
     /// `redirectUri`.
-    nonisolated func signInURL(redirectUri: String, codeChallenge: String) throws -> URL {
+    /// `organizationUnitId` bounds the sign-in to that unit: the backend receives it as the `ouId` query
+    /// parameter.
+    nonisolated func signInURL(
+        redirectUri: String,
+        codeChallenge: String,
+        organizationUnitId: String? = nil
+    ) throws -> URL {
         var components = URLComponents(url: endpoints.signIn, resolvingAgainstBaseURL: false)
         let existing = components?.queryItems ?? []
-        components?.queryItems = existing + [
+        var added: [URLQueryItem] = [
             .init(name: "redirect_uri", value: redirectUri),
             .init(name: "code_challenge", value: codeChallenge),
             .init(name: "code_challenge_method", value: "S256")
         ]
+        if let organizationUnitId { added.append(.init(name: "ouId", value: organizationUnitId)) }
+        components?.queryItems = existing + added
         guard let url = components?.url else {
             throw ThunderIDError(code: .invalidConfiguration, message: "Could not build the backend sign-in URL")
         }

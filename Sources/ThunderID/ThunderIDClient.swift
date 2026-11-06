@@ -7,9 +7,9 @@ import Foundation
 public final class ThunderIDClient {
     private var config: ThunderIDConfig?
     var httpClient: HTTPClient?
-    private var tokenStore: TokenStore?
+    var tokenStore: TokenStore?
     private var tokenRefresher: TokenRefresher?
-    private var tokenValidator: TokenValidator?
+    var tokenValidator: TokenValidator?
     private var jwksCache: JWKSCache?
     var flowClient: FlowExecutionClient?
     var pkceManager = PKCEManager()
@@ -19,6 +19,18 @@ public final class ThunderIDClient {
     var backend: BackendClient?
     var backendHttp: BackendHttpClient?
     var signOutListeners: [() -> Void] = []
+    /// The server's OpenID provider metadata, read once when an operation first needs it.
+    var cachedServerMetadata: ServerMetadata?
+    /// The organization unit the redirect sign-in in progress is bounded to: its code is redeemed only at
+    /// that unit's token endpoint. Held in memory with the PKCE verifier.
+    var pendingOrganizationUnitId: String?
+    /// The embedded sign-in flows started bounded to an organization unit. When one completes, its session
+    /// replaces the stored one rather than merging into it.
+    var boundedFlowIds: Set<String> = []
+    /// Waits between polls of the token endpoint. A test seam: tests replace it so polling does not sleep.
+    var pollSleep: (TimeInterval) async throws -> Void = { seconds in
+        try await Task.sleep(nanoseconds: UInt64(max(seconds, 0) * 1_000_000_000))
+    }
 
     public init() {}
 
@@ -101,11 +113,15 @@ public final class ThunderIDClient {
                 challengeToken: payload.challengeToken
             )
         } else {
+            // A unit-bounded sign-in names its unit only on the request that starts an AUTHENTICATION flow.
+            let ouId = request.flowType == .authentication ? request.organizationUnitId : nil
             response = try await flowClient!.initiate(
                 applicationId: request.applicationId,
                 flowType: request.flowType,
-                attestationToken: try await attestationToken()
+                attestationToken: try await attestationToken(),
+                organizationUnitId: ouId
             )
+            if ouId != nil, let flowId = response.flowId { boundedFlowIds.insert(flowId) }
         }
         try establishSessionIfNeeded(from: response)
         return response
@@ -116,14 +132,45 @@ public final class ThunderIDClient {
     ///
     /// When sign-in runs on the app's backend, it is the backend's sign-in URL, bound to a PKCE challenge
     /// and coming back to `afterSignInUrl` with a one-time `session_code`.
+    ///
+    /// With ``SignInOptions/organizationUnitId`` the sign-in is bounded to that unit: it authorizes at
+    /// `{baseUrl}/ou/{ouId}/oauth2/authorize`, and ``handleRedirectCallback(url:)`` redeems the code at that
+    /// unit's token endpoint. When ``ThunderIDConfig/pushedAuthorizationRequests`` is on, or the server
+    /// requires pushed requests, use ``signInURL(options:)``, which pushes the request first.
     public func buildSignInURL(options: SignInOptions? = nil) throws -> URL {
         let cfg = try requireConfig()
-        if let backend { return try backendSignInURL(backend, config: cfg) }
+        if let backend {
+            return try backendSignInURL(backend, config: cfg, organizationUnitId: options?.organizationUnitId)
+        }
         guard let clientId = cfg.clientId else {
             throw ThunderIDError(code: .invalidConfiguration, message: "clientId required for redirect mode")
         }
+        if cfg.pushedAuthorizationRequests {
+            throw ThunderIDError(
+                code: .unsupportedOperation,
+                message: "pushedAuthorizationRequests is on: build the URL with signInURL(options:), which pushes it"
+            )
+        }
+        let ouId = options?.organizationUnitId
+        let authorize = try oauthURL("/oauth2/authorize", organizationUnitId: ouId, config: cfg)
+        guard var components = URLComponents(string: authorize) else {
+            throw ThunderIDError(code: .invalidConfiguration, message: "Could not build authorize URL")
+        }
+        components.queryItems = authorizationParameters(clientId: clientId, options: options, config: cfg)
+        guard let url = components.url else {
+            throw ThunderIDError(code: .invalidConfiguration, message: "Could not build authorize URL")
+        }
+        pendingOrganizationUnitId = ouId
+        return url
+    }
+
+    /// The authorization request's parameters, with a fresh PKCE challenge.
+    func authorizationParameters(
+        clientId: String,
+        options: SignInOptions?,
+        config cfg: ThunderIDConfig
+    ) -> [URLQueryItem] {
         let (_, challenge) = pkceManager.generate()
-        var components = URLComponents(string: cfg.baseUrl + "/oauth2/authorize")!
         var params: [URLQueryItem] = [
             .init(name: "response_type", value: "code"),
             .init(name: "client_id", value: clientId),
@@ -136,11 +183,7 @@ public final class ThunderIDClient {
         if let hint = options?.loginHint { params.append(.init(name: "login_hint", value: hint)) }
         if let fidp = options?.fidp { params.append(.init(name: "fidp", value: fidp)) }
         for (key, val) in cfg.signInOptions { params.append(.init(name: key, value: "\(val)")) }
-        components.queryItems = params
-        guard let url = components.url else {
-            throw ThunderIDError(code: .invalidConfiguration, message: "Could not build authorize URL")
-        }
-        return url
+        return params
     }
 
     /// Exchanges the authorization code received from the redirect callback for tokens.
@@ -150,6 +193,9 @@ public final class ThunderIDClient {
         if let backend { return try await handleBackendCallback(url: url, backend: backend) }
         guard let clientId = cfg.clientId else {
             throw ThunderIDError(code: .invalidConfiguration, message: "clientId required")
+        }
+        if let ouId = pendingOrganizationUnitId {
+            return try await handleBoundedCallback(url: url, organizationUnitId: ouId, clientId: clientId, config: cfg)
         }
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
@@ -162,18 +208,14 @@ public final class ThunderIDClient {
             )
         }
         defer { pkceManager.clearVerifier() }
-        let body: [String: Any] = [
-            "grant_type": "authorization_code",
-            "code": code,
-            "client_id": clientId,
-            "redirect_uri": cfg.afterSignInUrl ?? "",
-            "code_verifier": verifier
+        let form: [(String, String)] = [
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("client_id", clientId),
+            ("redirect_uri", cfg.afterSignInUrl ?? ""),
+            ("code_verifier", verifier)
         ]
-        let tokenResponse: TokenResponse = try await httpClient!.post(
-            path: "/oauth2/token",
-            body: body,
-            requiresAuth: false
-        )
+        let tokenResponse: TokenResponse = try await httpClient!.postForm(path: "/oauth2/token", form: form)
         if let idToken = tokenResponse.idToken {
             try await tokenValidator?.validate(idToken: idToken, nonce: nil)
         }
@@ -190,16 +232,9 @@ public final class ThunderIDClient {
             return try await backend.signOut() ?? config?.afterSignOutUrl ?? "/"
         }
         if let refreshToken = tokenStore?.refreshToken(), let clientId = config?.clientId {
-            let body: [String: Any] = [
-                "token": refreshToken,
-                "client_id": clientId
-            ]
+            let form: [(String, String)] = [("token", refreshToken), ("client_id", clientId)]
             if let httpClient {
-                let _: EmptyResponse? = try? await httpClient.post(
-                    path: "/oauth2/revoke",
-                    body: body,
-                    requiresAuth: false
-                )
+                let _: EmptyResponse? = try? await httpClient.postForm(path: "/oauth2/revoke", form: form)
             }
         }
         tokenStore?.clear()
@@ -271,21 +306,17 @@ public final class ThunderIDClient {
     ) async throws -> TokenResponse {
         try requireInitialized()
         try refuseInBackendMode("exchangeToken")
-        var body: [String: Any] = [
-            "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
-            "subject_token": config.subjectToken,
-            "subject_token_type": config.subjectTokenType
+        var form: [(String, String)] = [
+            ("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange"),
+            ("subject_token", config.subjectToken),
+            ("subject_token_type", config.subjectTokenType)
         ]
         if let clientId = self.config?.clientId ?? self.config?.applicationId, !clientId.isEmpty {
-            body["client_id"] = clientId
+            form.append(("client_id", clientId))
         }
-        if let type = config.requestedTokenType { body["requested_token_type"] = type }
-        if let aud = config.audience { body["audience"] = aud }
-        let response: TokenResponse = try await httpClient!.post(
-            path: "/oauth2/token",
-            body: body,
-            requiresAuth: false
-        )
+        if let type = config.requestedTokenType { form.append(("requested_token_type", type)) }
+        if let aud = config.audience { form.append(("audience", aud)) }
+        let response: TokenResponse = try await httpClient!.postForm(path: "/oauth2/token", form: form)
         try tokenStore!.save(response)
         return response
     }
@@ -293,58 +324,6 @@ public final class ThunderIDClient {
     public func clearSession(sessionId: String? = nil) {
         tokenStore?.clear()
         currentUser = nil
-    }
-
-    // MARK: - User & Profile
-
-    public func getUser(options: [String: Any]? = nil) async throws -> User {
-        try requireInitialized()
-        if let user = currentUser { return user }
-        if let backend { return try await backendUser(backend) }
-        if let token = tokenStore?.accessToken(),
-           let claims = try? decodeJwtToken(token) as [String: AnyCodable],
-           let sub = claims["sub"]?.value as? String, !sub.isEmpty {
-            let user = User(claims: claims)
-            currentUser = user
-            return user
-        }
-        let user: User = try await httpClient!.get(path: "/oauth2/userinfo")
-        currentUser = user
-        return user
-    }
-
-    public func getUserProfile(options: [String: Any]? = nil) async throws -> UserProfile {
-        try requireInitialized()
-        return try await httpClient!.get(path: "/users/me")
-    }
-
-    public func getUserSchema() async throws -> [String: AttributeSchema] {
-        try requireInitialized()
-        // The endpoint wraps the attribute map in a single "schema" key.
-        let response: [String: [String: AttributeSchema]] = try await httpClient!.get(path: "/users/me/meta")
-        return response["schema"] ?? [:]
-    }
-
-    public func updateUserProfile(payload: [String: Any]) async throws -> UserProfile {
-        try requireInitialized()
-        return try await httpClient!.put(path: "/users/me", body: ["attributes": payload])
-    }
-
-    /// Changes one of the signed-in user's own credentials via `POST /users/me/update-credentials`.
-    ///
-    /// The self-service write path does not verify the account's existing value today, so this
-    /// call collects only the new value, matching the Android/React/Vue SDKs.
-    public func updateUserCredentials(attribute: String = "password", newValue: String) async throws {
-        try requireInitialized()
-        let _: EmptyResponse = try await httpClient!.post(
-            path: "/users/me/update-credentials",
-            body: ["attributes": [attribute: newValue]]
-        )
-    }
-
-    /// Overrides the cached user, e.g. after merging in freshly-fetched `/users/me` attributes.
-    public func setCachedUser(_ user: User) {
-        currentUser = user
     }
 
     // MARK: - Flow Meta
@@ -411,14 +390,24 @@ public final class ThunderIDClient {
         }
     }
 
-    private func establishSessionIfNeeded(from response: EmbeddedFlowResponse) throws {
+    func establishSessionIfNeeded(from response: EmbeddedFlowResponse) throws {
+        let bounded = response.flowId.map { boundedFlowIds.contains($0) } ?? false
+        if bounded, response.flowStatus != .promptOnly, let flowId = response.flowId {
+            boundedFlowIds.remove(flowId)
+        }
         guard response.flowStatus == .complete,
               let assertion = response.assertion,
               !assertion.isEmpty else {
             return
         }
         let tokenResponse = TokenResponse(accessToken: assertion, tokenType: "Bearer")
-        try tokenStore!.save(tokenResponse)
+        // A sign-in bounded to a unit is a new session: nothing of the previous one carries over.
+        if bounded {
+            try tokenStore!.replace(tokenResponse)
+            currentUser = nil
+        } else {
+            try tokenStore!.save(tokenResponse)
+        }
         if let claims = try? decodeJwtToken(assertion) as [String: AnyCodable] {
             currentUser = User(claims: claims)
         }

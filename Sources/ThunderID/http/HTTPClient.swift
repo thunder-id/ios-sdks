@@ -49,6 +49,25 @@ final class HTTPClient {
         return try await perform(request)
     }
 
+    /// Posts `form` to an OAuth endpoint under `baseUrl`, `application/x-www-form-urlencoded` as RFC 6749 and
+    /// RFC 7009 require and the server reads. No access token is attached, and neither body is logged: both
+    /// can carry a credential (a code, a refresh token, a subject token).
+    func postForm<T: Decodable>(path: String, form: [(String, String)]) async throws -> T {
+        guard let url = URL(string: baseUrl + path) else {
+            throw ThunderIDError(code: .invalidConfiguration, message: "Invalid URL: \(baseUrl)\(path)")
+        }
+        guard url.scheme == "https" else {
+            throw ThunderIDError(code: .invalidConfiguration, message: "baseUrl must use HTTPS")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.assumesHTTP3Capable = false
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data(ThunderIDClient.formEncode(form).utf8)
+        return try await perform(request, isSensitive: true)
+    }
+
     func put<T: Decodable>(
         path: String,
         body: [String: Any],
@@ -75,15 +94,17 @@ final class HTTPClient {
     /// Sends an authenticated request to an absolute URL, which may live on a different host from `baseUrl`.
     /// When `fetcher` is set it replaces the `URLSession` transport for this request; the access token is
     /// already attached to the request it receives. Set `isSensitive` for a request or response that can
-    /// carry a credential, such as a secret value: its bodies are then never logged.
+    /// carry a credential, such as a secret value: its bodies are then never logged. Clear `requiresAuth`
+    /// for a public endpoint: no access token is attached then, so no sign-in is needed.
     func send<T: Decodable>(
         method: String,
         url: URL,
         body: Data? = nil,
         isSensitive: Bool = false,
+        requiresAuth: Bool = true,
         fetcher: ThunderIDFetcher? = nil
     ) async throws -> T {
-        let request = try await authorizedRequest(method: method, url: url, body: body)
+        let request = try await authorizedRequest(method: method, url: url, body: body, requiresAuth: requiresAuth)
         debugLogRequest(request, body: nil)
         return try await perform(request, isSensitive: isSensitive, fetcher: fetcher)
     }
@@ -99,7 +120,12 @@ final class HTTPClient {
         return try await rawData(for: request)
     }
 
-    private func authorizedRequest(method: String, url: URL, body: Data?) async throws -> URLRequest {
+    private func authorizedRequest(
+        method: String,
+        url: URL,
+        body: Data?,
+        requiresAuth: Bool = true
+    ) async throws -> URLRequest {
         guard url.scheme == "https" else {
             throw ThunderIDError(code: .invalidConfiguration, message: "Request URL must use HTTPS")
         }
@@ -109,7 +135,7 @@ final class HTTPClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
-        if let provider = accessTokenProvider {
+        if requiresAuth, let provider = accessTokenProvider {
             let token = try await provider()
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -207,7 +233,8 @@ final class HTTPClient {
                 print("[DEBUG][HTTPClient] 400 response body: \(rawBody)")
             }
             let msgBody = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            (code, message) = (.invalidInput, msgBody?["message"] as? String ?? "Bad request")
+            let detail = msgBody?["message"] as? String ?? msgBody?["error_description"] as? String
+            (code, message) = (.invalidInput, detail ?? "Bad request")
         case 401: (code, message) = (.authenticationFailed, "Unauthorized")
         case 403: (code, message) = (.forbidden, "Forbidden")
         case 404: (code, message) = (.notFound, "Not found")

@@ -15,6 +15,10 @@ enum CapabilityID: String, CaseIterable {
     case userInfo
     case attributeVerification
     case organizations
+    case organizationSwitch
+    case pushedAuthorization
+    case ciba
+    case deviceAuthorization
     case theming
     case translations
     case managementEndpoints
@@ -31,6 +35,10 @@ enum CapabilityID: String, CaseIterable {
     case applications
     case serverResources
     case adminWrites
+    case groupsByPath
+    case resourceSharing
+    case projects
+    case authorizationDetailTypes
     case permissionHierarchy
     case grantedPermissions
 }
@@ -143,16 +151,10 @@ enum CapabilityCatalog {
                 api: "verifyAttribute(_:) · verifiedAttributes",
                 // Starting a verification sends the user an email, so it only runs on tap.
                 mode: .interactive
-            ),
-            Capability(
-                id: .organizations,
-                name: "Organizations",
-                api: "organizations()",
-                mode: .unavailable(
-                    "The iOS SDK has no organizations API yet; only the organizationHandle config key."
-                )
             )
         ]),
+        organizationSection,
+        grantSection,
         CapabilitySection(name: "UI", items: [
             Capability(
                 id: .theming,
@@ -225,6 +227,25 @@ extension CapabilityCatalog {
             id: .serverResources,
             name: "Server resources",
             api: "organizationUnits · resourceServers · flows · design · translations · serverConfig",
+            mode: .automatic
+        ),
+        Capability(
+            id: .groupsByPath,
+            name: "Groups by path",
+            api: "groups.list(path:) · groups.create(path:_:)",
+            mode: .automatic
+        ),
+        Capability(
+            id: .resourceSharing,
+            name: "Role and flow sharing",
+            api: "roles/flows.sharingPolicies(id:) · overlayRules(id:ouId:) · flows.variables(id:ouId:)",
+            mode: .automatic
+        ),
+        Capability(id: .projects, name: "Projects", api: "projects.list() · projects.get(id:)", mode: .automatic),
+        Capability(
+            id: .authorizationDetailTypes,
+            name: "Authorization details types",
+            api: "authorizationDetailTypes.list() · getSupportedAuthorizationDetailsTypes()",
             mode: .automatic
         ),
         Capability(

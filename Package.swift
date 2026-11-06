@@ -8,7 +8,10 @@ let package = Package(
     name: "ThunderID",
     platforms: [
         .iOS(.v16),
-        .macOS(.v13)
+        .macOS(.v13),
+        // The ThunderID core builds for tvOS, for the device side of device authorization (RFC 8628).
+        // ThunderIDSwiftUI does not: its components use iOS and macOS controls.
+        .tvOS(.v16)
     ],
     products: [
         .library(name: "ThunderID", targets: ["ThunderID"]),

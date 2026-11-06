@@ -13,7 +13,8 @@ extension ExplorerCatalog {
             customGroupCreate,
             customUserDetails(userId: ids.userId),
             customApplicationDetails(applicationId: ids.applicationId),
-            customVerifyAttribute
+            customVerifyAttribute,
+            customRolePermissions(roleId: ids.roleId)
         ]
     }
 

@@ -34,6 +34,8 @@ struct CheckContext {
     static let runners: [CapabilityID: Runner] = authRunners
         .merging(managementRunners) { current, _ in current }
         .merging(serverResourceRunners) { current, _ in current }
+        .merging(sharingProjectRunners) { current, _ in current }
+        .merging(organizationRunners) { current, _ in current }
 
     private static let authRunners: [CapabilityID: Runner] = [
         .browserSignIn: { try await $0.signInWithBrowser() },
@@ -200,19 +202,27 @@ struct CheckContext {
         let storageKey = "playground.i18n.check"
         defer { UserDefaults.standard.removeObject(forKey: storageKey) }
         let i18n = ThunderIDI18n(
-            bundles: ["fr-FR": ["signIn.button": "Se connecter"]],
+            bundles: ["fr-FR": ["signIn.button": "Connexion"]],
             language: "en-US",
             storageKey: storageKey
         )
         let english = i18n.resolve("signIn.button")
         i18n.setLocale("fr-FR")
-        let french = i18n.resolve("signIn.button")
+        let custom = i18n.resolve("signIn.button")
+        let shipped = i18n.resolve("signOut.button")
+        i18n.setLocale("de-DE")
         let fallback = i18n.resolve("signOut.button")
-        guard english == DefaultStrings.all["signIn.button"], french == "Se connecter",
-              fallback == DefaultStrings.all["signOut.button"] else {
-            throw CheckFailure("Resolved \"\(english)\" / \"\(french)\" / \"\(fallback)\"")
+        let missing = DefaultStrings.locales.filter { locale in
+            DefaultStrings.strings(for: locale).map { Set($0.keys) != Set(DefaultStrings.all.keys) } ?? true
         }
-        return "en-US \"\(english)\", fr-FR \"\(french)\", falls back to English defaults"
+        guard english == DefaultStrings.all["signIn.button"], custom == "Connexion",
+              shipped == DefaultStrings.strings(for: "fr-FR")?["signOut.button"],
+              fallback == DefaultStrings.all["signOut.button"], missing.isEmpty else {
+            throw CheckFailure("Resolved \"\(english)\" / \"\(custom)\" / \"\(shipped)\" / \"\(fallback)\"; "
+                + "incomplete: \(missing.joined(separator: ", "))")
+        }
+        return "\(DefaultStrings.locales.count) shipped locales; fr-FR \"\(shipped)\", "
+            + "the app's own \"\(custom)\" wins, an unshipped locale falls back to English"
     }
 }
 

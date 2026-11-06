@@ -49,20 +49,36 @@ public extension ThunderIDState {
         )
     }
 
-    func updateRoleMutation(fetcher: ThunderIDFetcher? = nil)
+    /// Updates a role. In `.flow` mode an update that removes a permission runs the configured
+    /// permission removal flow, which revokes the scopes the permission granted.
+    func updateRoleMutation(administrationMode: AdministrationMode = .native, fetcher: ThunderIDFetcher? = nil)
         -> ResourceMutation<(id: String, request: UpdateRoleRequest), Role> {
         let client = client
         return mutation(
             invalidating: { [[RoleQueryKeys.role, $0.id], [RoleQueryKeys.roles]] },
-            perform: { input in try await client.roles.update(id: input.id, input.request, fetcher: fetcher) }
+            perform: { input in
+                try await client.roles.update(
+                    id: input.id,
+                    input.request,
+                    administrationMode: administrationMode,
+                    fetcher: fetcher
+                )
+            }
         )
     }
 
-    func deleteRoleMutation(fetcher: ThunderIDFetcher? = nil) -> ResourceMutation<String, Void> {
+    /// Deletes a role. In `.flow` mode the configured role deletion flow runs instead, revoking the
+    /// scopes the role granted before it goes.
+    func deleteRoleMutation(
+        administrationMode: AdministrationMode = .native,
+        fetcher: ThunderIDFetcher? = nil
+    ) -> ResourceMutation<String, Void> {
         let client = client
         return mutation(
             invalidating: { _ in [[RoleQueryKeys.roles], [RoleQueryKeys.roleAssignments]] },
-            perform: { id in try await client.roles.delete(id: id, fetcher: fetcher) }
+            perform: { id in
+                try await client.roles.delete(id: id, administrationMode: administrationMode, fetcher: fetcher)
+            }
         )
     }
 
@@ -95,5 +111,33 @@ public extension ThunderIDState {
                 )
             }
         )
+    }
+}
+
+extension ThunderIDState {
+    /// The resource servers a role's permissions can be picked from, each with the permissions its
+    /// actions define. Reads up to `limit` resource servers and up to `limit` actions on each.
+    func rolePermissionCandidatesQuery(limit: Int = 100, fetcher: ThunderIDFetcher? = nil)
+        -> ResourceQuery<[RolePermissionCandidate]> {
+        let client = client
+        return query(key: listKey("role-permission-candidates", ["limit": limit])) {
+            let servers = try await client.resourceServers.list(limit: limit, fetcher: fetcher).resourceServers
+            var candidates: [RolePermissionCandidate] = []
+            for server in servers {
+                let actions = try await client.resourceServers.actions(
+                    resourceServerId: server.id,
+                    limit: limit,
+                    fetcher: fetcher
+                ).actions
+                candidates.append(
+                    RolePermissionCandidate(
+                        resourceServerId: server.id,
+                        name: server.name,
+                        permissions: actions.map(\.permission)
+                    )
+                )
+            }
+            return candidates
+        }
     }
 }
