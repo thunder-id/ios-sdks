@@ -148,6 +148,27 @@ enum AdminSamples {
        "grantTypes": ["authorization_code", "refresh_token"], "responseTypes": ["code"]}}]}
     """)
 
+    /// The first sample user with the server's verification record: nothing verified, or the email.
+    static func verifiableUser(emailVerified: Bool) -> ManagedUser {
+        let record = emailVerified ? #"{"email": {"verifiedAt": "2026-11-03T10:00:00Z"}}"# : "{}"
+        return decode("""
+        {"id": "usr-liam", "ouId": "ou-1", "ouHandle": "default", "type": "person", "display": "Liam Chen",
+         "status": {"value": "LOCKED", "details": {"reason": "FAILED_ATTEMPTS"}},
+         "attributes": {"email": "liam@example.com", "given_name": "Liam", "family_name": "Chen",
+                        "username": "liam"},
+         "verifiedAttributes": \(record)}
+        """)
+    }
+
+    static let verificationSchema: EntityTypeSchema = ["email": .init(type: "email")]
+
+    /// What a sent sample verification link reports.
+    static let sentVerification = UserAttributeVerificationResult(
+        channel: "email",
+        emailSent: true,
+        maskedDestination: "l•••@example.com"
+    )
+
     /// The lifecycle actions a sample identity offers, as if the server configured every flow.
     static func lifecycleActions(
         _ kind: AccountLifecycleSubjectKind,

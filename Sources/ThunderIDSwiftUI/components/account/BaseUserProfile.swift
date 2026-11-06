@@ -221,23 +221,6 @@ func verificationStatus(
     return .unverified
 }
 
-/// Whether saving `savedValue` over `previousValue` opens verification: only for a changed `email` that the
-/// saved profile stores and reports as unverified. An unknown status opens nothing.
-func opensVerificationAfterSave(
-    _ field: ProfileField,
-    previousValue: Any?,
-    savedValue: String,
-    savedProfile: ThunderID.UserProfile
-) -> Bool {
-    let trimmed = savedValue.trimmingCharacters(in: .whitespaces)
-    guard !savedProfile.isReadOnly, !field.isReadonly,
-          AttributeVerification.opensAfterSave(field.schema.type), !field.isMultiValued, !trimmed.isEmpty,
-          savedValue != stringifyFieldValue(previousValue),
-          savedProfile.attributes[field.name]?.value as? String == savedValue,
-          let verifiedAttributes = savedProfile.verifiedAttributes else { return false }
-    return verifiedAttributes[field.name] == nil
-}
-
 /// State container passed to the BaseUserProfile builder.
 @MainActor
 public final class UserProfileState: ObservableObject {
@@ -290,8 +273,9 @@ public final class UserProfileState: ObservableObject {
     }
 
     /// Whether the verify action is offered: an unverified, stored email or mobile value not being edited.
+    /// A read-only field qualifies too, since verifying does not write the attribute.
     public func canVerify(_ field: ProfileField) -> Bool {
-        profile?.isReadOnly == false && !field.isReadonly
+        profile?.isReadOnly == false
             && verificationStatus(field) == .unverified && verifyingField != field.name
     }
 
@@ -323,9 +307,6 @@ public final class UserProfileState: ObservableObject {
         apply(saved)
         editingFields[field.name] = false
         editedValues.removeValue(forKey: field.name)
-        if opensVerificationAfterSave(field, previousValue: field.rawValue, savedValue: value, savedProfile: saved) {
-            verifyingField = field.name
-        }
     }
 }
 

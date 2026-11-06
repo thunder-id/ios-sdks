@@ -44,7 +44,8 @@ The app has four tabs:
   each have Sample, Live and Custom rendering stories. Their Sample, Loading, Empty, Error and Submitting stories render the `Base*`
   view with sample records (members and assignments can be added and removed locally); Live
   renders the connected view against the management API with the signed-in user's token. Live
-  create stories create real records.
+  create stories create real records. `UserDetails` also has Verification link sent and Email verified
+  stories; with `attributeVerification` on, its Live story sends the user a real verification link.
 - **Session**: the signed-in user, an access token countdown, refresh and sign out, and tabs for
   the tokens (reveal and copy), the decoded claims, the granted permissions and recent events.
   Permissions lists what `GrantedPermissions` reads from the token, probes the management

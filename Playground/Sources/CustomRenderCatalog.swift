@@ -96,9 +96,11 @@ extension ExplorerCatalog {
             isTall: true
         ) { values in
             let head = values.isLive
-                ? "UserDetails(userId: \(quote(values.text("userId"))), deletable: true, lifecycleActions: true)"
-                : "BaseUserDetails(user: user, groups: groups, onDelete: {}, lifecycleActions: actions, "
-                    + "onLifecycleAction: { action, note in })"
+                ? "UserDetails(userId: \(quote(values.text("userId"))), deletable: true, lifecycleActions: true, "
+                    + "attributeVerification: true)"
+                : "BaseUserDetails(user: user, groups: groups, userSchema: schema, onDelete: {}, "
+                    + "lifecycleActions: actions, "
+                    + "onLifecycleAction: { action, note in }, onSendVerification: { attribute in })"
             return """
             \(head) { details in
                 VStack(alignment: .leading, spacing: 12) {
@@ -109,6 +111,13 @@ extension ExplorerCatalog {
                     if let run = details.onLifecycleAction {
                         ForEach(details.lifecycleActions.filter { !$0.requiresConfirmation }) { action in
                             Button(action.rawValue.capitalized) { run(action, nil) }
+                        }
+                    }
+                    ForEach(details.verifiableAttributes, id: \\.self) { name in
+                        let verified = details.verifiedAttributes?[name] != nil
+                        Text("\\(name): \\(verified ? "verified" : "not verified")")
+                        if let send = details.onSendVerification, details.sendableAttributes.contains(name) {
+                            Button("Send link") { send(name) }.disabled(details.isSendingVerification)
                         }
                     }
                     if let delete = details.onDelete {

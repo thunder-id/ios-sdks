@@ -93,19 +93,27 @@ private struct IdentityAdminPreview: View {
                 editable: true,
                 deletable: deletable,
                 administrationMode: values.administrationMode,
-                lifecycleActions: lifecycle
+                lifecycleActions: lifecycle,
+                attributeVerification: values.flag("attributeVerification")
             ) { onEvent("onDeleted") }
         } else {
-            let user = values.isSampleLoading ? nil : AdminSamples.users.first
+            let user = values.isSampleLoading
+                ? nil
+                : AdminSamples.verifiableUser(emailVerified: values.flag("emailVerified"))
             BaseUserDetails(
                 user: user,
                 groups: AdminSamples.userGroups,
+                userSchema: AdminSamples.verificationSchema,
                 isLoading: values.isSampleLoading,
                 error: values.sampleError,
                 onDelete: deletable ? { onEvent("onDelete") } : nil,
                 onUpdate: { attributes in onEvent("onUpdate: \(attributes.keys.sorted().joined(separator: ", "))") },
                 lifecycleActions: AdminSamples.lifecycleActions(.user, status: user?.status?.value),
-                onLifecycleAction: lifecycle ? logLifecycleAction : nil
+                onLifecycleAction: lifecycle ? logLifecycleAction : nil,
+                sentVerification: values.flag("linkSent") ? AdminSamples.sentVerification : nil,
+                onSendVerification: values.flag("attributeVerification")
+                    ? { onEvent("onSendVerification: \($0)") }
+                    : nil
             )
         }
     }

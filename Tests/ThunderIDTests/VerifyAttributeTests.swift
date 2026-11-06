@@ -177,7 +177,7 @@ final class VerifyAttributeTests: XCTestCase {
         let client = try await makeClient()
         let body = #"{"code":"FES-1017","message":"alice@example.com is not allowed","description":"secret"}"#
         let cases: [(Int, ThunderIDErrorCode)] = [
-            (400, .verificationFailed), (401, .verificationFailed), (403, .verificationFailed),
+            (400, .verificationFailed), (401, .authenticationFailed), (403, .verificationFailed),
             (404, .verificationFailed), (409, .verificationFailed), (429, .verificationFailed), (500, .serverError)
         ]
         for (status, code) in cases {
@@ -257,7 +257,7 @@ final class VerifyAttributeTests: XCTestCase {
         XCTAssertFalse(AttributeVerification.isVerifiableAttribute("email", in: nil))
     }
 
-    func testOnlyAChangedEmailOpensVerificationAfterASave() {
+    func testLegacyVerifyAfterSaveListContainsOnlyEmail() {
         XCTAssertTrue(AttributeVerification.opensAfterSave("email"))
         XCTAssertTrue(AttributeVerification.opensAfterSave("EMAIL"))
         XCTAssertFalse(AttributeVerification.opensAfterSave("mobile"))

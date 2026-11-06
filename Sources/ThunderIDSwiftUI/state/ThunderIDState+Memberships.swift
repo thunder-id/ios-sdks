@@ -85,3 +85,19 @@ public final class GrantedPermissions: ObservableObject {
         ThunderIDPermissions.has(permissions, required)
     }
 }
+
+extension ThunderIDState {
+    func lookupUserType(handle: String) async throws -> ManagedUserTypeDetails? {
+        let api = try client.userTypes
+        var offset = 0
+        while !Task.isCancelled {
+            let page = try await api.list(limit: 100, offset: offset)
+            if let type = page.types.first(where: { $0.handle == handle }) {
+                return try await api.get(id: type.id)
+            }
+            offset += page.count
+            if page.types.isEmpty || offset >= page.totalResults { break }
+        }
+        return nil
+    }
+}

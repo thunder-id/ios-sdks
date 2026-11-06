@@ -120,15 +120,40 @@ extension ExplorerCatalog {
                 "deletable": "false",
                 "editable": "false",
                 "lifecycleActions": "false",
+                "attributeVerification": name == "UserDetails" ? "true" : "false",
+                "emailVerified": "false",
+                "linkSent": "false",
                 "administrationMode": "native"
             ]) { _, new in new },
             controls: [sourceControl, stateControl(["data", "loading", "error"])]
                 + (name == "RolePermissions" ? textControls : [StoryControl(name: "deletable", kind: .bool)])
                 + detailFlowControls(name)
                 + [StoryControl(name: idKey, kind: .text), errorControl],
-            stories: states(["data", "loading", "error"]),
+            stories: states(["data", "loading", "error"]) + (name == "UserDetails" ? verificationStories : []),
             isTall: true
         ) { values in AdminSnippets.detail(name: name, idKey: idKey, values: values) }
+    }
+
+    /// The sample user's email verification states.
+    private static let verificationStories = [
+        Story(
+            id: "verification-sent",
+            name: "Verification link sent",
+            preset: ["source": "sample", "state": "data", "linkSent": "true", "emailVerified": "false"]
+        ),
+        Story(
+            id: "email-verified",
+            name: "Email verified",
+            preset: ["source": "sample", "state": "data", "emailVerified": "true", "linkSent": "false"]
+        )
+    ]
+
+    private static func userVerificationControls() -> [StoryControl] {
+        [
+            StoryControl(name: "attributeVerification", kind: .bool),
+            StoryControl(name: "emailVerified", kind: .bool),
+            StoryControl(name: "linkSent", kind: .bool)
+        ]
     }
 
     /// A create form: `Base*Create` with a submit callback, or the connected form that creates for real.
@@ -158,7 +183,10 @@ extension ExplorerCatalog {
     /// component supports them.
     private static func detailFlowControls(_ name: String) -> [StoryControl] {
         switch name {
-        case "UserDetails", "ApplicationDetails":
+        case "UserDetails":
+            return [StoryControl(name: "lifecycleActions", kind: .bool), administrationModeControl]
+                + userVerificationControls()
+        case "ApplicationDetails":
             return [StoryControl(name: "lifecycleActions", kind: .bool), administrationModeControl]
         case "AgentDetails":
             return [StoryControl(name: "lifecycleActions", kind: .bool)]

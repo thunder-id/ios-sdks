@@ -13,13 +13,16 @@ import XCTest
 /// `/users/me` again itself after `COMPLETE`.
 @MainActor
 final class VerificationFollowsStoredValueTests: XCTestCase {
-    private let schema: [String: AttributeSchema] = ["email": AttributeSchema(type: "email")]
+    private let schema: [String: AttributeSchema] = [
+        "email": AttributeSchema(type: "email"),
+        "mobile": AttributeSchema(type: "mobile")
+    ]
 
     private func makeProfileState() -> UserProfileState {
         let state = UserProfileState()
         let profile = ThunderID.UserProfile(
             id: "u1",
-            attributes: ["email": AnyCodable("a@example.com")],
+            attributes: ["email": AnyCodable("a@example.com"), "mobile": AnyCodable("+94770000000")],
             verifiedAttributes: [:]
         )
         state.profile = profile
@@ -36,7 +39,7 @@ final class VerificationFollowsStoredValueTests: XCTestCase {
 
     func testAnEditedEmailShowsNoStatusOrVerifyWhileTheSaveIsInFlightOrAfterItFails() async throws {
         let state = makeProfileState()
-        let stored = try XCTUnwrap(state.fields.first)
+        let stored = try XCTUnwrap(state.fields.first { $0.name == "email" })
         XCTAssertEqual(state.verificationStatus(stored), .unverified)
         XCTAssertTrue(state.canVerify(stored))
         state.editingFields["email"] = true
@@ -61,30 +64,30 @@ final class VerificationFollowsStoredValueTests: XCTestCase {
         XCTAssertEqual(state.profile?.attributes["email"]?.value as? String, "a@example.com")
     }
 
-    func testASavedEmailShowsTheStatusOfTheStoredValueAndOpensItsVerification() async throws {
-        let state = makeProfileState()
-        let stored = try XCTUnwrap(state.fields.first)
-        state.editingFields["email"] = true
+    func testSavedContactsShowTheStoredStatusAndWaitForVerify() async throws {
+        for (name, value) in [("email", "new@example.com"), ("mobile", "+94771111111")] {
+            let state = makeProfileState()
+            let stored = try XCTUnwrap(state.fields.first { $0.name == name })
+            state.editingFields[name] = true
 
-        try await state.commitSave(stored, value: "new@example.com", update: { payload in
-            XCTAssertEqual(payload["email"] as? String, "new@example.com")
-            return ThunderID.UserProfile(
-                id: "u1",
-                attributes: ["email": AnyCodable("new@example.com")],
-                verifiedAttributes: [:]
-            )
-        }, apply: apply(state))
+            try await state.commitSave(stored, value: value, update: { payload in
+                XCTAssertEqual(payload[name] as? String, value)
+                return ThunderID.UserProfile(id: "u1", attributes: [name: AnyCodable(value)], verifiedAttributes: [:])
+            }, apply: apply(state))
 
-        let saved = try XCTUnwrap(state.fields.first)
-        XCTAssertEqual(saved.rawValue as? String, "new@example.com")
-        XCTAssertEqual(state.verificationStatus(saved), .unverified)
-        XCTAssertEqual(state.verifyingField, "email")
-        XCTAssertFalse(state.canVerify(saved))
+            let saved = try XCTUnwrap(state.fields.first { $0.name == name })
+            XCTAssertEqual(saved.rawValue as? String, value)
+            XCTAssertEqual(state.verificationStatus(saved), .unverified)
+            XCTAssertNil(state.verifyingField)
+            XCTAssertTrue(state.canVerify(saved))
+            state.verify(name)
+            XCTAssertEqual(state.verifyingField, name)
+        }
     }
 
-    func testVerifyRequiresEditableProfileAndField() throws {
+    func testVerifyRequiresAnEditableProfileButNotAnEditableField() throws {
         let state = makeProfileState()
-        let field = try XCTUnwrap(state.fields.first)
+        let field = try XCTUnwrap(state.fields.first { $0.name == "email" })
         XCTAssertTrue(state.canVerify(field))
         state.profile = ThunderID.UserProfile(
             id: "u1", attributes: state.profile!.attributes, isReadOnly: true, verifiedAttributes: [:]
@@ -96,7 +99,8 @@ final class VerificationFollowsStoredValueTests: XCTestCase {
         let readonly = ProfileField(
             name: "email", schema: field.schema, rawValue: field.rawValue, isReadonly: true, isMultiValued: false
         )
-        XCTAssertFalse(state.canVerify(readonly))
+        // Verifying does not write the attribute, so a read-only field is still offered it.
+        XCTAssertTrue(state.canVerify(readonly))
 
     }
 

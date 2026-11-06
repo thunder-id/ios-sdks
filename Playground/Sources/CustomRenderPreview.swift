@@ -51,17 +51,20 @@ struct CustomRenderPreview: View {
                     userId: values.text("userId"),
                     deletable: true,
                     lifecycleActions: true,
+                    attributeVerification: true,
                     onDeleted: { onEvent("onDeleted") },
                     content: { UserCard(details: $0) }
                 )
             }
         } else {
             BaseUserDetails(
-                user: AdminSamples.users.first,
+                user: AdminSamples.verifiableUser(emailVerified: false),
                 groups: AdminSamples.userGroups,
+                userSchema: AdminSamples.verificationSchema,
                 onDelete: { onEvent("onDelete") },
                 lifecycleActions: AdminSamples.lifecycleActions(.user, status: AdminSamples.users.first?.status?.value),
                 onLifecycleAction: { action, _ in onEvent("onLifecycleAction: \(action.rawValue)") },
+                onSendVerification: { onEvent("onSendVerification: \($0)") },
                 content: { UserCard(details: $0) }
             )
         }
@@ -218,6 +221,21 @@ private struct UserCard: View {
                         Text(stringValue(details.attributes[name]))
                     }
                     .font(.system(size: 14))
+                }
+                if let sent = details.sentVerification, sent.emailSent != false {
+                    Text("Link sent to \(sent.maskedDestination ?? "the user")")
+                        .font(.system(size: 13))
+                        .foregroundColor(.green)
+                }
+                ForEach(details.verifiableAttributes, id: \.self) { name in
+                    let verified = details.verifiedAttributes?[name] != nil
+                    HStack {
+                        Text("\(name): \(verified ? "verified" : "not verified")").font(.system(size: 13))
+                        if let send = details.onSendVerification, details.sendableAttributes.contains(name) {
+                            Button("Send link") { send(name) }
+                                .disabled(details.isSendingVerification)
+                        }
+                    }
                 }
                 Text(details.groups.map(\.name).joined(separator: " · "))
                     .font(.system(size: 13, weight: .medium))

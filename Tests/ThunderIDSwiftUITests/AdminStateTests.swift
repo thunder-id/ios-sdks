@@ -65,6 +65,23 @@ final class AdminStateTests: XCTestCase {
         XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/groups/g-2/members"), 1)
     }
 
+    func testSendingAVerificationLinkRefetchesTheUser() async throws {
+        let state = try await makeState()
+        respond(
+            #"{"id":"u-1","ouId":"ou","type":"t","flowStatus":"INCOMPLETE","# +
+            #""data":{"additionalData":{"channel":"email","maskedDestination":"a•••@x.io"}}}"#
+        )
+        let user = state.userQuery(id: "u-1")
+        await user.refetch()
+
+        let result = await state.sendUserAttributeVerificationMutation().mutate((id: "u-1", attribute: "email"))
+
+        XCTAssertEqual(result, UserAttributeVerificationResult(channel: "email", maskedDestination: "a•••@x.io"))
+        await waitFor { MockURLProtocol.requestCount(forPath: "/users/u-1") == 2 }
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/flow/execute"), 1)
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/users/u-1"), 2)
+    }
+
     func testFailedMutationReportsItsErrorWithoutThrowing() async throws {
         let state = try await makeState()
         respond(#"{"message":"denied by policy"}"#, status: 403)
