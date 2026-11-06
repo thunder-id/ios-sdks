@@ -18,10 +18,10 @@ enum TeINStrings {
         "signIn.continueWithGoogle": "Google తో కొనసాగించండి",
         "signIn.continueWithGithub": "GitHub తో కొనసాగించండి",
         "signIn.federatedError": "ఫెడరేటెడ్ సైన్ ఇన్\u{200C}ను ప్రారంభించలేకపోయాము",
-        "organizationUnitSwitcher.title": "సంస్థాగత యూనిట్\u{200C}లు",
-        "organizationUnitSwitcher.current": "ప్రస్తుతం",
+        "organizationUnitSwitcher.label": "సంస్థ",
+        "organizationUnitSwitcher.placeholder": "సంస్థను ఎంచుకోండి",
         "organizationUnitSwitcher.loading": "సంస్థాగత యూనిట్\u{200C}లను లోడ్ చేస్తోంది…",
-        "organizationUnitSwitcher.switching": "మారుస్తోంది…",
+        "organizationUnitSwitcher.switching": "{name}కి మారుస్తోంది…",
         "organizationUnitSwitcher.empty": "సంస్థాగత యూనిట్\u{200C}లు లేవు",
         "organizationUnitSwitcher.error.load":
             "మీ సంస్థాగత యూనిట్\u{200C}లను లోడ్ చేయలేకపోయాము. దయచేసి మళ్లీ ప్రయత్నించండి.",

@@ -14,10 +14,31 @@ public struct EmbeddedFlowResponse: Decodable {
     public let challengeToken: String?
     /// The server's structured error. Its default text is also copied into `failureReason`.
     public let error: FlowError?
+    /// The SSO sessions this step started. The client keeps them to present on later flows.
+    public let sessionData: [EmbeddedFlowSessionData]?
+    /// The flow identifiers of the SSO sessions this step ended.
+    public let clearedSessions: [String]?
 
     enum CodingKeys: String, CodingKey {
         case flowId = "executionId"
         case flowStatus, stepId, type, data, assertion, failureReason, challengeToken, error
+        case sessionData, clearedSessions
+    }
+}
+
+/// An SSO session an app-native flow step started. Presented on a later flow, it lets the server sign the
+/// user in silently. The handle is a credential: it is never logged.
+public struct EmbeddedFlowSessionData: Codable, Equatable {
+    /// Identifies the flow the session belongs to.
+    public let flowIdentifier: String
+    public let sessionHandle: String
+    /// Seconds until the session ends, when the server says.
+    public let expiresIn: Int?
+
+    public init(flowIdentifier: String, sessionHandle: String, expiresIn: Int? = nil) {
+        self.flowIdentifier = flowIdentifier
+        self.sessionHandle = sessionHandle
+        self.expiresIn = expiresIn
     }
 }
 
@@ -60,6 +81,8 @@ extension EmbeddedFlowResponse {
         assertion = try container.decodeIfPresent(String.self, forKey: .assertion)
         challengeToken = try container.decodeIfPresent(String.self, forKey: .challengeToken)
         error = try? container.decodeIfPresent(FlowError.self, forKey: .error)
+        sessionData = try? container.decodeIfPresent([EmbeddedFlowSessionData].self, forKey: .sessionData)
+        clearedSessions = try? container.decodeIfPresent([String].self, forKey: .clearedSessions)
         failureReason = try error?.message?.defaultValue ?? error?.description?.defaultValue
             ?? container.decodeIfPresent(String.self, forKey: .failureReason)
     }

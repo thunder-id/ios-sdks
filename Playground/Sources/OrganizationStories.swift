@@ -4,30 +4,34 @@
 import SwiftUI
 import ThunderIDSwiftUI
 
-/// The organization unit switcher's stories: the base variant on sample units, the connected one on the
-/// signed-in user's units, and a custom render drawn as a segmented picker.
+/// The organization unit switcher's stories: the dropdown on sample units, paged inside its menu, the
+/// connected one on the signed-in user's units, and a custom render drawn as a segmented picker.
 extension ExplorerCatalog {
     static let organization: [ComponentSpec] = [
         ComponentSpec(
             id: "organizationUnitSwitcher",
             name: "OrganizationUnitSwitcher",
             group: "Organization",
-            defaults: ["source": "sample", "scope": "all", "render": "built-in"],
+            defaults: ["source": "sample", "scope": "all", "render": "built-in", "limit": "20"],
             controls: [
                 StoryControl(name: "source", kind: .options(["sample", "live"])),
                 StoryControl(name: "scope", kind: .options(["all", "siblings"])),
-                StoryControl(name: "render", kind: .options(["built-in", "custom"]))
+                StoryControl(name: "render", kind: .options(["built-in", "custom"])),
+                StoryControl(name: "limit", kind: .options(["20", "2"]))
             ],
             stories: [
-                Story(id: "sample", name: "Sample", preset: ["source": "sample", "render": "built-in"]),
+                Story(id: "sample", name: "Sample", preset: ["source": "sample", "render": "built-in", "limit": "20"]),
+                Story(id: "paged", name: "Paged", preset: ["source": "sample", "render": "built-in", "limit": "2"]),
                 Story(id: "live", name: "Signed-in user", preset: ["source": "live", "render": "built-in"]),
                 Story(id: "custom", name: "Custom rendering", preset: ["source": "sample", "render": "custom"])
             ]
         ) { values in
             let scope = values.text("scope") == "siblings" ? "scope: .siblings" : ""
-            let head = values.text("source") == "live"
-                ? "OrganizationUnitSwitcher(\(scope))"
+            let paging = "limit: 2, offset: offset, totalResults: units.count, onPageChange: { offset = $0 }"
+            let base = values.text("limit") == "2"
+                ? "BaseOrganizationUnitSwitcher(units: page, currentId: current, \(paging)) { unit in /* switch */ }"
                 : "BaseOrganizationUnitSwitcher(units: units, currentId: current) { unit in /* switch */ }"
+            let head = values.text("source") == "live" ? "OrganizationUnitSwitcher(\(scope))" : base
             guard values.text("render") == "custom" else { return head }
             return """
             OrganizationUnitSwitcher(\(scope)) { switcher in
@@ -48,6 +52,7 @@ struct OrganizationUnitSwitcherPreview: View {
     @EnvironmentObject private var state: ThunderIDState
     let values: PropValues
     let onEvent: (String) -> Void
+    @State private var offset = 0
 
     private static let units = [
         AccessibleOrganizationUnit(id: "ou-east", handle: "acme/east", name: "Acme East"),
@@ -68,6 +73,20 @@ struct OrganizationUnitSwitcherPreview: View {
                 currentId: "ou-east",
                 onSwitch: { onEvent("onSwitch \($0.handle)") },
                 content: { SegmentedSwitcher(switcher: $0) }
+            )
+        } else if values.text("limit") == "2" {
+            BaseOrganizationUnitSwitcher(
+                units: Array(Self.units.dropFirst(offset).prefix(2)),
+                currentId: "ou-east",
+                currentName: "Acme East",
+                limit: 2,
+                offset: offset,
+                totalResults: Self.units.count,
+                onPageChange: { page in
+                    offset = page
+                    onEvent("onPageChange \(page)")
+                },
+                onSwitch: { onEvent("onSwitch \($0.handle)") }
             )
         } else {
             BaseOrganizationUnitSwitcher(units: Self.units, currentId: "ou-east") { onEvent("onSwitch \($0.handle)") }

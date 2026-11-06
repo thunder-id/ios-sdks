@@ -94,11 +94,22 @@ public final class ThunderIDClient {
 
     // MARK: - Authentication
 
-    /// App-native sign-in via Flow Execution API (spec §6.1 app-native mode).
+    /// App-native sign-in via Flow Execution API (spec §6.1 app-native mode). The SSO session handles a step
+    /// returns are kept, for a later organization unit switch.
     public func signIn(
         payload: EmbeddedSignInPayload,
         request: EmbeddedFlowRequestConfig,
         sessionId: String? = nil
+    ) async throws -> EmbeddedFlowResponse {
+        try await runSignIn(payload: payload, request: request)
+    }
+
+    /// Runs one sign-in step. `flowSessions` go with the request that starts the flow, so the server can
+    /// reuse those SSO sessions.
+    func runSignIn(
+        payload: EmbeddedSignInPayload,
+        request: EmbeddedFlowRequestConfig,
+        flowSessions: [EmbeddedFlowSessionData] = []
     ) async throws -> EmbeddedFlowResponse {
         try requireInitialized()
         try refuseInBackendMode("Embedded sign-in")
@@ -119,10 +130,12 @@ public final class ThunderIDClient {
                 applicationId: request.applicationId,
                 flowType: request.flowType,
                 attestationToken: try await attestationToken(),
-                organizationUnitId: ouId
+                organizationUnitId: ouId,
+                sessionData: flowSessions
             )
             if ouId != nil, let flowId = response.flowId { boundedFlowIds.insert(flowId) }
         }
+        try keepFlowSessions(from: response)
         try establishSessionIfNeeded(from: response)
         return response
     }
@@ -255,7 +268,7 @@ public final class ThunderIDClient {
 
     // MARK: - Registration
 
-    /// App-native sign-up via Flow Execution API (spec §6.2).
+    /// App-native sign-up via Flow Execution API (spec §6.2). Keeps the SSO session handles a step returns.
     public func signUp(
         payload: EmbeddedSignInPayload? = nil,
         request: EmbeddedFlowRequestConfig? = nil
@@ -278,6 +291,7 @@ public final class ThunderIDClient {
                 attestationToken: try await attestationToken()
             )
         }
+        try keepFlowSessions(from: response)
         try establishSessionIfNeeded(from: response)
         return response
     }
