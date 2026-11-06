@@ -62,8 +62,8 @@ extension CheckContext {
         return "\(list.totalResults) accessible units; signed in to \(name)"
     }
 
-    /// Switches to another accessible unit: silently with a device secret, through the browser in redirect
-    /// mode, or by starting the unit-bounded flow in app-native mode.
+    /// Switches to another accessible unit: silently with a device secret, then through the browser in
+    /// redirect mode, or by starting the unit-bounded flow with the kept SSO session handles in app-native mode.
     func switchOrganization() async throws -> String {
         try await requireSignedIn()
         let list = try await client.getAccessibleOrganizationUnits(limit: 20)

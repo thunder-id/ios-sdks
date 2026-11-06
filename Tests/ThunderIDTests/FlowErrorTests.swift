@@ -34,7 +34,9 @@ final class FlowErrorTests: XCTestCase {
          "assertion": "jwt", "challengeToken": "ct1", "failureReason": "Old",
          "error": {"code": "FET-1007",
                    "message": {"key": "errors.user.exists", "defaultValue": "Exists", "params": {"name": "alice"}},
-                   "description": {"key": "d", "defaultValue": "Details"}}}
+                   "description": {"key": "d", "defaultValue": "Details"}},
+         "sessionData": [{"flowIdentifier": "app-1", "sessionHandle": "h1", "expiresIn": 600}],
+         "clearedSessions": ["app-2"]}
         """.utf8))
 
         for child in Mirror(reflecting: response).children {
@@ -52,5 +54,10 @@ final class FlowErrorTests: XCTestCase {
         XCTAssertEqual(response.error?.message?.key, "errors.user.exists")
         XCTAssertEqual(response.error?.message?.params, ["name": "alice"])
         XCTAssertEqual(response.error?.description?.defaultValue, "Details")
+        XCTAssertEqual(
+            response.sessionData,
+            [EmbeddedFlowSessionData(flowIdentifier: "app-1", sessionHandle: "h1", expiresIn: 600)]
+        )
+        XCTAssertEqual(response.clearedSessions, ["app-2"])
     }
 }

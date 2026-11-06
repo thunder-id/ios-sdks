@@ -12,11 +12,14 @@ final class FlowExecutionClient {
         self.httpClient = httpClient
     }
 
+    /// Starts a flow. `sessionData`, the SSO session handles kept from earlier flows, lets the server sign
+    /// the user in silently; a request that carries them is not logged.
     func initiate(
         applicationId: String,
         flowType: FlowType,
         attestationToken: String? = nil,
-        organizationUnitId: String? = nil
+        organizationUnitId: String? = nil,
+        sessionData: [EmbeddedFlowSessionData] = []
     ) async throws -> EmbeddedFlowResponse {
         var body: [String: Any] = [
             "applicationId": applicationId,
@@ -24,11 +27,17 @@ final class FlowExecutionClient {
             "verbose": true
         ]
         if let organizationUnitId { body["ouId"] = organizationUnitId }
+        if !sessionData.isEmpty {
+            body["sessionData"] = sessionData.map {
+                ["flowIdentifier": $0.flowIdentifier, "sessionHandle": $0.sessionHandle]
+            }
+        }
         return try await httpClient.post(
             path: "/flow/execute",
             body: body,
             requiresAuth: false,
-            headers: attestationTokenHeaders(attestationToken)
+            headers: attestationTokenHeaders(attestationToken),
+            isSensitive: !sessionData.isEmpty
         )
     }
 

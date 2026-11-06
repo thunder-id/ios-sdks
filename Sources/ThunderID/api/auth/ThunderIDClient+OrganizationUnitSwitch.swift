@@ -31,17 +31,20 @@ public enum OrganizationUnitSwitchResult {
 
 public extension ThunderIDClient {
     /// Signs in again bounded to the organization unit `ouId`, reusing the server's SSO session where the
-    /// user can sign in there.
+    /// user can sign in there. The first way that applies is used:
     ///
-    /// - With a device secret from a `device_sso` sign-in, it exchanges the secret at
-    ///   `{baseUrl}/ou/{ouId}/oauth2/token`, with no browser.
-    /// - Otherwise redirect mode, and sign-in on a backend, open the unit-bounded authorization URL through
-    ///   ``SwitchOrganizationUnitOptions/authorize`` and complete the callback.
-    /// - App-native mode starts the `AUTHENTICATION` flow with `ouId`.
+    /// 1. Sign-in on a backend opens the unit-bounded sign-in through ``SwitchOrganizationUnitOptions/authorize``.
+    /// 2. With a device secret from a `device_sso` sign-in and a `clientId`, the secret is exchanged at
+    ///    `{baseUrl}/ou/{ouId}/oauth2/token`, with no browser. A secret refused with `invalid_request` or
+    ///    `invalid_grant` is dropped. Any failure but an unavailable unit goes on to the next way.
+    /// 3. With an `authorize` handler, redirect mode opens the unit-bounded authorization URL through it.
+    /// 4. Otherwise app-native mode starts the `AUTHENTICATION` flow with `ouId`, sending the SSO session
+    ///    handles kept from earlier flows.
     ///
     /// On success the tokens are replaced and the user is read again (the refresh token is bound to the
-    /// unit). On failure the previous session stays as it was. An unknown unit and a unit the application
-    /// cannot be used from both fail with ``ThunderIDErrorCode/organizationUnitUnavailable``.
+    /// unit); the device secret and the kept flow sessions stay. On failure the previous session stays as it
+    /// was. An unknown unit and a unit the application cannot be used from both fail with
+    /// ``ThunderIDErrorCode/organizationUnitUnavailable``.
     func switchOrganizationUnit(
         _ ouId: String,
         options: SwitchOrganizationUnitOptions = .init()
@@ -51,42 +54,28 @@ public extension ThunderIDClient {
         if backend != nil {
             return .switched(try await switchThroughBrowser(ouId, options: options))
         }
+        var exchangeFailure: Error?
         if config.clientId != nil, tokenStore?.deviceSecret() != nil {
             do {
                 return .switched(try await exchangeDeviceSecret(for: ouId, config: config))
-            } catch let error as ThunderIDError
-                        where options.authorize != nil && error.code != .organizationUnitUnavailable {
-                // The SSO session cannot sign the user in silently: fall back to the browser.
+            } catch let error as ThunderIDError where error.code == .organizationUnitUnavailable {
+                throw error
+            } catch where !Task.isCancelled {
+                // Goes on as if no device secret were held.
+                exchangeFailure = error
             }
         }
         if config.clientId != nil, options.authorize != nil {
             return .switched(try await switchThroughBrowser(ouId, options: options))
         }
         guard let applicationId = options.applicationId ?? config.applicationId, !applicationId.isEmpty else {
-            throw ThunderIDError(
+            // With no other way left, the exchange's failure says more than a configuration error.
+            throw exchangeFailure ?? ThunderIDError(
                 code: .invalidConfiguration,
                 message: "Switching organization units needs an authorize handler, a device secret or an applicationId"
             )
         }
-        let response = try await signIn(
-            payload: EmbeddedSignInPayload(),
-            request: EmbeddedFlowRequestConfig(
-                applicationId: applicationId,
-                flowType: .authentication,
-                organizationUnitId: ouId
-            )
-        )
-        switch response.flowStatus {
-        case .complete:
-            return .switched(try await getUser())
-        case .promptOnly:
-            return .signInRequired(response)
-        case .error:
-            throw ThunderIDError(
-                code: .authenticationFailed,
-                message: response.failureReason ?? "The sign-in to the organization unit failed"
-            )
-        }
+        return try await switchThroughFlow(ouId, applicationId: applicationId)
     }
 }
 
@@ -110,8 +99,33 @@ extension ThunderIDClient {
         return try await handleRedirectCallback(url: callback)
     }
 
+    /// Starts the unit-bounded `AUTHENTICATION` flow, presenting the kept SSO session handles so the server
+    /// can sign the user in silently.
+    private func switchThroughFlow(_ ouId: String, applicationId: String) async throws -> OrganizationUnitSwitchResult {
+        let response = try await runSignIn(
+            payload: EmbeddedSignInPayload(),
+            request: EmbeddedFlowRequestConfig(
+                applicationId: applicationId,
+                flowType: .authentication,
+                organizationUnitId: ouId
+            ),
+            flowSessions: tokenStore?.flowSessions() ?? []
+        )
+        switch response.flowStatus {
+        case .complete:
+            return .switched(try await getUser())
+        case .promptOnly:
+            return .signInRequired(response)
+        case .error:
+            throw ThunderIDError(
+                code: .authenticationFailed,
+                message: response.failureReason ?? "The sign-in to the organization unit failed"
+            )
+        }
+    }
+
     /// Exchanges the stored device secret at the unit's token endpoint, which signs the user in to the unit
-    /// from the SSO session without the browser.
+    /// from the SSO session without the browser. A secret the server refuses as unusable is dropped.
     private func exchangeDeviceSecret(for ouId: String, config: ThunderIDConfig) async throws -> User {
         guard let secret = tokenStore?.deviceSecret() else {
             throw ThunderIDError(code: .invalidGrant, message: "No device secret is stored")
@@ -124,8 +138,27 @@ extension ThunderIDClient {
             ("client_id", clientId),
             ("scope", config.scopes.joined(separator: " "))
         ]
-        let response = try await redeemAtUnit(ouId, form: form, config: config)
+        let response: TokenResponse
+        do {
+            response = try await redeemAtUnit(ouId, form: form, config: config)
+        } catch let error as ThunderIDError
+                    where Self.unusableDeviceSecretErrors.contains(error.serverError?.code ?? "") {
+            // The secret expired, was revoked or belongs to another user.
+            tokenStore?.removeDeviceSecret()
+            throw error
+        }
         return try await adoptBoundedSession(response)
+    }
+
+    /// The OAuth errors the token endpoint answers a device secret it cannot use with.
+    private static let unusableDeviceSecretErrors: Set<String> = ["invalid_request", "invalid_grant"]
+
+    /// Keeps the SSO sessions an app-native flow step started and drops the ones it ended.
+    func keepFlowSessions(from response: EmbeddedFlowResponse) throws {
+        let started = response.sessionData ?? []
+        let cleared = response.clearedSessions ?? []
+        guard !started.isEmpty || !cleared.isEmpty else { return }
+        try tokenStore?.mergeFlowSessions(started, cleared: cleared)
     }
 
     /// Completes a redirect sign-in bounded to `organizationUnitId`: its code is redeemed only at the unit's
@@ -182,7 +215,8 @@ extension ThunderIDClient {
         }
     }
 
-    /// Validates the new session's ID token, then replaces the stored session with it and reads the user.
+    /// Validates the new session's ID token, then replaces the stored session with it, keeping the device
+    /// secret and the flow sessions, and reads the user.
     private func adoptBoundedSession(_ response: TokenResponse) async throws -> User {
         if let idToken = response.idToken {
             try await tokenValidator?.validate(idToken: idToken, nonce: nil)

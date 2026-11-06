@@ -36,17 +36,25 @@ final class HTTPClient {
         return try await perform(request)
     }
 
+    /// Set `isSensitive` for a request or response that can carry a credential: neither body is then logged.
     func post<T: Decodable>(
         path: String,
         body: [String: Any],
         requiresAuth: Bool = true,
-        headers: [String: String] = [:]
+        headers: [String: String] = [:],
+        isSensitive: Bool = false
     ) async throws -> T {
-        var request = try await buildRequest(method: "POST", path: path, body: body, requiresAuth: requiresAuth)
+        var request = try await buildRequest(
+            method: "POST",
+            path: path,
+            body: body,
+            requiresAuth: requiresAuth,
+            isSensitive: isSensitive
+        )
         for (name, value) in headers {
             request.setValue(value, forHTTPHeaderField: name)
         }
-        return try await perform(request)
+        return try await perform(request, isSensitive: isSensitive)
     }
 
     /// Posts `form` to an OAuth endpoint under `baseUrl`, `application/x-www-form-urlencoded` as RFC 6749 and
@@ -143,7 +151,7 @@ final class HTTPClient {
     }
 
     private func buildRequest(
-        method: String, path: String, body: [String: Any]?, requiresAuth: Bool
+        method: String, path: String, body: [String: Any]?, requiresAuth: Bool, isSensitive: Bool = false
     ) async throws -> URLRequest {
         guard let url = URL(string: baseUrl + path) else {
             throw ThunderIDError(code: .invalidConfiguration, message: "Invalid URL: \(baseUrl)\(path)")
@@ -165,7 +173,7 @@ final class HTTPClient {
             let token = try await provider()
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-        debugLogRequest(request, body: body)
+        debugLogRequest(request, body: isSensitive ? nil : body)
         return request
     }
 

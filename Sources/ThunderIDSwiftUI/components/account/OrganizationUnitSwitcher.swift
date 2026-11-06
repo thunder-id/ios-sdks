@@ -10,6 +10,8 @@ public struct OrganizationUnitSwitcherState {
     public let units: [AccessibleOrganizationUnit]
     /// The unit the session is issued for, when known.
     public let currentId: String?
+    /// The current unit's name, from the page or the session, or `nil` when it is not known.
+    public let currentName: String?
     public let isLoading: Bool
     /// The unit a switch is in flight to, if any.
     public let switchingId: String?
@@ -28,8 +30,37 @@ public struct OrganizationUnitSwitcherState {
     public var current: AccessibleOrganizationUnit? { units.first { $0.id == currentId } }
 }
 
-/// The organization units the signed-in user can access, rendered from the data it is given, with the
-/// current one marked. Choosing another calls `onSwitch`.
+extension OrganizationUnitSwitcherState {
+    /// The name of `currentId` on the page, or `fallback` when the page does not list it.
+    static func name(of currentId: String?, in units: [AccessibleOrganizationUnit], fallback: String?) -> String? {
+        units.first { $0.id == currentId }?.name ?? fallback
+    }
+
+    /// What the field shows: the unit being switched to, the current unit, or the loading or placeholder text.
+    func fieldText(_ i18n: ThunderIDI18n) -> String {
+        if let switchingId {
+            let name = units.first { $0.id == switchingId }?.name ?? switchingId
+            return i18n.resolve("organizationUnitSwitcher.switching", ["name": name])
+        }
+        if let currentName { return currentName }
+        return i18n.resolve(isLoading ? "organizationUnitSwitcher.loading" : "organizationUnitSwitcher.placeholder")
+    }
+
+    /// Picks `unit` from the menu: another unit switches to it, the current one only closes the menu.
+    func choose(_ unit: AccessibleOrganizationUnit) {
+        guard unit.id != currentId else { return }
+        onSwitch(unit)
+    }
+
+    /// Whether the menu pages: there are more units than the page size.
+    var isPaged: Bool { onPageChange != nil && totalResults > limit }
+    var hasPreviousPage: Bool { offset > 0 }
+    var hasNextPage: Bool { offset + limit < totalResults }
+}
+
+/// A field showing the current organization unit under a small label, rendered from the data it is given.
+/// Tapping it opens a menu of the units, each with its handle and the current one checked; picking another
+/// calls `onSwitch`.
 public struct BaseOrganizationUnitSwitcher<Content: View>: View {
     @EnvironmentObject private var i18n: ThunderIDI18n
     let renderState: OrganizationUnitSwitcherState
@@ -40,11 +71,14 @@ public struct BaseOrganizationUnitSwitcher<Content: View>: View {
         self.content = renderContent
     }
 
-    /// - Parameter content: Renders custom UI in place of the default view, from the units, the current
-    ///   one, the loading, switching and error state, the paging, and `onSwitch`.
+    /// - Parameters:
+    ///   - currentName: Names the current unit when `units` does not list it, such as the session's unit.
+    ///   - content: Renders custom UI in place of the default view, from the units, the current one, the
+    ///     loading, switching and error state, the paging, and `onSwitch`.
     public init(
         units: [AccessibleOrganizationUnit],
         currentId: String?,
+        currentName: String? = nil,
         isLoading: Bool = false,
         switchingId: String? = nil,
         error: String? = nil,
@@ -59,6 +93,7 @@ public struct BaseOrganizationUnitSwitcher<Content: View>: View {
             state: OrganizationUnitSwitcherState(
                 units: units,
                 currentId: currentId,
+                currentName: OrganizationUnitSwitcherState.name(of: currentId, in: units, fallback: currentName),
                 isLoading: isLoading,
                 switchingId: switchingId,
                 error: error,
@@ -80,83 +115,100 @@ public struct BaseOrganizationUnitSwitcher<Content: View>: View {
         }
     }
 
+    private var label: String { i18n.resolve("organizationUnitSwitcher.label") }
+
     private var defaultBody: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(i18n.resolve("organizationUnitSwitcher.title"))
-                .font(.headline)
-                .accessibilityAddTraits(.isHeader)
-            if let error = renderState.error {
+        let state = renderState
+        return VStack(alignment: .leading, spacing: 4) {
+            Menu {
+                menuItems(state)
+            } label: {
+                field(state)
+            }
+            .disabled(state.switchingId != nil)
+            .accessibilityLabel(label.isEmpty ? i18n.resolve("organizationUnitSwitcher.placeholder") : label)
+            .accessibilityValue(state.fieldText(i18n))
+            .accessibilityIdentifier("thunderid-organization-unit-switcher-field")
+            if let error = state.error {
                 Text(error)
                     .font(.footnote)
                     .foregroundColor(.red)
                     .accessibilityIdentifier("thunderid-organization-unit-switcher-error")
             }
-            if renderState.isLoading && renderState.units.isEmpty {
-                HStack(spacing: 8) {
-                    ProgressView()
-                    Text(i18n.resolve("organizationUnitSwitcher.loading"))
-                }
-            } else if renderState.units.isEmpty {
-                Text(i18n.resolve("organizationUnitSwitcher.empty")).foregroundColor(.secondary)
-            } else {
-                ForEach(renderState.units) { unit in
-                    row(unit)
-                }
-            }
-            pager
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("thunderid-organization-unit-switcher")
     }
 
-    private func row(_ unit: AccessibleOrganizationUnit) -> some View {
-        let isCurrent = unit.id == renderState.currentId
-        let isSwitching = unit.id == renderState.switchingId
-        return Button {
-            renderState.onSwitch(unit)
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(unit.name)
-                    Text(unit.handle)
+    /// The label above the current unit's name, with a chevron, or progress while a switch runs.
+    private func field(_ state: OrganizationUnitSwitcherState) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                if !label.isEmpty {
+                    Text(label)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                Spacer()
-                if isSwitching {
-                    ProgressView().accessibilityLabel(i18n.resolve("organizationUnitSwitcher.switching"))
-                } else if isCurrent {
-                    Text(i18n.resolve("organizationUnitSwitcher.current"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Image(systemName: "checkmark")
-                }
+                Text(state.fieldText(i18n))
+                    .foregroundColor(state.currentName == nil && state.switchingId == nil ? .secondary : .primary)
+                    .lineLimit(1)
             }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            Spacer(minLength: 8)
+            if state.switchingId != nil {
+                ProgressView().accessibilityHidden(true)
+            } else {
+                Image(systemName: "chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(isCurrent || renderState.switchingId != nil)
-        .accessibilityAddTraits(isCurrent ? .isSelected : [])
-        .accessibilityIdentifier("thunderid-organization-unit-\(unit.id)")
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .frame(minHeight: 44)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.4)))
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder
-    private var pager: some View {
-        let state = renderState
-        if let onPageChange = state.onPageChange, state.totalResults > state.limit {
-            HStack {
+    private func menuItems(_ state: OrganizationUnitSwitcherState) -> some View {
+        if state.isLoading {
+            Text(i18n.resolve("organizationUnitSwitcher.loading"))
+        } else if state.units.isEmpty {
+            Text(state.error ?? i18n.resolve("organizationUnitSwitcher.empty"))
+        } else {
+            ForEach(state.units) { unit in
+                option(unit, state: state)
+            }
+        }
+        if let onPageChange = state.onPageChange, state.isPaged {
+            Section {
                 Button(i18n.resolve("organizationUnitSwitcher.previous")) {
                     onPageChange(max(state.offset - state.limit, 0))
                 }
-                .disabled(state.offset == 0)
-                Spacer()
+                .disabled(!state.hasPreviousPage || state.isLoading)
                 Button(i18n.resolve("organizationUnitSwitcher.next")) {
                     onPageChange(state.offset + state.limit)
                 }
-                .disabled(state.offset + state.limit >= state.totalResults)
+                .disabled(!state.hasNextPage || state.isLoading)
             }
-            .frame(minHeight: 44)
         }
+    }
+
+    /// A unit in the menu: its name, its handle as secondary text, and a check on the current one.
+    private func option(_ unit: AccessibleOrganizationUnit, state: OrganizationUnitSwitcherState) -> some View {
+        let isCurrent = unit.id == state.currentId
+        return Button {
+            state.choose(unit)
+        } label: {
+            Text(unit.name)
+            Text(unit.handle)
+            if isCurrent {
+                Image(systemName: "checkmark").foregroundColor(.accentColor)
+            }
+        }
+        .accessibilityAddTraits(isCurrent ? .isSelected : [])
+        .accessibilityIdentifier("thunderid-organization-unit-\(unit.id)")
     }
 }
 
@@ -164,6 +216,7 @@ public extension BaseOrganizationUnitSwitcher where Content == EmptyView {
     init(
         units: [AccessibleOrganizationUnit],
         currentId: String?,
+        currentName: String? = nil,
         isLoading: Bool = false,
         switchingId: String? = nil,
         error: String? = nil,
@@ -177,6 +230,7 @@ public extension BaseOrganizationUnitSwitcher where Content == EmptyView {
             state: OrganizationUnitSwitcherState(
                 units: units,
                 currentId: currentId,
+                currentName: OrganizationUnitSwitcherState.name(of: currentId, in: units, fallback: currentName),
                 isLoading: isLoading,
                 switchingId: switchingId,
                 error: error,
@@ -191,10 +245,10 @@ public extension BaseOrganizationUnitSwitcher where Content == EmptyView {
     }
 }
 
-/// The organization units the signed-in user can access (`GET /users/me/ous`), with the current one
-/// marked. Choosing another switches the session to it with ``ThunderIDClient/switchOrganizationUnit(_:options:)``
-/// and refreshes the signed-in user; on failure the session stays as it was and a translated message is
-/// shown. `onSelect` lets the app take over the choice instead.
+/// The current organization unit in a field that opens a menu of the units the signed-in user can access
+/// (`GET /users/me/ous`). Picking another switches the session to it with
+/// ``ThunderIDClient/switchOrganizationUnit(_:options:)`` and refreshes the signed-in user; on failure the
+/// session stays as it was and a translated message is shown. `onSelect` lets the app take over the choice.
 public struct OrganizationUnitSwitcher<Content: View>: View {
     @EnvironmentObject private var state: ThunderIDState
     @EnvironmentObject private var i18n: ThunderIDI18n
@@ -244,9 +298,15 @@ public struct OrganizationUnitSwitcher<Content: View>: View {
     }
 
     private var renderState: OrganizationUnitSwitcherState {
-        OrganizationUnitSwitcherState(
-            units: model.list?.organizationUnits ?? [],
-            currentId: model.list?.current,
+        let units = model.list?.organizationUnits ?? []
+        return OrganizationUnitSwitcherState(
+            units: units,
+            currentId: model.currentId,
+            currentName: OrganizationUnitSwitcherState.name(
+                of: model.currentId,
+                in: units,
+                fallback: model.sessionName
+            ),
             isLoading: model.isLoading,
             switchingId: model.switchingId,
             error: model.error,
@@ -307,10 +367,18 @@ final class OrganizationUnitSwitcherModel: ObservableObject {
     @Published private(set) var switchingId: String?
     @Published private(set) var error: String?
     @Published private(set) var offset = 0
+    /// The unit the session is issued for, from its claims.
+    @Published private(set) var sessionUnit: CurrentOrganizationUnit?
+
+    /// The unit the session is in: the list's, or the session's until the list loads.
+    var currentId: String? { list.flatMap { $0.current.isEmpty ? nil : $0.current } ?? sessionUnit?.id }
+    /// The session unit's name, when it is the current unit. It names the field when the page does not list it.
+    var sessionName: String? { sessionUnit?.id == currentId ? sessionUnit?.name : nil }
 
     func load(client: ThunderIDClient, props: OrganizationUnitSwitcherProps, i18n: ThunderIDI18n, offset: Int) async {
         isLoading = true
         defer { isLoading = false }
+        sessionUnit = try? await client.getCurrentOrganizationUnit()
         do {
             list = try await client.getAccessibleOrganizationUnits(
                 scope: props.scope, limit: props.limit, offset: offset
@@ -328,7 +396,7 @@ final class OrganizationUnitSwitcherModel: ObservableObject {
         props: OrganizationUnitSwitcherProps,
         i18n: ThunderIDI18n
     ) async {
-        guard switchingId == nil, unit.id != list?.current else { return }
+        guard switchingId == nil, unit.id != currentId else { return }
         switchingId = unit.id
         defer { switchingId = nil }
         do {

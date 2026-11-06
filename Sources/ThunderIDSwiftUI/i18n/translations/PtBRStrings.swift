@@ -18,10 +18,10 @@ enum PtBRStrings {
         "signIn.continueWithGoogle": "Entrar com Google",
         "signIn.continueWithGithub": "Entrar com GitHub",
         "signIn.federatedError": "Não foi possível iniciar o login federado",
-        "organizationUnitSwitcher.title": "Unidades organizacionais",
-        "organizationUnitSwitcher.current": "Atual",
+        "organizationUnitSwitcher.label": "Organização",
+        "organizationUnitSwitcher.placeholder": "Selecione uma organização",
         "organizationUnitSwitcher.loading": "Carregando unidades organizacionais…",
-        "organizationUnitSwitcher.switching": "Alternando…",
+        "organizationUnitSwitcher.switching": "Trocando para {name}…",
         "organizationUnitSwitcher.empty": "Nenhuma unidade organizacional",
         "organizationUnitSwitcher.error.load":
             "Não foi possível carregar suas unidades organizacionais. Tente novamente.",

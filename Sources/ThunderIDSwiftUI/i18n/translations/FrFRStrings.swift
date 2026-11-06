@@ -18,10 +18,10 @@ enum FrFRStrings {
         "signIn.continueWithGoogle": "Continuer avec Google",
         "signIn.continueWithGithub": "Continuer avec GitHub",
         "signIn.federatedError": "Impossible de démarrer la connexion fédérée",
-        "organizationUnitSwitcher.title": "Unités d'organisation",
-        "organizationUnitSwitcher.current": "Actuelle",
+        "organizationUnitSwitcher.label": "Organisation",
+        "organizationUnitSwitcher.placeholder": "Sélectionnez une organisation",
         "organizationUnitSwitcher.loading": "Chargement des unités d'organisation…",
-        "organizationUnitSwitcher.switching": "Changement…",
+        "organizationUnitSwitcher.switching": "Passage à {name}…",
         "organizationUnitSwitcher.empty": "Aucune unité d'organisation",
         "organizationUnitSwitcher.error.load": "Impossible de charger vos unités d'organisation. Veuillez réessayer.",
         "organizationUnitSwitcher.error.switch":
