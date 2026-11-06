@@ -70,8 +70,9 @@ final class FlowExecutionClient {
     }
 
     /// Sends one `SELF` flow step through the authenticated transport, without logging it, since a
-    /// step carries the code. An `ERROR` step or a `4xx` is a refusal, raised as `verificationFailed` with a
-    /// fixed message and without the response body.
+    /// step carries the code. An `ERROR` step or a `4xx` other than `401` is a refusal, raised as
+    /// `verificationFailed` with a fixed message and without the response body. A `401` stays
+    /// `authenticationFailed`, so the app can ask the user to sign in again.
     func executeSelfFlow(url: URL, body: [String: Any]) async throws -> EmbeddedFlowResponse {
         let (data, response) = try await httpClient.exchange(
             method: "POST",
@@ -100,6 +101,8 @@ final class FlowExecutionClient {
 
     static func refusal(status: Int) -> ThunderIDError {
         switch status {
+        case 401:
+            return ThunderIDError(code: .authenticationFailed, message: "Unauthorized")
         case 400...499:
             return verificationRefused
         case 500...599:

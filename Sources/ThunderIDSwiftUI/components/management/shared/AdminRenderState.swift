@@ -110,6 +110,18 @@ public struct UserDetailsState {
     /// Runs an account lifecycle action, with the operator's note on a suspension. Ask for
     /// confirmation before suspending or unsuspending. `nil` when no lifecycle action is allowed.
     public let onLifecycleAction: ((AccountLifecycleAction, String?) -> Void)?
+    /// The visible contact attributes whose verification status is known.
+    public let verifiableAttributes: [String]
+    /// The user's verified attributes, keyed by attribute. `nil` when the server does not report them.
+    public let verifiedAttributes: [String: VerifiedAttribute]?
+    /// The unverified email attributes eligible for a verification link.
+    public let sendableAttributes: Set<String>
+    /// Sends the user a link to verify the given attribute. `nil` when sending is not allowed, including
+    /// for read-only users.
+    public let onSendVerification: ((String) -> Void)?
+    public let isSendingVerification: Bool
+    /// What the last sent verification link reported, such as its masked destination.
+    public let sentVerification: UserAttributeVerificationResult?
 }
 
 /// What ``BaseAgentDetails`` hands its `content` closure.

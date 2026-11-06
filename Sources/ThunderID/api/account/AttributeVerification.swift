@@ -3,10 +3,15 @@
 
 import Foundation
 
-/// Wire names and eligibility rules for self user attribute verification.
+/// Wire names and eligibility rules for user attribute verification, by the user or by an administrator.
 public enum AttributeVerification {
     /// Handle of the self attribute verification flow the server ships, used unless the app names another.
     public static let defaultFlowHandle = "default-self-attribute-verification-flow"
+    /// Handle of the administrator-initiated verification flow the server ships, used unless the app names
+    /// another.
+    public static let adminFlowHandle = "default-admin-attribute-verification-flow"
+    /// Flow input naming the user an administrator-initiated flow acts on.
+    public static let subjectInput = "subject"
     /// Flow input naming the attribute to verify on the initiating request.
     public static let attributeInput = "attribute"
     /// `additionalData` key carrying the masked destination the code or link was sent to.
@@ -20,8 +25,7 @@ public enum AttributeVerification {
     public static let carriedForwardKeys: Set<String> = [maskedDestinationKey, channelKey, codeLengthKey]
     /// Schema property types whose verification status is shown, and which the user can verify.
     public static let verifiableAttributeTypes: Set<String> = ["email", "mobile"]
-    /// Schema property types whose changed value opens verification after a save. Mobile is verified on
-    /// request only, since sending an SMS needs a provider the deployment may not have.
+    /// The legacy list for apps that opt into starting verification after a save.
     public static let verifyAfterSaveAttributeTypes: Set<String> = ["email"]
 
     /// Whether `attribute` is a top-level, single-valued property of type `email` or `mobile` in the user
@@ -40,7 +44,7 @@ public enum AttributeVerification {
         return verifiableAttributeTypes.contains(type.lowercased())
     }
 
-    /// Whether a changed value of a schema property of `type` opens verification after it is saved.
+    /// Whether `type` is in the legacy list for apps that opt into verification after a save.
     public static func opensAfterSave(_ type: String?) -> Bool {
         guard let type else { return false }
         return verifyAfterSaveAttributeTypes.contains(type.lowercased())

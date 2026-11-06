@@ -262,6 +262,9 @@ public enum FlowType: String {
     /// An operation the signed-in user runs on their own account, such as verifying their email address.
     /// The flow is named by its handle, and the server takes the user from the access token.
     case selfFlow = "SELF"
+    /// An operation an administrator starts for a user, such as sending them an email verification link.
+    /// The administrator's token starts it; the user continues it from the link, with no token.
+    case adminInitiated = "ADMIN_INITIATED"
 }
 
 public enum FlowStatus: Codable {

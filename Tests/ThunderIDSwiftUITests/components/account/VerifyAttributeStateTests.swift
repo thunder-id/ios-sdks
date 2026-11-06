@@ -95,7 +95,7 @@ final class VerifyAttributeStateTests: XCTestCase {
     ) -> VerifyAttributeState {
         let state = VerifyAttributeState(attribute: attribute, attributeDisplayName: displayName)
         state.engine = fake.engine
-        state.resolve = ThunderIDI18n().resolve
+        state.resolve = ThunderIDI18n(language: "en-US", storageKey: "verify_attribute_state_tests_locale").resolve
         guard callbacks else { return state }
         state.onError = { [fake] in fake.errors.append($0) }
         state.onComplete = { [fake] in fake.completions += 1 }
@@ -393,7 +393,7 @@ final class VerifyAttributeStateTests: XCTestCase {
     }
 
     private func render(_ view: some View) {
-        let i18n = ThunderIDI18n()
+        let i18n = ThunderIDI18n(language: "en-US", storageKey: "verify_attribute_state_tests_locale")
         let renderer = ImageRenderer(
             content: view
                 .environmentObject(i18n)
