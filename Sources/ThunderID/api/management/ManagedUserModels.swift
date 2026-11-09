@@ -16,6 +16,9 @@ public struct ManagedUser: Codable {
     public let isReadOnly: Bool?
     /// The effective access status, set by the server on a read.
     public let status: AccessStatus?
+    /// The user's verified attributes, keyed by attribute name. `nil` when the server does not report
+    /// verification; empty when none is verified.
+    public let verifiedAttributes: [String: VerifiedAttribute]?
 }
 
 /// A pagination link returned alongside a list response.

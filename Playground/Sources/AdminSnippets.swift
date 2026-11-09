@@ -33,12 +33,14 @@ enum AdminSnippets {
         if values.isLive {
             let deletion = deletable ? ["deletable: true", "onDeleted: { /* deleted */ }"] : []
             let editable = values.flag("editable") ? ["editable: true"] : []
+            let verification = name == "UserDetails" && values.flag("attributeVerification")
             return call(name, ["\(idKey): \(id)"] + administrationMode(values) + editable
-                + (lifecycle ? ["lifecycleActions: true"] : []) + deletion)
+                + (lifecycle ? ["lifecycleActions: true"] : [])
+                + (verification ? ["attributeVerification: true"] : []) + deletion)
         }
         let record: [String]
         switch name {
-        case "UserDetails": record = ["user: user", "groups: groups"]
+        case "UserDetails": record = ["user: user", "groups: groups", "userSchema: schema"]
         case "ApplicationDetails": record = ["application: application"]
         case "GroupDetails": record = ["group: group", "sections: AnyView(BaseGroupMembers(members: members))"]
         case "RoleDetails": record = ["role: role", "sections: AnyView(BaseRoleAssignments(assignments: assignments))"]
@@ -46,7 +48,10 @@ enum AdminSnippets {
         }
         return call("Base\(name)", record + state(values)
             + (deletable ? ["onDelete: { /* delete */ }"] : [])
-            + (lifecycle ? ["lifecycleActions: actions", "onLifecycleAction: { action, note in /* run */ }"] : []))
+            + (lifecycle ? ["lifecycleActions: actions", "onLifecycleAction: { action, note in /* run */ }"] : [])
+            + (name == "UserDetails" && values.flag("attributeVerification")
+                ? ["sentVerification: sent", "onSendVerification: { attribute in /* send */ }"]
+                : []))
     }
 
     static func create(name: String, values: PropValues) -> String {

@@ -40,8 +40,7 @@ public struct UserProfile: View {
     }
 }
 
-/// The one sheet the profile shows at a time: a field's editor, or its verification. Saving a changed
-/// email swaps the first for the second.
+/// The one sheet the profile shows at a time: a field's editor, or its verification.
 private enum ProfileSheet: Identifiable {
     case edit(ProfileField)
     case verify(ProfileField)
@@ -201,63 +200,54 @@ private struct ProfileFieldRow: View {
     private var label: String { field.schema.displayName ?? field.schema.description ?? field.name }
     private var isComplex: Bool { field.schema.type == "COMPLEX" && field.rawValue is [String: AnyCodable] }
     private var isEditable: Bool { !field.isReadonly && !isComplex }
-    /// One button for the whole row, status line included, so any part of it opens the editor.
     var body: some View {
-        Button {
-            state.edit(field.name)
-        } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(label)
+        if isEditable {
+            Button {
+                state.edit(field.name)
+            } label: {
+                rowContent
+            }
+            .buttonStyle(.plain)
+        } else if state.canVerify(field) {
+            HStack(spacing: 0) {
+                rowContent
+                Button(i18n.resolve("verifyAttribute.verify")) { state.verify(field.name) }
+                    .accessibilityIdentifier("thunderid-verify-\(field.name)")
+                    .padding(.trailing, 16)
+            }
+        } else {
+            rowContent
+        }
+    }
+
+    private var rowContent: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .font(.system(size: 16))
+                    .foregroundColor(colorScheme.userProfileText)
+                Spacer()
+                if isComplex, let dict = field.rawValue as? [String: AnyCodable] {
+                    ComplexValueView(value: dict)
+                } else {
+                    let text = stringifyFieldValue(field.rawValue)
+                    Text(text.isEmpty ? "-" : text)
                         .font(.system(size: 16))
-                        .foregroundColor(colorScheme.userProfileText)
-                    Spacer()
-                    if isComplex, let dict = field.rawValue as? [String: AnyCodable] {
-                        ComplexValueView(value: dict)
-                    } else {
-                        let text = stringifyFieldValue(field.rawValue)
-                        Text(text.isEmpty ? "-" : text)
-                            .font(.system(size: 16))
-                            .foregroundColor(colorScheme.userProfileTextSecondary)
-                    }
-                    if isEditable {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(colorScheme.userProfileChevron)
-                    }
+                        .foregroundColor(colorScheme.userProfileTextSecondary)
                 }
-                if let status = state.verificationStatus(field) {
-                    ProfileStatusLabel(field: field, status: status, i18n: i18n)
+                if isEditable {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(colorScheme.userProfileChevron)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 13)
-            .contentShape(Rectangle())
+            if let status = state.verificationStatus(field) {
+                ProfileStatusLabel(field: field, status: status, i18n: i18n)
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(!isEditable)
-    }
-}
-
-/// A green Verified or amber Unverified label with its icon.
-private struct ProfileStatusLabel: View {
-    let field: ProfileField
-    let status: AttributeVerificationStatus
-    let i18n: ThunderIDI18n
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var isVerified: Bool { status != .unverified }
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: isVerified ? "checkmark.circle" : "exclamationmark.circle")
-                .accessibilityHidden(true)
-            Text(i18n.resolve(isVerified ? "verifyAttribute.status.verified" : "verifyAttribute.status.unverified"))
-        }
-        .accessibilityElement(children: .combine)
-        .font(.system(size: 13, weight: .medium))
-        .foregroundColor(isVerified ? colorScheme.userProfileVerified : colorScheme.userProfileUnverified)
-        .accessibilityIdentifier("thunderid-verification-status-\(field.name)")
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
+        .contentShape(Rectangle())
     }
 }
 
@@ -315,19 +305,13 @@ private struct ProfileFieldEditSheet: View {
 
     /// Leaves the editor unchanged and opens the stored value's verification in its place.
     private var verifyButton: some View {
-        Button {
+        ProfileVerifyButton(
+            label: i18n.resolve("verifyAttribute.verify"),
+            identifier: "thunderid-verify-\(field.name)"
+        ) {
             state.cancel(field.name)
             state.verify(field.name)
-        } label: {
-            Text(i18n.resolve("verifyAttribute.verify"))
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .background(Color.userProfileAccent)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("thunderid-verify-\(field.name)")
     }
 
     var body: some View {
@@ -436,8 +420,6 @@ private extension ColorScheme {
     var userProfileSheetField: Color { self == .dark ? Color(hex: "16233a") : Color(hex: "f1f3f7") }
     var userProfileText: Color { self == .dark ? Color(hex: "E0EAFF") : Color(hex: "05213F") }
     var userProfileError: Color { Color(hex: "d95757") }
-    var userProfileVerified: Color { self == .dark ? Color(hex: "4ADE80") : Color(hex: "15803D") }
-    var userProfileUnverified: Color { self == .dark ? Color(hex: "F5B544") : Color(hex: "B45309") }
 
     var userProfileTextSecondary: Color {
         self == .dark ? Color(hex: "E0EAFF").opacity(0.48) : Color(hex: "5A7085")
@@ -452,10 +434,17 @@ private extension ColorScheme {
     }
 }
 
-private extension Color {
+extension ColorScheme {
+    var userProfileVerified: Color { self == .dark ? Color(hex: "4ADE80") : Color(hex: "15803D") }
+    var userProfileUnverified: Color { self == .dark ? Color(hex: "F5B544") : Color(hex: "B45309") }
+}
+
+extension Color {
     /// ThunderID brand blue, matching the sample's own `primaryBlue` (same value as Android's `ThunderIDPrimary`).
     static let userProfileAccent = Color(hex: "3688FF")
+}
 
+private extension Color {
     init(hex: String) {
         var value: UInt64 = 0
         Scanner(string: hex).scanHexInt64(&value)

@@ -132,6 +132,26 @@ public extension ThunderIDState {
         )
     }
 
+    /// Sends a user a link to verify an attribute, through the administrator-initiated verification flow,
+    /// then refetches the user.
+    func sendUserAttributeVerificationMutation(
+        handle: String = AttributeVerification.adminFlowHandle,
+        fetcher: ThunderIDFetcher? = nil
+    ) -> ResourceMutation<(id: String, attribute: String), UserAttributeVerificationResult> {
+        let client = client
+        return mutation(
+            invalidating: { [[UserQueryKeys.user, $0.id]] },
+            perform: { input in
+                try await client.users.sendAttributeVerification(
+                    id: input.id,
+                    attribute: input.attribute,
+                    handle: handle,
+                    fetcher: fetcher
+                )
+            }
+        )
+    }
+
     // MARK: - Agents
 
     func agentsQuery(

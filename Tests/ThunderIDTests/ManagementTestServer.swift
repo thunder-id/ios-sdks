@@ -15,6 +15,7 @@ final class ManagementTestServer: @unchecked Sendable {
     var flows: [(handle: String, id: String)] = []
     /// The response of `POST /flow/execute`.
     var execution = #"{"flowStatus":"COMPLETE","data":{"additionalData":{}}}"#
+    var executionStatus = 200
     /// The response of any other request.
     var resource = "{}"
     var resourceStatus = 200
@@ -45,7 +46,7 @@ final class ManagementTestServer: @unchecked Sendable {
             return (#"{"flows":[\#(items.joined(separator: ","))]}"#, 200)
         }
         if absolute == "\(base)/flow/execute" {
-            return (execution, 200)
+            return (execution, executionStatus)
         }
         return (resource, resourceStatus)
     }
