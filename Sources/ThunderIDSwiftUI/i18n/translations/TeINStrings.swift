@@ -55,12 +55,14 @@ enum TeINStrings {
         "changeCredential.heading": "{credential} మార్చండి",
         "changeCredential.description":
             "బలమైన {credentialLower}ను ఎంచుకోండి మరియు దాన్ని ఇతర ఖాతాలకు మళ్లీ ఉపయోగించవద్దు.",
+        "changeCredential.current.label": "ప్రస్తుత {credential}",
         "changeCredential.new.label": "కొత్త {credential}",
         "changeCredential.confirm.label": "కొత్త {credential} నిర్ధారించండి",
         "changeCredential.submit": "{credential} మార్చండి",
         "changeCredential.submitShort": "మార్చండి",
         "changeCredential.success": "మీ {credentialLower} నవీకరించబడింది.",
         "changeCredential.mismatch.error": "{credentialLower} సరిపోలలేదు.",
+        "changeCredential.current.error": "మీ ప్రస్తుత {credentialLower} తప్పు.",
         "changeCredential.new.invalid.error": "ఇది అవసరమైన ఆకృతికి అనుగుణంగా లేదు.",
         "changeCredential.requirements.pattern": "అవసరమైన ఆకృతికి సరిపోలాలి.",
         "changeCredential.generic.error":

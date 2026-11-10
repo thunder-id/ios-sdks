@@ -40,14 +40,19 @@ public extension ThunderIDClient {
 
     /// Changes one of the signed-in user's own credentials via `POST /users/me/update-credentials`.
     ///
-    /// The self-service write path does not verify the account's existing value today, so this
-    /// call collects only the new value, matching the Android/React/Vue SDKs.
-    func updateUserCredentials(attribute: String = "password", newValue: String) async throws {
+    /// Changing a credential the user already holds needs its `currentValue`. A user setting a
+    /// credential for the first time has none to send.
+    func updateUserCredentials(
+        attribute: String = "password",
+        currentValue: String? = nil,
+        newValue: String
+    ) async throws {
         try requireInitialized()
-        let _: EmptyResponse = try await httpClient!.post(
-            path: "/users/me/update-credentials",
-            body: ["attributes": [attribute: newValue]]
-        )
+        var body: [String: String] = ["name": attribute, "newValue": newValue]
+        if let currentValue, !currentValue.isEmpty {
+            body["currentValue"] = currentValue
+        }
+        let _: EmptyResponse = try await httpClient!.post(path: "/users/me/update-credentials", body: body)
     }
 
     /// Overrides the cached user, e.g. after merging in freshly-fetched `/users/me` attributes.

@@ -53,12 +53,14 @@ enum SiLKStrings {
         "changeCredential.heading": "{credential} වෙනස් කරන්න",
         "changeCredential.description":
             "ශක්තිමත් {credentialLower} එකක් තෝරා, එය වෙනත් ගිණුම් සඳහා නැවත භාවිත නොකරන්න.",
+        "changeCredential.current.label": "වත්මන් {credential}",
         "changeCredential.new.label": "නව {credential}",
         "changeCredential.confirm.label": "නව {credential} තහවුරු කරන්න",
         "changeCredential.submit": "{credential} වෙනස් කරන්න",
         "changeCredential.submitShort": "වෙනස් කරන්න",
         "changeCredential.success": "ඔබේ {credentialLower} යාවත්කාලීන කර ඇත.",
         "changeCredential.mismatch.error": "{credentialLower} නොගැලපේ.",
+        "changeCredential.current.error": "ඔබේ වත්මන් {credentialLower} වැරදියි.",
         "changeCredential.new.invalid.error": "මෙය අවශ්‍ය ආකෘතියට අනුකූල නොවේ.",
         "changeCredential.requirements.pattern": "අවශ්‍ය ආකෘතියට ගැළපිය යුතුය.",
         "changeCredential.generic.error":

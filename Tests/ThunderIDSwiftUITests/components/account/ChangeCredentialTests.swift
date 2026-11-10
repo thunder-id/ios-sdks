@@ -50,6 +50,24 @@ final class ChangeCredentialTests: XCTestCase {
         XCTAssertEqual(mapCredentialError(error), .new)
     }
 
+    func testMapsInvalidCurrentValueToCurrentField() {
+        let error = ThunderIDError(code: .forbidden, message: "Forbidden", serverError: ServerError(code: "USR-1047"))
+        XCTAssertEqual(mapCredentialError(error), .current)
+    }
+
+    func testMapsRefusedFirstCredentialToFormLevel() {
+        let error = ThunderIDError(
+            code: .invalidInput,
+            message: "Credential cannot be set",
+            serverError: ServerError(code: "USR-1048")
+        )
+        XCTAssertEqual(mapCredentialError(error), .form)
+    }
+
+    func testMapsOtherForbiddenToFormLevel() {
+        XCTAssertEqual(mapCredentialError(ThunderIDError(code: .forbidden, message: "Forbidden")), .form)
+    }
+
     func testMapsOtherFailuresToFormLevel() {
         XCTAssertEqual(mapCredentialError(ThunderIDError(code: .serverError, message: "boom")), .form)
         XCTAssertEqual(mapCredentialError(NSError(domain: "x", code: 1)), .form)
