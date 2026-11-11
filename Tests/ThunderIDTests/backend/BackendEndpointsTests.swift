@@ -16,6 +16,7 @@ final class BackendEndpointsTests: XCTestCase {
         XCTAssertEqual(resolved.checkSession.absoluteString, "\(backendBase)/api/auth/checksession")
         XCTAssertEqual(resolved.refresh.absoluteString, "\(backendBase)/api/auth/refresh")
         XCTAssertEqual(resolved.signOut.absoluteString, "\(backendBase)/api/auth/signout")
+        XCTAssertEqual(resolved.ouSwitch.absoluteString, "\(backendBase)/api/auth/switch")
         XCTAssertEqual(resolved.proxy, "\(backendBase)/api/auth/proxy")
         XCTAssertEqual(resolved.token.absoluteString, "\(backendBase)/api/auth/token")
         XCTAssertEqual(resolved.bypassUrls, [])
@@ -26,6 +27,7 @@ final class BackendEndpointsTests: XCTestCase {
         let resolved = try ResolvedBackendEndpoints.resolve(
             .init(
                 signIn: "/auth/login",
+                ouSwitch: "/auth/switch",
                 proxy: "/auth/api/",
                 token: "/auth/dp-token",
                 bypass: .init(urls: ["https://dp.example.com/api/"], attachToken: false)
@@ -34,6 +36,7 @@ final class BackendEndpointsTests: XCTestCase {
         )
 
         XCTAssertEqual(resolved.signIn.absoluteString, "\(backendBase)/bff/auth/login")
+        XCTAssertEqual(resolved.ouSwitch.absoluteString, "\(backendBase)/bff/auth/switch")
         XCTAssertEqual(resolved.session.absoluteString, "\(backendBase)/bff/api/auth/session")
         XCTAssertEqual(resolved.proxy, "\(backendBase)/bff/auth/api")
         XCTAssertEqual(resolved.token.absoluteString, "\(backendBase)/bff/auth/dp-token")

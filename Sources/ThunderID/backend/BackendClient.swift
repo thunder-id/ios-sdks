@@ -145,6 +145,34 @@ actor BackendClient {
         return refreshed
     }
 
+    /// Switches the session to the organization unit `ouId` at the backend, with no browser. The unit goes in
+    /// the query (`ouId`) and in a JSON body (`{"ouId": …}`), so the backend can read it from either. On
+    /// success the cached session is dropped, so the next read returns the unit's; on a refusal the session
+    /// stays as it was. `session_expired` refreshes the session once and retries. A `401` left after that
+    /// means the backend has no session to switch, so it is reported as `login_required`, which signs out.
+    func switchOrganizationUnit(_ ouId: String) async throws -> BackendSwitchOutcome {
+        guard tokenStore.sessionHandle() != nil else { return .refused(error: "login_required") }
+        var components = URLComponents(url: endpoints.ouSwitch, resolvingAgainstBaseURL: false)
+        let existing = components?.queryItems ?? []
+        components?.queryItems = existing + [URLQueryItem(name: "ouId", value: ouId)]
+        guard let url = components?.url else {
+            throw ThunderIDError(code: .invalidConfiguration, message: "Could not build the backend switch URL")
+        }
+        let body = try JSONSerialization.data(withJSONObject: ["ouId": ouId])
+        var (data, response) = try await send(url, method: "POST", body: body)
+        if response.statusCode == 401, Self.errorCode(data) == "session_expired" {
+            guard try await refresh() else { return .refused(error: "login_required") }
+            (data, response) = try await send(url, method: "POST", body: body)
+        }
+        if (200...299).contains(response.statusCode) {
+            cachedSession = nil
+            return .switched
+        }
+        let error = response.statusCode == 401 ? "login_required" : Self.errorCode(data)
+        if error == "login_required" { markSignedOut() }
+        return .refused(error: error)
+    }
+
     /// Ends the backend session and clears the session handle and any stored token. Local state is
     /// cleared even when the backend cannot be reached, and the failure is then reported.
     ///
