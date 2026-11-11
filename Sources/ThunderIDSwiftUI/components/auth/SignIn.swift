@@ -40,6 +40,9 @@ public struct SignIn: View {
                         .bold()
                         .accessibilityAddTraits(.isHeader)
                 }
+                if signInState.isFlowRestarted {
+                    FlowNoticeBanner(message: i18n.resolve("flow.expired.restarted"))
+                }
                 if let error = signInState.error {
                     // An error response carries no UI of its own — the previous step's
                     // inputs/actions are stale once the server has rejected the last
@@ -176,6 +179,11 @@ public final class SignInState: ObservableObject {
     @Published public fileprivate(set) var loadingActionId: String?
     @Published public fileprivate(set) var error: String?
     @Published public fileprivate(set) var templateResolver: FlowTemplateResolver?
+    /// Whether the flow was started again because the previous one expired. Clears once the user acts on the new
+    /// flow.
+    @Published public fileprivate(set) var isFlowRestarted: Bool = false
+
+    let flowExpiry = FlowExpiry()
 
     private var fieldValues: [String: String] = [:]
     private var flowId: String?
@@ -194,6 +202,7 @@ public final class SignInState: ObservableObject {
     }
 
     public func submit(actionId: String) {
+        isFlowRestarted = false
         loadingActionId = actionId
         submitAction(actionId, fieldValues, flowId, challengeToken)
     }
@@ -210,6 +219,18 @@ public final class SignInState: ObservableObject {
 
     func setTemplateResolver(_ resolver: FlowTemplateResolver) {
         templateResolver = resolver
+    }
+
+    /// Clears the expired flow before it starts again, and notes that it did.
+    func prepareRestart() {
+        flowId = nil
+        challengeToken = nil
+        inputs = []
+        actions = []
+        components = []
+        additionalData = [:]
+        error = nil
+        isFlowRestarted = true
     }
 
     /// Two failure modes come from the same source — `fieldValues` only ever grows via the
@@ -251,6 +272,7 @@ public struct BaseSignIn<Content: View>: View {
     public let content: (SignInState) -> Content
 
     @StateObject private var signInState = SignInState { _, _, _, _ in }
+    @Environment(\.scenePhase) private var scenePhase
     @State private var federatedAuthSession = FederatedAuthSession()
     @State private var passkeyAuthSession = PasskeyAuthSession()
 
@@ -278,11 +300,23 @@ public struct BaseSignIn<Content: View>: View {
                         )
                     }
                 }
+                signInState.flowExpiry.restart = {
+                    Task { await restartFlow() }
+                }
                 await initFlow()
             }
             .task {
                 await loadFlowMeta()
             }
+            .onChange(of: scenePhase) { phase in
+                signInState.flowExpiry.setActive(phase == .active)
+            }
+    }
+
+    /// Starts an expired flow again in place.
+    private func restartFlow() async {
+        signInState.prepareRestart()
+        await initFlow()
     }
 
     /// Fetches `GET /flow/meta` in parallel with `initFlow()` so template literals in component
@@ -327,6 +361,8 @@ public struct BaseSignIn<Content: View>: View {
             let request = EmbeddedFlowRequestConfig(applicationId: applicationId, flowType: .authentication)
             let response = try await state.client.signIn(payload: payload, request: request)
             await handleResponse(response, actionId: actionId)
+        } catch let error as ThunderIDError where error.code == .flowExpired {
+            signInState.flowExpiry.expire()
         } catch {
             signInState.error = error.localizedDescription
             onError?(error.localizedDescription)
@@ -334,6 +370,7 @@ public struct BaseSignIn<Content: View>: View {
     }
 
     private func handleResponse(_ response: EmbeddedFlowResponse, actionId: String?) async {
+        signInState.flowExpiry.track(response)
         switch response.flowStatus {
         case .complete:
             await state.refresh()

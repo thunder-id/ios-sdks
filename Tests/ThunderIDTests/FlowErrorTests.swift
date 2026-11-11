@@ -36,7 +36,7 @@ final class FlowErrorTests: XCTestCase {
                    "message": {"key": "errors.user.exists", "defaultValue": "Exists", "params": {"name": "alice"}},
                    "description": {"key": "d", "defaultValue": "Details"}},
          "sessionData": [{"flowIdentifier": "app-1", "sessionHandle": "h1", "expiresIn": 600}],
-         "clearedSessions": ["app-2"]}
+         "clearedSessions": ["app-2"], "expiresIn": 3540}
         """.utf8))
 
         for child in Mirror(reflecting: response).children {

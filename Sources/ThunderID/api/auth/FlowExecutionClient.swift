@@ -52,8 +52,20 @@ final class FlowExecutionClient {
         if !inputs.isEmpty {
             body["inputs"] = inputs
         }
-        return try await httpClient.post(path: "/flow/execute", body: body, requiresAuth: false)
+        do {
+            return try await httpClient.post(path: "/flow/execute", body: body, requiresAuth: false)
+        } catch let error as ThunderIDError where error.serverError?.code == Self.executionNotFoundCode {
+            throw ThunderIDError(
+                code: .flowExpired,
+                message: "The flow execution expired",
+                underlyingError: error,
+                serverError: error.serverError
+            )
+        }
     }
+
+    /// The server's code for a step whose execution does not exist any more: it expired, or it already ended.
+    static let executionNotFoundCode = "FES-1004"
 
     /// Body of a request that starts a `SELF` flow. It names the flow by its handle and carries no
     /// user or application ID: the server takes the user from the access token.

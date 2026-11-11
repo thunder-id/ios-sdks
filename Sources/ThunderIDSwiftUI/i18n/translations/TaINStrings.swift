@@ -34,6 +34,7 @@ enum TaINStrings {
         "signUp.submit": "கணக்கை உருவாக்கு",
         "signUp.loading": "கணக்கு உருவாக்கப்படுகிறது…",
         "signUp.federatedError": "கூட்டமைப்பு பதிவைத் தொடங்க முடியவில்லை",
+        "flow.expired.restarted": "உங்கள் அமர்வு காலாவதியானதால், மீண்டும் தொடங்கினோம்.",
         "signOut.button": "வெளியேறு",
         "signOut.loading": "வெளியேறுகிறது…",
         "callback.loading": "உள்நுழைவு நிறைவடைகிறது…",

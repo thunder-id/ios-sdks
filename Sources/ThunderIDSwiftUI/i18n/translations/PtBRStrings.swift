@@ -37,6 +37,7 @@ enum PtBRStrings {
         "signUp.submit": "Criar conta",
         "signUp.loading": "Criando conta…",
         "signUp.federatedError": "Não foi possível iniciar o cadastro federado",
+        "flow.expired.restarted": "Sua sessão expirou, então começamos de novo.",
         "signOut.button": "Sair",
         "signOut.loading": "Saindo…",
         "callback.loading": "Concluindo o login…",
