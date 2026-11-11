@@ -36,6 +36,7 @@ enum TeINStrings {
         "signUp.submit": "ఖాతాను సృష్టించండి",
         "signUp.loading": "ఖాతా సృష్టించబడుతోంది…",
         "signUp.federatedError": "ఫెడరేటెడ్ సైన్ అప్\u{200C}ను ప్రారంభించలేకపోయాము",
+        "flow.expired.restarted": "మీ సెషన్ గడువు ముగిసినందున, మేము మళ్లీ ప్రారంభించాము.",
         "signOut.button": "సైన్ అవుట్ చేయండి",
         "signOut.loading": "సైన్ అవుట్ అవుతోంది…",
         "callback.loading": "సైన్ ఇన్ పూర్తవుతోంది…",

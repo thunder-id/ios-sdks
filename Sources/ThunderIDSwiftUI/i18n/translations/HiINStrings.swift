@@ -34,6 +34,7 @@ enum HiINStrings {
         "signUp.submit": "खाता बनाएं",
         "signUp.loading": "खाता बनाया जा रहा है…",
         "signUp.federatedError": "फ़ेडरेटेड साइन अप शुरू नहीं किया जा सका",
+        "flow.expired.restarted": "आपका सत्र समाप्त हो गया था, इसलिए हमने फिर से शुरू किया।",
         "signOut.button": "साइन आउट",
         "signOut.loading": "साइन आउट हो रहा है…",
         "callback.loading": "साइन इन पूरा हो रहा है…",

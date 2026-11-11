@@ -34,6 +34,7 @@ enum JaJPStrings {
         "signUp.submit": "アカウントを作成",
         "signUp.loading": "アカウントを作成しています…",
         "signUp.federatedError": "フェデレーションサインアップを開始できませんでした",
+        "flow.expired.restarted": "セッションの有効期限が切れたため、最初からやり直しました。",
         "signOut.button": "ログアウト",
         "signOut.loading": "ログアウトしています…",
         "callback.loading": "ログインを完了しています…",

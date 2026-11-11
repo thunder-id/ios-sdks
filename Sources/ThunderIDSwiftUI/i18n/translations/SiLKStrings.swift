@@ -34,6 +34,7 @@ enum SiLKStrings {
         "signUp.submit": "ගිණුමක් සාදන්න",
         "signUp.loading": "ගිණුම සාදමින්…",
         "signUp.federatedError": "ෆෙඩරේටඩ් ලියාපදිංචිය ආරම්භ කළ නොහැකි විය",
+        "flow.expired.restarted": "ඔබගේ සැසිය කල් ඉකුත් වූ බැවින් අපි නැවත ආරම්භ කළෙමු.",
         "signOut.button": "ඉවත් වෙන්න",
         "signOut.loading": "ඉවත් වෙමින්…",
         "callback.loading": "ලොග් වීම සම්පූර්ණ කරමින්…",

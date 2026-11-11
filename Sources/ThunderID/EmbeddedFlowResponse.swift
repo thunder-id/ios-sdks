@@ -18,11 +18,14 @@ public struct EmbeddedFlowResponse: Decodable {
     public let sessionData: [EmbeddedFlowSessionData]?
     /// The flow identifiers of the SSO sessions this step ended.
     public let clearedSessions: [String]?
+    /// How many seconds the flow execution stays valid, from when this response was sent. Present while the
+    /// flow is not complete. A request for the execution after that fails with ``ThunderIDErrorCode/flowExpired``.
+    public let expiresIn: Int?
 
     enum CodingKeys: String, CodingKey {
         case flowId = "executionId"
         case flowStatus, stepId, type, data, assertion, failureReason, challengeToken, error
-        case sessionData, clearedSessions
+        case sessionData, clearedSessions, expiresIn
     }
 }
 
@@ -83,6 +86,7 @@ extension EmbeddedFlowResponse {
         error = try? container.decodeIfPresent(FlowError.self, forKey: .error)
         sessionData = try? container.decodeIfPresent([EmbeddedFlowSessionData].self, forKey: .sessionData)
         clearedSessions = try? container.decodeIfPresent([String].self, forKey: .clearedSessions)
+        expiresIn = try? container.decodeIfPresent(Int.self, forKey: .expiresIn)
         failureReason = try error?.message?.defaultValue ?? error?.description?.defaultValue
             ?? container.decodeIfPresent(String.self, forKey: .failureReason)
     }

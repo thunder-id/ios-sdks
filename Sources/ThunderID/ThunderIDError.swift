@@ -23,6 +23,9 @@ public enum ThunderIDErrorCode: String {
     case mfaFailed = "MFA_FAILED"
     case invalidGrant = "INVALID_GRANT"
     case consentRequired = "CONSENT_REQUIRED"
+    /// The embedded flow execution expired, or already ended, so the server refused the step. The flow has to
+    /// start again.
+    case flowExpired = "FLOW_EXPIRED"
     /// The organization unit a sign-in or a switch named does not exist, or the application cannot be used
     /// from it. The server answers both with `unauthorized_client`, so the two are not told apart.
     case organizationUnitUnavailable = "ORGANIZATION_UNIT_UNAVAILABLE"

@@ -34,6 +34,7 @@ enum PtPTStrings {
         "signUp.submit": "Criar conta",
         "signUp.loading": "A criar conta…",
         "signUp.federatedError": "Não foi possível iniciar o registo federado",
+        "flow.expired.restarted": "A sua sessão expirou, por isso começámos de novo.",
         "signOut.button": "Terminar Sessão",
         "signOut.loading": "A terminar sessão…",
         "callback.loading": "A concluir o início de sessão…",

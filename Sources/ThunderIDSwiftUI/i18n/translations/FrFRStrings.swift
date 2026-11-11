@@ -36,6 +36,7 @@ enum FrFRStrings {
         "signUp.submit": "Créer un compte",
         "signUp.loading": "Création du compte…",
         "signUp.federatedError": "Impossible de démarrer l'inscription fédérée",
+        "flow.expired.restarted": "Votre session a expiré, nous avons donc recommencé.",
         "signOut.button": "Se déconnecter",
         "signOut.loading": "Déconnexion…",
         "callback.loading": "Finalisation de la connexion…",
