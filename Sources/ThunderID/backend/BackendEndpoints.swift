@@ -32,6 +32,12 @@ public struct ThunderIDBackendEndpoints {
     public var refresh: String
     /// Ends the session. Defaults to `/api/auth/signout`.
     public var signOut: String
+    /// Switches the session to another organization unit, with no browser. The SDK sends
+    /// `POST {ouSwitch}?ouId=<unit id>` with the same unit as a JSON body, `{"ouId": "<unit id>"}`, and reads the
+    /// session again on success. A refusal answers with an OAuth `error` in a JSON body; when that error says
+    /// the user has to sign in (`interaction_required`, `login_required`, …), or the answer is `401`, the SDK
+    /// signs in to the unit through ``signIn`` instead. Defaults to `/api/auth/switch`.
+    public var ouSwitch: String
     /// The backend's API proxy. Every API call goes under it: the SDK's own (`/users/me` and the management
     /// API) and the app's, sent as a path such as `/users` or as a URL already under the proxy. The backend
     /// maps the proxy to the API. Defaults to `/api/auth/proxy`.
@@ -48,6 +54,7 @@ public struct ThunderIDBackendEndpoints {
         checkSession: String = "/api/auth/checksession",
         refresh: String = "/api/auth/refresh",
         signOut: String = "/api/auth/signout",
+        ouSwitch: String = "/api/auth/switch",
         proxy: String = "/api/auth/proxy",
         token: String = "/api/auth/token",
         bypass: ThunderIDBackendBypass = .init()
@@ -57,6 +64,7 @@ public struct ThunderIDBackendEndpoints {
         self.checkSession = checkSession
         self.refresh = refresh
         self.signOut = signOut
+        self.ouSwitch = ouSwitch
         self.proxy = proxy
         self.token = token
         self.bypass = bypass
@@ -92,6 +100,7 @@ struct ResolvedBackendEndpoints: Equatable {
     let checkSession: URL
     let refresh: URL
     let signOut: URL
+    let ouSwitch: URL
     let proxy: String
     let token: URL
     let bypassUrls: [String]
@@ -121,6 +130,7 @@ struct ResolvedBackendEndpoints: Equatable {
             checkSession: try url(base, endpoints.checkSession, "checkSession"),
             refresh: try url(base, endpoints.refresh, "refresh"),
             signOut: try url(base, endpoints.signOut, "signOut"),
+            ouSwitch: try url(base, endpoints.ouSwitch, "ouSwitch"),
             proxy: trimmingTrailingSlashes(try url(base, endpoints.proxy, "proxy").absoluteString),
             token: try url(base, endpoints.token, "token"),
             bypassUrls: bypassUrls,
@@ -190,4 +200,11 @@ struct BackendSession: Decodable {
     let handle: String?
 
     static let signedOut = BackendSession(isSignedIn: false, user: nil, expiresAt: nil, scope: nil, handle: nil)
+}
+
+/// What the backend answered a switch to another organization unit with.
+enum BackendSwitchOutcome: Equatable {
+    case switched
+    /// The backend refused, with its OAuth `error` when it sent one.
+    case refused(error: String?)
 }

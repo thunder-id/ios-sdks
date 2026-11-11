@@ -6,8 +6,9 @@ import Foundation
 /// Options for ``ThunderIDClient/switchOrganizationUnit(_:options:)``.
 public struct SwitchOrganizationUnitOptions {
     /// Opens an authorization URL, typically in an `ASWebAuthenticationSession`, and returns the callback
-    /// URL it comes back to. Redirect mode and sign-in on a backend use it when the switch cannot run
-    /// silently. The server reuses its SSO session, so normally no credentials are asked.
+    /// URL it comes back to. Redirect mode uses it when the switch cannot run silently, and sign-in on a
+    /// backend when the backend needs the user. The server reuses its SSO session, so normally no credentials
+    /// are asked.
     public var authorize: ((URL) async throws -> URL)?
     /// App-native mode: the application whose `AUTHENTICATION` flow is started. Defaults to
     /// ``ThunderIDConfig/applicationId``.
@@ -33,7 +34,10 @@ public extension ThunderIDClient {
     /// Signs in again bounded to the organization unit `ouId`, reusing the server's SSO session where the
     /// user can sign in there. The first way that applies is used:
     ///
-    /// 1. Sign-in on a backend opens the unit-bounded sign-in through ``SwitchOrganizationUnitOptions/authorize``.
+    /// 1. Sign-in on a backend switches at the backend's `ouSwitch` endpoint, with no browser, and reads the
+    ///    session again. When the backend needs the user (`interaction_required`, `login_required`, …), it
+    ///    opens the unit-bounded sign-in through ``SwitchOrganizationUnitOptions/authorize`` instead, when
+    ///    there is one.
     /// 2. With a device secret from a `device_sso` sign-in and a `clientId`, the secret is exchanged at
     ///    `{baseUrl}/ou/{ouId}/oauth2/token`, with no browser. A secret refused with `invalid_request` or
     ///    `invalid_grant` is dropped. Any failure but an unavailable unit goes on to the next way.
@@ -51,8 +55,8 @@ public extension ThunderIDClient {
     ) async throws -> OrganizationUnitSwitchResult {
         let config = try requireConfig()
         _ = try Self.organizationUnitSegment(ouId)
-        if backend != nil {
-            return .switched(try await switchThroughBrowser(ouId, options: options))
+        if let backend {
+            return .switched(try await switchOnBackend(ouId, backend: backend, options: options))
         }
         var exchangeFailure: Error?
         if config.clientId != nil, tokenStore?.deviceSecret() != nil {
@@ -80,6 +84,35 @@ public extension ThunderIDClient {
 }
 
 extension ThunderIDClient {
+    /// OAuth errors that mean the server needs the user, so a switch on a backend signs in through the browser.
+    private static let interactionErrors: Set<String> = [
+        "interaction_required", "login_required", "consent_required", "account_selection_required"
+    ]
+
+    /// Switches at the backend's `ouSwitch` endpoint, which switches the session the backend holds, then reads
+    /// the session again. When the backend needs the user, signs in to the unit through
+    /// ``SwitchOrganizationUnitOptions/authorize`` instead, when there is one.
+    private func switchOnBackend(
+        _ ouId: String,
+        backend: BackendClient,
+        options: SwitchOrganizationUnitOptions
+    ) async throws -> User {
+        switch try await backend.switchOrganizationUnit(ouId) {
+        case .switched:
+            currentUser = nil
+            return try await getUser()
+        case .refused(let error):
+            if let error, Self.interactionErrors.contains(error), options.authorize != nil {
+                return try await switchThroughBrowser(ouId, options: options)
+            }
+            throw ThunderIDError(
+                code: error == "unauthorized_client" ? .organizationUnitUnavailable : .authenticationFailed,
+                message: "The backend refused the switch: \(error ?? "no error")",
+                serverError: error.map { ServerError(code: $0) }
+            )
+        }
+    }
+
     private func switchThroughBrowser(_ ouId: String, options: SwitchOrganizationUnitOptions) async throws -> User {
         guard let authorize = options.authorize else {
             throw ThunderIDError(

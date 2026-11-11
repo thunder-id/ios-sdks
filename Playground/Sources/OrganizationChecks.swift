@@ -62,8 +62,9 @@ extension CheckContext {
         return "\(list.totalResults) accessible units; signed in to \(name)"
     }
 
-    /// Switches to another accessible unit: silently with a device secret, then through the browser in
-    /// redirect mode, or by starting the unit-bounded flow with the kept SSO session handles in app-native mode.
+    /// Switches to another accessible unit: at the backend's `ouSwitch` endpoint in backend mode, silently with a
+    /// device secret, then through the browser in redirect mode, or by starting the unit-bounded flow with the
+    /// kept SSO session handles in app-native mode.
     func switchOrganization() async throws -> String {
         try await requireSignedIn()
         let list = try await client.getAccessibleOrganizationUnits(limit: 20)
@@ -71,7 +72,8 @@ extension CheckContext {
             throw CheckFailure("The user can access no other organization unit")
         }
         var options = SwitchOrganizationUnitOptions(applicationId: config.applicationId)
-        if config.clientId != nil, let scheme = config.callbackScheme {
+        // The browser is the fallback when the backend needs the user, and redirect mode's way to switch.
+        if config.clientId != nil || client.isBackendMode, let scheme = config.callbackScheme {
             options.authorize = { url in
                 try await FederatedAuthSession().authenticate(url: url, callbackURLScheme: scheme)
             }
