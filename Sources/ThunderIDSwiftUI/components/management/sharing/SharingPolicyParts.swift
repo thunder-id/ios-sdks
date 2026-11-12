@@ -202,7 +202,7 @@ struct SharingOverlayPanel: View {
     }
 
     private var ownershipKey: String {
-        overlay.isOwned == true ? "admin.sharing.overlay.owned" : "admin.sharing.overlay.shared"
+        overlay.isOwnedByOU == true ? "admin.sharing.overlay.owned" : "admin.sharing.overlay.shared"
     }
 
     private func ruleText(_ rule: OverlayRule) -> String {

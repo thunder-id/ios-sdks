@@ -153,9 +153,9 @@ public struct OverlayRule: Codable, Equatable {
 /// visible there, through which policies, and the overlay rule for each attribute.
 public struct ResolvedOverlay: Codable, Equatable {
     public let ouId: String?
-    /// Whether the organization unit owns the resource rather than being shared it. Read from
-    /// `isOwnedByOU`, `owned` (flows) or `isOwned`, whichever the server sends.
-    public let isOwned: Bool?
+    /// Whether the organization unit owns the resource rather than being shared it. The server names
+    /// this `isOwnedByOU` for every resource, flows included.
+    public let isOwnedByOU: Bool?
     public let visible: Bool?
     public let policyIds: [String]?
     public let rules: [String: OverlayRule]?
@@ -163,15 +163,13 @@ public struct ResolvedOverlay: Codable, Equatable {
 
 extension ResolvedOverlay {
     private enum CodingKeys: String, CodingKey {
-        case ouId, isOwned, isOwnedByOU, owned, visible, policyIds, rules
+        case ouId, isOwnedByOU, visible, policyIds, rules
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         ouId = try container.decodeIfPresent(String.self, forKey: .ouId)
-        isOwned = try container.decodeIfPresent(Bool.self, forKey: .isOwnedByOU)
-            ?? container.decodeIfPresent(Bool.self, forKey: .owned)
-            ?? container.decodeIfPresent(Bool.self, forKey: .isOwned)
+        isOwnedByOU = try container.decodeIfPresent(Bool.self, forKey: .isOwnedByOU)
         visible = try container.decodeIfPresent(Bool.self, forKey: .visible)
         policyIds = try container.decodeIfPresent([String].self, forKey: .policyIds)
         rules = try container.decodeIfPresent([String: OverlayRule].self, forKey: .rules)
@@ -180,7 +178,7 @@ extension ResolvedOverlay {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(ouId, forKey: .ouId)
-        try container.encodeIfPresent(isOwned, forKey: .isOwnedByOU)
+        try container.encodeIfPresent(isOwnedByOU, forKey: .isOwnedByOU)
         try container.encodeIfPresent(visible, forKey: .visible)
         try container.encodeIfPresent(policyIds, forKey: .policyIds)
         try container.encodeIfPresent(rules, forKey: .rules)

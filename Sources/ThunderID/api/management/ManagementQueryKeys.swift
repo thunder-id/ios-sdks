@@ -58,3 +58,15 @@ public enum SharingQueryKeys {
     public static let sharingPolicies = "sharing-policies"
     public static let overlayRules = "overlay-rules"
 }
+
+/// Cache keys for flow resources.
+public enum FlowQueryKeys {
+    public static let flows = "flows"
+}
+
+/// Cache keys for a flow's variables: the variables it declares for an organization unit, and the values
+/// the unit has set.
+public enum FlowVariableQueryKeys {
+    public static let definitions = "flow-variable-definitions"
+    public static let values = "flow-variable-values"
+}
