@@ -101,6 +101,41 @@ public struct ManagedFlow: Codable, Equatable {
     public let isReadOnly: Bool?
     public let createdAt: String?
     public let updatedAt: String?
+    /// In a list requested for an organization unit: whether it owns the flow. `false` means the flow was
+    /// shared with it.
+    public let isOwnedByOU: Bool?
+}
+
+extension ManagedFlow {
+    private enum CodingKeys: String, CodingKey {
+        case id, handle, flowType, name, activeVersion, isReadOnly, createdAt, updatedAt, isOwnedByOU
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        handle = try container.decode(String.self, forKey: .handle)
+        flowType = try container.decode(String.self, forKey: .flowType)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+        activeVersion = try container.decodeIfPresent(Int.self, forKey: .activeVersion)
+        isReadOnly = try container.decodeIfPresent(Bool.self, forKey: .isReadOnly)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        isOwnedByOU = try container.decodeIfPresent(Bool.self, forKey: .isOwnedByOU)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(handle, forKey: .handle)
+        try container.encode(flowType, forKey: .flowType)
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(activeVersion, forKey: .activeVersion)
+        try container.encodeIfPresent(isReadOnly, forKey: .isReadOnly)
+        try container.encodeIfPresent(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
+        try container.encodeIfPresent(isOwnedByOU, forKey: .isOwnedByOU)
+    }
 }
 
 /// A page of flows.

@@ -11,17 +11,22 @@ public struct ConnectionsAPI {
     let transport: ManagementTransport
 
     /// Returns a page of every connection.
-    /// - Parameter category: Only connections of this category, such as `identity-provider`,
-    ///   `sms-provider`, `authorization-pdp`, `email-provider` or `http`.
+    /// - Parameters:
+    ///   - category: Only connections of this category, such as `identity-provider`, `sms-provider`,
+    ///     `authorization-pdp`, `email-provider` or `http`.
+    ///   - ouId: Lists the connections this organization unit owns, followed by the ones shared into it,
+    ///     instead of every connection the caller can see.
     public func list(
         category: String? = nil,
+        ouId: String? = nil,
         limit: Int? = nil,
         offset: Int? = nil,
         fetcher: ThunderIDFetcher? = nil
     ) async throws -> ConnectionListResponse {
-        try await transport.send(
+        let filter = ouId.flatMap { ManagementFilter.equality(attribute: "ouId", value: $0) }
+        return try await transport.send(
             "GET",
-            query: .management([("category", category)]) + .page(limit, offset),
+            query: .management([("category", category), ("filter", filter)]) + .page(limit, offset),
             fetcher: fetcher
         )
     }
