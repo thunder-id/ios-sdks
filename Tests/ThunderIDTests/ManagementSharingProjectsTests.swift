@@ -21,10 +21,10 @@ final class ManagementSharingProjectsTests: XCTestCase {
         let create = SharingPolicyRequest(childUnits: .selected([SharingChildUnit(ouId: "o", reach: "subtree")]))
         let update = SharingPolicyUpdateRequest(version: 2, allUnits: SharingAllUnits(excludedOuIds: ["x"]))
 
-        // A role answers with `isOwnedByOU`, a flow with `owned`.
+        // A role and a flow both answer with `isOwnedByOU`.
         let overlays = [
             ("roles", "r 1", #"{"ouId":"o","isOwnedByOU":false,"visible":true,"rules":{"assignments":{"editable":true}}}"#),
-            ("flows", "f/1", #"{"ouId":"o","owned":true,"visible":true,"rules":{"variables.mfa":{"editable":false}}}"#)
+            ("flows", "f/1", #"{"ouId":"o","isOwnedByOU":true,"visible":true,"rules":{"variables.mfa":{"editable":false}}}"#)
         ]
         var results: [ResolvedOverlay] = []
         for (collection, id, overlay) in overlays {
@@ -65,15 +65,10 @@ final class ManagementSharingProjectsTests: XCTestCase {
             ["childUnits": ["mode": "selected", "units": [["ouId": "o", "reach": "subtree"]]]]
         )
         XCTAssertEqual(json(server.requests[3]), ["version": 2, "allUnits": ["excludedOuIds": ["x"]]])
-        XCTAssertEqual(results[0].isOwned, false)
+        XCTAssertEqual(results[0].isOwnedByOU, false)
         XCTAssertEqual(results[0].rules?["assignments"]?.editable, true)
-        XCTAssertEqual(results[1].isOwned, true)
+        XCTAssertEqual(results[1].isOwnedByOU, true)
         XCTAssertEqual(results[1].rules?["variables.mfa"]?.editable, false)
-    }
-
-    func testOverlayRulesStillReadIsOwned() throws {
-        let overlay = try JSONDecoder().decode(ResolvedOverlay.self, from: Data(#"{"isOwned":true}"#.utf8))
-        XCTAssertEqual(overlay.isOwned, true)
     }
 
     func testSharingIdentifiersAreRequired() async throws {

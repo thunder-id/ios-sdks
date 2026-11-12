@@ -238,7 +238,8 @@ extension CapabilityCatalog {
         Capability(
             id: .resourceSharing,
             name: "Role and flow sharing",
-            api: "roles/flows.sharingPolicies(id:) · overlayRules(id:ouId:) · flows.variables(id:ouId:)",
+            api: "roles/flows.sharingPolicies(id:) · overlayRules(id:ouId:) · flows.list(ouId:) · "
+                + "flows.variables(id:ouId:)",
             mode: .automatic
         ),
         Capability(id: .projects, name: "Projects", api: "projects.list() · projects.get(id:)", mode: .automatic),

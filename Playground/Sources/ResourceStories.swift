@@ -47,6 +47,25 @@ extension ExplorerCatalog {
                 ]
             ),
             resource(
+                "sharedFlowList",
+                "SharedFlowList",
+                group: "Sharing",
+                extra: [
+                    (StoryControl(name: "ouId", kind: .text), ""),
+                    (StoryControl(name: "ownership", kind: .options(["shared", "owned", "all"])), "shared")
+                ]
+            ),
+            resource(
+                "flowVariablesForm",
+                "FlowVariablesForm",
+                group: "Sharing",
+                extra: [
+                    (StoryControl(name: "flowId", kind: .text), ""),
+                    (StoryControl(name: "ouId", kind: .text), ""),
+                    (StoryControl(name: "readOnly", kind: .bool), "false")
+                ]
+            ),
+            resource(
                 "deviceGrant",
                 "DeviceGrant",
                 group: "Device grant",
@@ -109,6 +128,10 @@ extension ExplorerCatalog {
         case "SharingPolicies":
             return "resourceType: .\(values.text("resourceType")), resourceId: \(quote(values.text("resourceId"))), "
                 + "editable: \(values.text("editable"))"
+        case "SharedFlowList":
+            return "ouId: \(quote(values.text("ouId"))), ownership: .\(values.text("ownership"))"
+        case "FlowVariablesForm":
+            return "flowId: \(quote(values.text("flowId"))), ouId: \(quote(values.text("ouId")))"
         case "DeviceGrant":
             return values.text("userCode").isEmpty ? "" : "userCode: \(quote(values.text("userCode")))"
         default: return ""
@@ -120,6 +143,8 @@ extension ExplorerCatalog {
         case "ProjectSwitcher": return "a Picker over state.projects that calls state.onSelect"
         case "ProjectCreate", "OrganizationUnitCreate": return "bind TextFields to the form, then state.submit()"
         case "SharingPolicies": return "rows from state.policies with state.scope(of:), state.onDelete when editable"
+        case "SharedFlowList": return "rows from state.rows, each calling state.onSelect"
+        case "FlowVariablesForm": return "a control per state.variables, state.setValue(_:for:), then state.submit"
         case "DeviceGrant": return "a code field from state.value(for: \"user_code\"), then state.submit(nil)"
         default: return "rows, record and the actions the app allowed"
         }

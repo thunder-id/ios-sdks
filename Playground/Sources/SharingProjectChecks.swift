@@ -23,23 +23,25 @@ extension CheckContext {
         return "\(page.totalResults) groups in \"\(unit.handle)\" via groups/tree/\(unit.handle)"
     }
 
-    /// Reads the sharing policies of the first role and flow, how they look from the first organization
-    /// unit, and that unit's values for the flow's variables.
+    /// Reads the sharing policies of the first role and of the first flow the first organization unit can
+    /// see, how they look from that unit, the variables the flow declares for it, and its values for them.
     func resourceSharing() async throws -> String {
         try await requireSignedIn()
         let unit = try await firstOrganizationUnit()
         let roleId = try await firstRoleId()
         let rolePolicies = try await client.roles.sharingPolicies(id: roleId, limit: 20)
         let roleOverlay = try await client.roles.overlayRules(id: roleId, ouId: unit.id)
-        guard let flow = try await client.flows.list(limit: 1).flows.first else {
-            return "Role \(short(roleId)): \(rolePolicies.policies.count) policies; the server has no flows."
+        guard let flow = try await client.flows.list(ouId: unit.id, limit: 1).flows.first else {
+            return "Role \(short(roleId)): \(rolePolicies.policies.count) policies; \(unit.handle) sees no flows."
         }
         let flowPolicies = try await client.flows.sharingPolicies(id: flow.id, limit: 20)
         let flowOverlay = try await client.flows.overlayRules(id: flow.id, ouId: unit.id)
+        let declared = getFlowVariableDefinitions(try await client.flows.get(id: flow.id, ouId: unit.id))
         let variables = try await client.flows.variables(id: flow.id, ouId: unit.id)
         let summary = "role: \(rolePolicies.policies.count) policies, "
             + "\(roleOverlay.visible == true ? "visible" : "not visible") in \(unit.handle); "
-            + "flow \"\(flow.handle)\": \(flowPolicies.policies.count) policies, "
+            + "flow \"\(flow.handle)\" (\(flow.isOwnedByOU == true ? "owned" : "shared")): "
+            + "\(flowPolicies.policies.count) policies, \(declared.count) variables, "
             + "\(flowOverlay.rules?.count ?? 0) variable rules, \(variables.values.count) values set"
         log.record("sharing:read", summary, kind: .success)
         return summary
