@@ -55,12 +55,12 @@ public final class ThunderIDClient {
             try ResolvedBackendEndpoints.resolve($0, baseUrl: config.baseUrl)
         }
         self.config = config
+        cachedServerMetadata = nil
         let adapter = storage ?? config.storage ?? KeychainStorageAdapter(service: "dev.\(config.vendor).sdk")
         let http = HTTPClient(baseUrl: backendEndpoints?.proxy ?? config.baseUrl, session: session)
         tokenStore = TokenStore(storage: adapter)
-        jwksCache = JWKSCache(httpClient: http)
-        tokenValidator = TokenValidator(jwksCache: jwksCache!, config: config)
-        tokenRefresher = TokenRefresher(httpClient: http, tokenStore: tokenStore!)
+        let tokens = makeTokenHandling(http: http, tokenStore: tokenStore!, config: config)
+        (jwksCache, tokenValidator, tokenRefresher) = (tokens.keys, tokens.validator, tokens.refresher)
         flowClient = FlowExecutionClient(httpClient: http)
         httpClient = http
         if let backendEndpoints {
@@ -146,6 +146,10 @@ public final class ThunderIDClient {
     /// When sign-in runs on the app's backend, it is the backend's sign-in URL, bound to a PKCE challenge
     /// and coming back to `afterSignInUrl` with a one-time `session_code`.
     ///
+    /// It authorizes at the `authorization_endpoint` of the server's metadata once the client has read it,
+    /// and at `{baseUrl}/oauth2/authorize` until then. ``signInURL(options:)`` reads the metadata first, so
+    /// use it when `baseUrl` is the issuer of an OpenID provider other than ThunderID.
+    ///
     /// With ``SignInOptions/organizationUnitId`` the sign-in is bounded to that unit: it authorizes at
     /// `{baseUrl}/ou/{ouId}/oauth2/authorize`, and ``handleRedirectCallback(url:)`` redeems the code at that
     /// unit's token endpoint. When ``ThunderIDConfig/pushedAuthorizationRequests`` is on, or the server
@@ -165,7 +169,7 @@ public final class ThunderIDClient {
             )
         }
         let ouId = options?.organizationUnitId
-        let authorize = try oauthURL("/oauth2/authorize", organizationUnitId: ouId, config: cfg)
+        let authorize = try authorizationEndpoint(organizationUnitId: ouId, config: cfg)
         guard var components = URLComponents(string: authorize) else {
             throw ThunderIDError(code: .invalidConfiguration, message: "Could not build authorize URL")
         }
@@ -228,7 +232,8 @@ public final class ThunderIDClient {
             ("redirect_uri", cfg.afterSignInUrl ?? ""),
             ("code_verifier", verifier)
         ]
-        let tokenResponse: TokenResponse = try await httpClient!.postForm(path: "/oauth2/token", form: form)
+        let tokenEndpoint = try await discoveredEndpoint(\.tokenEndpoint, fallback: "/oauth2/token")
+        let tokenResponse: TokenResponse = try await httpClient!.postForm(url: tokenEndpoint, form: form)
         if let idToken = tokenResponse.idToken {
             try await tokenValidator?.validate(idToken: idToken, nonce: nil)
         }
@@ -246,8 +251,9 @@ public final class ThunderIDClient {
         }
         if let refreshToken = tokenStore?.refreshToken(), let clientId = config?.clientId {
             let form: [(String, String)] = [("token", refreshToken), ("client_id", clientId)]
-            if let httpClient {
-                let _: EmptyResponse? = try? await httpClient.postForm(path: "/oauth2/revoke", form: form)
+            if let httpClient,
+               let revoke = try? await discoveredEndpoint(\.revocationEndpoint, fallback: "/oauth2/revoke") {
+                let _: EmptyResponse? = try? await httpClient.postForm(url: revoke, form: form)
             }
         }
         tokenStore?.clear()
@@ -330,7 +336,8 @@ public final class ThunderIDClient {
         }
         if let type = config.requestedTokenType { form.append(("requested_token_type", type)) }
         if let aud = config.audience { form.append(("audience", aud)) }
-        let response: TokenResponse = try await httpClient!.postForm(path: "/oauth2/token", form: form)
+        let tokenEndpoint = try await discoveredEndpoint(\.tokenEndpoint, fallback: "/oauth2/token")
+        let response: TokenResponse = try await httpClient!.postForm(url: tokenEndpoint, form: form)
         try tokenStore!.save(response)
         return response
     }
@@ -372,6 +379,9 @@ public final class ThunderIDClient {
         }
         guard config.baseUrl.hasPrefix("https://") else {
             throw ThunderIDError(code: .invalidConfiguration, message: "baseUrl must use HTTPS")
+        }
+        if let wellKnown = config.endpoints.wellKnown, URL(string: wellKnown)?.scheme != "https" {
+            throw ThunderIDError(code: .invalidConfiguration, message: "endpoints.wellKnown must be an HTTPS URL")
         }
         guard !config.attestationEnabled || config.attestationTokenProvider != nil else {
             throw ThunderIDError(

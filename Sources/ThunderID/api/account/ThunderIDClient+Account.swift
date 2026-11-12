@@ -16,7 +16,8 @@ public extension ThunderIDClient {
             currentUser = user
             return user
         }
-        let user: User = try await httpClient!.get(path: "/oauth2/userinfo")
+        let userinfo = try await discoveredEndpoint(\.userinfoEndpoint, fallback: "/oauth2/userinfo")
+        let user: User = try await httpClient!.get(url: userinfo)
         currentUser = user
         return user
     }

@@ -36,6 +36,12 @@ final class HTTPClient {
         return try await perform(request)
     }
 
+    /// `GET` an absolute URL, such as an endpoint the server's metadata advertises on another path or host.
+    func get<T: Decodable>(url: URL, requiresAuth: Bool = true) async throws -> T {
+        let request = try await buildRequest(method: "GET", url: url, body: nil, requiresAuth: requiresAuth)
+        return try await perform(request)
+    }
+
     /// Set `isSensitive` for a request or response that can carry a credential: neither body is then logged.
     func post<T: Decodable>(
         path: String,
@@ -64,8 +70,13 @@ final class HTTPClient {
         guard let url = URL(string: baseUrl + path) else {
             throw ThunderIDError(code: .invalidConfiguration, message: "Invalid URL: \(baseUrl)\(path)")
         }
+        return try await postForm(url: url, form: form)
+    }
+
+    /// ``postForm(path:form:)`` to an absolute URL, such as the token endpoint the server's metadata advertises.
+    func postForm<T: Decodable>(url: URL, form: [(String, String)]) async throws -> T {
         guard url.scheme == "https" else {
-            throw ThunderIDError(code: .invalidConfiguration, message: "baseUrl must use HTTPS")
+            throw ThunderIDError(code: .invalidConfiguration, message: "OAuth endpoint URL must use HTTPS")
         }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -156,6 +167,18 @@ final class HTTPClient {
         guard let url = URL(string: baseUrl + path) else {
             throw ThunderIDError(code: .invalidConfiguration, message: "Invalid URL: \(baseUrl)\(path)")
         }
+        return try await buildRequest(
+            method: method,
+            url: url,
+            body: body,
+            requiresAuth: requiresAuth,
+            isSensitive: isSensitive
+        )
+    }
+
+    private func buildRequest(
+        method: String, url: URL, body: [String: Any]?, requiresAuth: Bool, isSensitive: Bool = false
+    ) async throws -> URLRequest {
         guard url.scheme == "https" else {
             throw ThunderIDError(code: .invalidConfiguration, message: "baseUrl must use HTTPS")
         }

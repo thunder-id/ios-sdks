@@ -17,6 +17,28 @@ iOS SDK for ThunderID. Provides authentication and user management for native iO
 > [!NOTE]
 > To pin to a release instead of tracking `main`, replace `branch: "main"` with `from: "x.x.x"`, using the latest version: ![GitHub release](https://img.shields.io/github/v/release/thunder-id/ios-sdks)
 
+## Other OpenID Connect providers
+
+Redirect sign-in (`signInURL(options:)` and `handleRedirectCallback(url:)`) works with any standards-compliant OpenID Connect provider. Set `baseUrl` to the provider's root URL, such as its tenant URL, and `endpoints.wellKnown` to the provider's discovery URL:
+
+```swift
+ThunderIDConfig(
+    baseUrl: "https://api.asgardeo.io/t/<org>",
+    clientId: "<client id>",
+    afterSignInUrl: "myapp://callback",
+    endpoints: .init(
+        wellKnown: "https://api.asgardeo.io/t/<org>/oauth2/token/.well-known/openid-configuration"
+    )
+)
+```
+
+- The SDK reads the provider's metadata from `endpoints.wellKnown` and uses the authorization, token, JWKS, userinfo and revocation endpoints it advertises. `endpoints.wellKnown` must be an HTTPS URL. When it is not set, the metadata is read from `{baseUrl}/.well-known/openid-configuration`, so it can be left out when the provider's issuer is its root URL.
+- Setting `baseUrl` to the provider's issuer URL, with no `endpoints.wellKnown`, also works.
+- When the metadata cannot be read, or omits an endpoint, the SDK uses the ThunderID path under `baseUrl`, such as `{baseUrl}/oauth2/token`.
+- An ID token's `iss` is checked as OpenID Connect Discovery requires. The expected issuer is the discovery URL without `/.well-known/openid-configuration`, or `baseUrl` when `endpoints.wellKnown` is not set. When the metadata names that issuer, with or without one trailing slash, `iss` must match the metadata's issuer exactly. When `endpoints.wellKnown` does not end with `/.well-known/openid-configuration`, `iss` must match the issuer in the metadata, and the token is refused when the metadata cannot be read.
+- Build the sign-in URL with `signInURL(options:)`, which reads the metadata first. `buildSignInURL(options:)` is synchronous, so it uses the advertised authorization endpoint only once the metadata has been read, and `{baseUrl}/oauth2/authorize` before that.
+- Sign-in bounded to an organization unit, app-native sign-in and the management operations are ThunderID features, and keep their ThunderID paths.
+
 ## Sign-in on a backend
 
 Set `endpoints.backend` to hand sign-in to a backend the app owns (the Backend for Frontend pattern of RFC 10017). The backend runs the OAuth flow and keeps the tokens, and the app only holds an opaque session handle.

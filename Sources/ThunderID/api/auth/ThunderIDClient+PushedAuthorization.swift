@@ -21,11 +21,14 @@ public extension ThunderIDClient {
     /// When ``ThunderIDConfig/pushedAuthorizationRequests`` is on, or the server's metadata sets
     /// `require_pushed_authorization_requests`, the authorization request is posted to `/oauth2/par`
     /// (RFC 9126) and the URL carries only `client_id` and the returned `request_uri`. Otherwise it is the
-    /// URL ``buildSignInURL(options:)`` builds. A unit-bounded sign-in
+    /// URL ``buildSignInURL(options:)`` builds. Either way it authorizes at the `authorization_endpoint` the
+    /// server's metadata advertises, falling back to `{baseUrl}/oauth2/authorize`. A unit-bounded sign-in
     /// (``SignInOptions/organizationUnitId``) authorizes at that unit's authorization endpoint either way.
     func signInURL(options: SignInOptions? = nil) async throws -> URL {
         let config = try requireConfig()
         if backend != nil { return try buildSignInURL(options: options) }
+        // Read the metadata first, so the URL uses the advertised authorization endpoint.
+        _ = try? await serverMetadata()
         guard try await shouldPushAuthorizationRequest(config) else {
             return try buildSignInURL(options: options)
         }
@@ -43,7 +46,7 @@ public extension ThunderIDClient {
             throw Self.mapOAuthFailure(failure)
         }
         let ouId = options?.organizationUnitId
-        let authorize = try oauthURL("/oauth2/authorize", organizationUnitId: ouId, config: config)
+        let authorize = try authorizationEndpoint(organizationUnitId: ouId, config: config)
         guard var components = URLComponents(string: authorize) else {
             throw ThunderIDError(code: .invalidConfiguration, message: "Could not build authorize URL")
         }

@@ -7,11 +7,14 @@ import Foundation
 final class TokenRefresher {
     private let httpClient: HTTPClient
     private let tokenStore: TokenStore
+    /// Where tokens are refreshed: the server's advertised `token_endpoint`. Without it, `/oauth2/token`.
+    private let endpoint: (() async throws -> URL)?
     private var refreshTask: Task<TokenResponse, Error>?
 
-    init(httpClient: HTTPClient, tokenStore: TokenStore) {
+    init(httpClient: HTTPClient, tokenStore: TokenStore, endpoint: (() async throws -> URL)? = nil) {
         self.httpClient = httpClient
         self.tokenStore = tokenStore
+        self.endpoint = endpoint
     }
 
     /// Returns the current access token, refreshing if near expiry (60s threshold).
@@ -51,7 +54,12 @@ final class TokenRefresher {
                 ("refresh_token", refreshToken),
                 ("client_id", clientId)
             ]
-            let response: TokenResponse = try await httpClient.postForm(path: "/oauth2/token", form: form)
+            let response: TokenResponse
+            if let endpoint {
+                response = try await httpClient.postForm(url: try await endpoint(), form: form)
+            } else {
+                response = try await httpClient.postForm(path: "/oauth2/token", form: form)
+            }
             try tokenStore.save(response)
             return response
         }
