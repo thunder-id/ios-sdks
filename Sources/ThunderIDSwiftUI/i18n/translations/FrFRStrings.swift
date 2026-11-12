@@ -56,12 +56,14 @@ enum FrFRStrings {
         "changeCredential.heading": "Modifier {credential}",
         "changeCredential.description":
             "Choisissez un {credentialLower} robuste et ne le réutilisez pas pour d'autres comptes.",
+        "changeCredential.current.label": "{credential} actuel",
         "changeCredential.new.label": "Nouveau {credential}",
         "changeCredential.confirm.label": "Confirmer le nouveau {credential}",
         "changeCredential.submit": "Modifier {credential}",
         "changeCredential.submitShort": "Modifier",
         "changeCredential.success": "Votre {credentialLower} a été mis à jour.",
         "changeCredential.mismatch.error": "Les {credentialLower}s ne correspondent pas.",
+        "changeCredential.current.error": "Votre {credentialLower} actuel est incorrect.",
         "changeCredential.new.invalid.error": "Cette valeur ne respecte pas le format requis.",
         "changeCredential.requirements.pattern": "Doit respecter le format requis.",
         "changeCredential.generic.error":

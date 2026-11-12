@@ -54,12 +54,14 @@ enum TaINStrings {
         "changeCredential.heading": "{credential} மாற்றவும்",
         "changeCredential.description":
             "வலுவான {credentialLower} ஐத் தேர்ந்தெடுத்து, அதை மற்ற கணக்குகளுக்கு மீண்டும் பயன்படுத்த வேண்டாம்.",
+        "changeCredential.current.label": "தற்போதைய {credential}",
         "changeCredential.new.label": "புதிய {credential}",
         "changeCredential.confirm.label": "புதிய {credential}-ஐ உறுதிப்படுத்தவும்",
         "changeCredential.submit": "{credential} மாற்றவும்",
         "changeCredential.submitShort": "மாற்று",
         "changeCredential.success": "உங்கள் {credentialLower} புதுப்பிக்கப்பட்டது.",
         "changeCredential.mismatch.error": "{credentialLower} பொருந்தவில்லை.",
+        "changeCredential.current.error": "உங்கள் தற்போதைய {credentialLower} தவறானது.",
         "changeCredential.new.invalid.error": "இது தேவையான வடிவத்தைப் பூர்த்தி செய்யவில்லை.",
         "changeCredential.requirements.pattern": "தேவையான வடிவத்துடன் பொருந்த வேண்டும்.",
         "changeCredential.generic.error":
