@@ -8,10 +8,14 @@ import Foundation
 final class TokenValidator {
     private let jwksCache: JWKSCache
     private let config: ThunderIDConfig
+    /// The issuer an ID token must name, from the server's metadata. Without it, `config.baseUrl`. When it
+    /// answers `nil`, no issuer can be trusted and the token is refused.
+    private let issuer: (() async -> String?)?
 
-    init(jwksCache: JWKSCache, config: ThunderIDConfig) {
+    init(jwksCache: JWKSCache, config: ThunderIDConfig, issuer: (() async -> String?)? = nil) {
         self.jwksCache = jwksCache
         self.config = config
+        self.issuer = issuer
     }
 
     func validate(idToken: String, nonce: String?) async throws {
@@ -25,7 +29,8 @@ final class TokenValidator {
         let payload = try decodePayload(parts[1])
 
         if config.tokenValidation.validateIssuer {
-            guard let iss = payload["iss"] as? String, iss == config.baseUrl else {
+            let expected = issuer == nil ? config.baseUrl : await issuer?()
+            guard let iss = payload["iss"] as? String, let expected, iss == expected else {
                 throw ThunderIDError(code: .authenticationFailed, message: "ID token iss mismatch")
             }
         }

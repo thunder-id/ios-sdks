@@ -7,19 +7,27 @@ import Foundation
 /// Fetches and caches the server JWKS. Supports key rotation (spec §11.4).
 final class JWKSCache {
     private let httpClient: HTTPClient
+    /// Where the keys are: the server's advertised `jwks_uri`. Without it, `/oauth2/jwks` under `baseUrl`.
+    private let endpoint: (() async throws -> URL)?
     private var cachedKeys: [JWK] = []
     private var cacheExpiry: Date = .distantPast
     private let minCacheTTL: TimeInterval = 300 // 5 minutes
 
-    init(httpClient: HTTPClient) {
+    init(httpClient: HTTPClient, endpoint: (() async throws -> URL)? = nil) {
         self.httpClient = httpClient
+        self.endpoint = endpoint
     }
 
     func getKeys(forceRefresh: Bool = false) async throws -> [JWK] {
         if !forceRefresh && Date() < cacheExpiry && !cachedKeys.isEmpty {
             return cachedKeys
         }
-        let response: JWKSResponse = try await httpClient.get(path: "/oauth2/jwks", requiresAuth: false)
+        let response: JWKSResponse
+        if let endpoint {
+            response = try await httpClient.get(url: try await endpoint(), requiresAuth: false)
+        } else {
+            response = try await httpClient.get(path: "/oauth2/jwks", requiresAuth: false)
+        }
         cachedKeys = response.keys
         cacheExpiry = Date().addingTimeInterval(minCacheTTL)
         return cachedKeys

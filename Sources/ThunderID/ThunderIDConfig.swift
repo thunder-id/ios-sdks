@@ -6,6 +6,10 @@ import Foundation
 /// Configuration for the ThunderID SDK.
 public struct ThunderIDConfig {
     // MARK: - Core
+    /// The ThunderID server's base URL. For redirect sign-in with another OpenID Connect provider, set it to
+    /// the provider's root URL (for example its tenant URL) and set ``ThunderIDEndpoints/wellKnown`` to the
+    /// provider's discovery URL. Setting it to the provider's issuer URL also works: the endpoints are then
+    /// read from `{baseUrl}/.well-known/openid-configuration`.
     public let baseUrl: String
     public let clientId: String?
 
@@ -51,7 +55,8 @@ public struct ThunderIDConfig {
 
     // MARK: - Endpoints
     /// Collection URL overrides for the management operations, for a management API that runs on a
-    /// different host from `baseUrl`, and the app backend that signs the app in (`endpoints.backend`).
+    /// different host from `baseUrl`, the OpenID provider's discovery URL (`endpoints.wellKnown`), and the app
+    /// backend that signs the app in (`endpoints.backend`).
     public var endpoints: ThunderIDEndpoints
     /// HTTP options.
     public var http: ThunderIDHttpConfig
@@ -176,6 +181,12 @@ public struct ThunderIDEndpoints {
     /// Defaults to `{baseUrl}/user-types`.
     public var userTypes: String?
     public var variables: String?
+    /// The OpenID provider metadata (discovery) URL, an absolute HTTPS URL. Defaults to
+    /// `{baseUrl}/.well-known/openid-configuration`. Set it for an OpenID Connect provider whose issuer is not
+    /// its root URL, such as `https://api.asgardeo.io/t/<org>/oauth2/token/.well-known/openid-configuration`
+    /// with `baseUrl` set to `https://api.asgardeo.io/t/<org>`. It can be left out when the provider's issuer
+    /// is `baseUrl`. The redirect sign-in endpoints and the expected ID token issuer come from it.
+    public var wellKnown: String?
     /// The app backend's auth endpoints. Setting them hands sign-in to the backend: the SDK then signs in,
     /// reads the session, and sends API calls through the backend, and never holds the user's tokens.
     /// `baseUrl` is then the backend's base URL, and API calls go to its proxy
@@ -209,6 +220,7 @@ public struct ThunderIDEndpoints {
         users: String? = nil,
         userTypes: String? = nil,
         variables: String? = nil,
+        wellKnown: String? = nil,
         backend: ThunderIDBackendEndpoints? = nil
     ) {
         self.agents = agents
@@ -237,6 +249,7 @@ public struct ThunderIDEndpoints {
         self.users = users
         self.userTypes = userTypes
         self.variables = variables
+        self.wellKnown = wellKnown
         self.backend = backend
     }
 }
