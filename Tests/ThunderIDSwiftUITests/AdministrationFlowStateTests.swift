@@ -125,6 +125,30 @@ final class AdministrationFlowStateTests: XCTestCase {
         XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/flow/execute"), 0)
     }
 
+    func testReadsTheConfiguredVerificationHandleOnly() async throws {
+        let server = FlowServer(
+            configured: ["adminAttributeVerificationFlow": "verify-attribute", "userUnlockFlow": "unlock-user"],
+            resource: "{}"
+        )
+        let state = try await makeState(serving: server)
+
+        let flows = await state.adminAttributeVerificationFlowQuery().refetch()
+
+        XCTAssertEqual(flows, [.adminAttributeVerification: "verify-attribute"])
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/server-config/flow"), 1)
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/flows"), 0)
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/flow/execute"), 0)
+    }
+
+    func testReadsNoVerificationHandleWhenTheServerSetsNone() async throws {
+        let server = FlowServer(configured: ["userUnlockFlow": "unlock-user"], resource: "{}")
+        let state = try await makeState(serving: server)
+
+        let flows = await state.adminAttributeVerificationFlowQuery().refetch()
+
+        XCTAssertEqual(flows, [:])
+    }
+
     func testRunsAnActionThroughItsFlowAndRefetchesTheUser() async throws {
         let server = FlowServer(
             configured: ["userSuspendFlow": "suspend-user"],

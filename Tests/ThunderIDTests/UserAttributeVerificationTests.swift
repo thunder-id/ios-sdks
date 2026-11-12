@@ -10,6 +10,8 @@ final class UserAttributeVerificationTests: XCTestCase {
     private let sent = #"{"executionId":"e-1","flowStatus":"INCOMPLETE","type":"VIEW","data":{"additionalData":"#
         + #"{"channel":"email","emailSent":"true","maskedDestination":"t•••@example.com"}}}"#
 
+    private static let configured = #"{"adminAttributeVerificationFlow":{"defaultHandle":"admin-verification"}}"#
+
     private func user(_ json: String) throws -> ManagedUser {
         try JSONDecoder().decode(ManagedUser.self, from: Data(json.utf8))
     }
@@ -19,24 +21,43 @@ final class UserAttributeVerificationTests: XCTestCase {
     func testStartsTheAdminInitiatedFlowWithTheAdministratorsToken() async throws {
         let server = ManagementTestServer()
         server.execution = sent
+        server.config = Self.configured
         let client = try await server.makeClient()
 
         _ = try await client.users.sendAttributeVerification(id: "u-1", attribute: "email", fetcher: server.fetcher)
 
-        XCTAssertEqual(server.calls, ["POST https://localhost:8090/flow/execute"])
-        XCTAssertEqual(server.requests.first?.value(forHTTPHeaderField: "Authorization"), "Bearer admin-token")
+        XCTAssertEqual(
+            server.calls,
+            ["GET https://localhost:8090/server-config/flow", "POST https://localhost:8090/flow/execute"]
+        )
+        XCTAssertEqual(server.requests.last?.value(forHTTPHeaderField: "Authorization"), "Bearer admin-token")
         let body = try XCTUnwrap(server.executions.first)
         XCTAssertEqual(body["flowType"] as? String, "ADMIN_INITIATED")
-        XCTAssertEqual(body["handle"] as? String, "default-admin-attribute-verification-flow")
+        XCTAssertEqual(body["handle"] as? String, "admin-verification")
         XCTAssertEqual(body["inputs"] as? [String: String], ["subject": "u-1", "attribute": "email"])
         XCTAssertEqual(body["verbose"] as? Bool, true)
         XCTAssertNil(body["flowId"])
         XCTAssertNil(body["applicationId"])
     }
 
+    func testRefusesWhenTheServerNamesNoFlowAndNoHandleIsGiven() async throws {
+        let server = ManagementTestServer()
+        server.execution = sent
+        server.config = #"{"userSuspendFlow":{"defaultHandle":"suspend"}}"#
+        let client = try await server.makeClient()
+
+        let error = await assertThrowsThunderIDError(.administrationFlowNotConfigured) {
+            _ = try await client.users.sendAttributeVerification(id: "u-1", attribute: "email", fetcher: server.fetcher)
+        }
+
+        XCTAssertTrue(error?.message.contains("adminAttributeVerificationFlow") == true)
+        XCTAssertEqual(server.calls, ["GET https://localhost:8090/server-config/flow"])
+    }
+
     func testRunsTheFlowTheAppNames() async throws {
         let server = ManagementTestServer()
         server.execution = sent
+        server.config = Self.configured
         let client = try await server.makeClient()
 
         _ = try await client.users.sendAttributeVerification(
@@ -47,11 +68,13 @@ final class UserAttributeVerificationTests: XCTestCase {
         )
 
         XCTAssertEqual(server.executions.first?["handle"] as? String, "custom-admin-verification")
+        XCTAssertEqual(server.calls, ["POST https://localhost:8090/flow/execute"], "The server config is not read")
     }
 
     func testReturnsTheChannelAndTheMaskedDestination() async throws {
         let server = ManagementTestServer()
         server.execution = sent
+        server.config = Self.configured
         let client = try await server.makeClient()
 
         let result = try await client.users.sendAttributeVerification(
@@ -68,6 +91,7 @@ final class UserAttributeVerificationTests: XCTestCase {
 
     func testReadsEmailSentAsABooleanAndLeavesOutWhatTheFlowDoesNotReport() async throws {
         let server = ManagementTestServer()
+        server.config = Self.configured
         server.execution = #"{"flowStatus":"INCOMPLETE","data":{"additionalData":{"channel":"email","emailSent":"false"}}}"#
         let client = try await server.makeClient()
 
@@ -85,6 +109,7 @@ final class UserAttributeVerificationTests: XCTestCase {
 
     func testRaisesTheRefusingStepsCode() async throws {
         let server = ManagementTestServer()
+        server.config = Self.configured
         server.execution = #"{"flowStatus":"ERROR","error":{"code":"FET-1114","# +
             #""message":{"key":"k","defaultValue":"The user is suspended"}}}"#
         let client = try await server.makeClient()
@@ -100,6 +125,7 @@ final class UserAttributeVerificationTests: XCTestCase {
 
     func testRefusesAFlowThatReportsNoSentLink() async throws {
         let server = ManagementTestServer()
+        server.config = Self.configured
         let client = try await server.makeClient()
 
         for execution in [
@@ -121,6 +147,7 @@ final class UserAttributeVerificationTests: XCTestCase {
 
     func testKeepsAnHTTPRefusalAsTheAPIError() async throws {
         let server = ManagementTestServer()
+        server.config = Self.configured
         server.execution = #"{"code":"FES-1017","message":"Forbidden"}"#
         server.executionStatus = 403
         let client = try await server.makeClient()
