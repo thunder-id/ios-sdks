@@ -232,7 +232,7 @@ private struct UserCard: View {
                     HStack {
                         Text("\(name): \(verified ? "verified" : "not verified")").font(.system(size: 13))
                         if let send = details.onSendVerification, details.sendableAttributes.contains(name) {
-                            Button("Send link") { send(name) }
+                            Button("Verify") { send(name) }
                                 .disabled(details.isSendingVerification)
                         }
                     }

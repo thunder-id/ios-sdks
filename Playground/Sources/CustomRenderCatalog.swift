@@ -117,7 +117,7 @@ extension ExplorerCatalog {
                         let verified = details.verifiedAttributes?[name] != nil
                         Text("\\(name): \\(verified ? "verified" : "not verified")")
                         if let send = details.onSendVerification, details.sendableAttributes.contains(name) {
-                            Button("Send link") { send(name) }.disabled(details.isSendingVerification)
+                            Button("Verify") { send(name) }.disabled(details.isSendingVerification)
                         }
                     }
                     if let delete = details.onDelete {
