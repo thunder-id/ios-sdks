@@ -43,6 +43,33 @@ final class ThunderIDPermissionsTests: XCTestCase {
         XCTAssertTrue(ThunderIDPermissions.has([], ""))
     }
 
+    func testMatchingFollowsTheResourceServer() {
+        let exact = ThunderIDPermissions.PermissionMatching(hierarchical: false)
+        XCTAssertFalse(ThunderIDPermissions.has(["orders"], "orders:create", matching: exact))
+        XCTAssertTrue(ThunderIDPermissions.has(["orders:create"], "orders:create", matching: exact))
+
+        let dotted = ThunderIDPermissions.PermissionMatching(delimiter: ".")
+        XCTAssertTrue(ThunderIDPermissions.has(["orders"], "orders.create", matching: dotted))
+        XCTAssertFalse(ThunderIDPermissions.has(["orders"], "orders:create", matching: dotted))
+
+        let noDelimiter = ThunderIDPermissions.PermissionMatching(delimiter: "")
+        XCTAssertFalse(ThunderIDPermissions.has(["orders"], "orderscreate", matching: noDelimiter))
+        XCTAssertFalse(ThunderIDPermissions.has([""], ":orders"))
+    }
+
+    func testResourceServerDecodesHierarchicalPermissions() throws {
+        let json = #"{"id":"rs-1","name":"Orders","identifier":"orders","type":"API","ouId":"o","delimiter":":","#
+            + #""hierarchicalPermissions":true}"#
+        let server = try JSONDecoder().decode(ResourceServer.self, from: Data(json.utf8))
+        XCTAssertEqual(server.hierarchicalPermissions, true)
+
+        let request = CreateResourceServerRequest(
+            name: "Orders", identifier: "orders", ouId: "o", hierarchicalPermissions: true
+        )
+        let body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any]
+        XCTAssertEqual(body?["hierarchicalPermissions"] as? Bool, true)
+    }
+
     func testClientReadsThePermissionsOfTheStoredAccessToken() async throws {
         let storage = InMemoryStorageAdapter()
         try TokenStore(storage: storage).save(

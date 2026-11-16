@@ -28,6 +28,8 @@ public struct ResourceServer: Codable {
     public let ouId: String
     /// The character joining the parts of a permission, such as `:`.
     public let delimiter: String
+    /// Whether a permission covers the permissions beneath it.
+    public let hierarchicalPermissions: Bool?
     public let authorizationEngine: AuthorizationEngineConfig?
     public let isReadOnly: Bool?
 }
@@ -50,6 +52,7 @@ public struct CreateResourceServerRequest: Codable {
     public var type: String?
     public var ouId: String
     public var delimiter: String?
+    public var hierarchicalPermissions: Bool?
 
     public init(
         name: String,
@@ -57,7 +60,8 @@ public struct CreateResourceServerRequest: Codable {
         ouId: String,
         description: String? = nil,
         type: String? = nil,
-        delimiter: String? = nil
+        delimiter: String? = nil,
+        hierarchicalPermissions: Bool? = nil
     ) {
         self.name = name
         self.identifier = identifier
@@ -65,6 +69,7 @@ public struct CreateResourceServerRequest: Codable {
         self.description = description
         self.type = type
         self.delimiter = delimiter
+        self.hierarchicalPermissions = hierarchicalPermissions
     }
 }
 

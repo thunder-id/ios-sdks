@@ -6,6 +6,17 @@ import Foundation
 /// Reads and tests the permissions an access token carries. The result only decides what an
 /// application shows: the server still authorizes every management request.
 public enum ThunderIDPermissions {
+    /// How a resource server matches permissions: its `delimiter` and `hierarchicalPermissions`.
+    public struct PermissionMatching: Equatable {
+        public var delimiter: String
+        public var hierarchical: Bool
+
+        public init(delimiter: String = ":", hierarchical: Bool = true) {
+            self.delimiter = delimiter
+            self.hierarchical = hierarchical
+        }
+    }
+
     /// Returns the permissions in an access token's `scopes` (list) or `scope` (space-separated)
     /// claim. Returns an empty list for a missing or malformed token. The signature is not
     /// verified, so the result MUST NOT be used for an authorization decision.
@@ -26,9 +37,16 @@ public enum ThunderIDPermissions {
 
     /// Whether `granted` satisfies `required` under the server's permission hierarchy: a permission
     /// covers itself and everything beneath it, so `system` satisfies `system:user:view`.
-    /// An empty `required` is always satisfied.
-    public static func has(_ granted: [String], _ required: String) -> Bool {
-        required.isEmpty || granted.contains { $0 == required || required.hasPrefix("\($0):") }
+    /// An empty `required` is always satisfied. `matching` follows another resource server's rules.
+    public static func has(
+        _ granted: [String],
+        _ required: String,
+        matching: PermissionMatching = PermissionMatching()
+    ) -> Bool {
+        let delimiter = matching.hierarchical ? matching.delimiter : ""
+        return required.isEmpty || granted.contains {
+            $0 == required || (!delimiter.isEmpty && !$0.isEmpty && required.hasPrefix("\($0)\(delimiter)"))
+        }
     }
 
     private static func base64URLDecode(_ value: String) -> Data? {

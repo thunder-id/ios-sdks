@@ -58,8 +58,8 @@ public extension ThunderIDClient {
     }
 
     /// The permissions the signed-in user's access token carries, read from its `scopes` or `scope`
-    /// claim. Use it with ``ThunderIDPermissions/has(_:_:)`` to decide what to show; the server still
-    /// authorizes every request. Returns an empty list when no one is signed in.
+    /// claim. Use it with ``ThunderIDPermissions/has(_:_:matching:)`` to decide what to show; the server
+    /// still authorizes every request. Returns an empty list when no one is signed in.
     ///
     /// When sign-in runs on the app's backend, they come only from the backend's session (`scope`): the
     /// token stays on the backend, so a session without `scope` grants nothing.
