@@ -23,13 +23,16 @@ struct ResourcePreview: View {
             OrganizationUnitPreview(id: id, values: values, onEvent: onEvent)
         } else if id == "sharingPolicies" {
             SharingPreview(values: values, onEvent: onEvent)
+        } else if id == "sharedFlowList" || id == "flowVariablesForm" {
+            SharedFlowsPreview(id: id, values: values, onEvent: onEvent)
         } else {
             DeviceGrantPreview(values: values, onEvent: onEvent)
         }
     }
 
     private var missingId: String? {
-        ["projectId", "organizationUnitId", "resourceId"].first { values[$0] != nil && values.text($0).isEmpty }
+        ["projectId", "organizationUnitId", "resourceId", "flowId"]
+            .first { values[$0] != nil && values.text($0).isEmpty }
     }
 }
 

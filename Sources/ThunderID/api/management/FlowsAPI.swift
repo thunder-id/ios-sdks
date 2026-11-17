@@ -12,23 +12,31 @@ public struct FlowsAPI {
     let transport: ManagementTransport
 
     /// Returns a page of flows, newest first.
-    /// - Parameter flowType: Only flows of this type, such as `AUTHENTICATION` or `REGISTRATION`.
+    /// - Parameters:
+    ///   - flowType: Only flows of this type, such as `AUTHENTICATION` or `REGISTRATION`.
+    ///   - ouId: Lists the flows this organization unit owns, followed by the ones shared with it, instead of
+    ///     every flow the caller can see. Each flow then reports ``ManagedFlow/isOwnedByOU``.
     public func list(
         flowType: String? = nil,
+        ouId: String? = nil,
         limit: Int? = nil,
         offset: Int? = nil,
         fetcher: ThunderIDFetcher? = nil
     ) async throws -> ManagedFlowListResponse {
-        try await transport.send(
+        let filter = ouId.flatMap { ManagementFilter.equality(attribute: "ouId", value: $0) }
+        return try await transport.send(
             "GET",
-            query: .management([("flowType", flowType)]) + .page(limit, offset),
+            query: .management([("filter", filter), ("flowType", flowType)]) + .page(limit, offset),
             fetcher: fetcher
         )
     }
 
     /// Returns a flow with its graph.
-    public func get(id: String, fetcher: ThunderIDFetcher? = nil) async throws -> FlowDefinition {
-        try await transport.send("GET", [id], fetcher: fetcher)
+    /// - Parameter ouId: Returns the flow as this organization unit sees it. A flow shared with the unit comes
+    ///   back as its ``FlowDefinition/variables`` only, without nodes. Leave it out for the whole definition.
+    public func get(id: String, ouId: String? = nil, fetcher: ThunderIDFetcher? = nil) async throws
+        -> FlowDefinition {
+        try await transport.send("GET", [id], query: .management([("ouId", ouId)]), fetcher: fetcher)
     }
 
     /// Creates a flow and returns it.

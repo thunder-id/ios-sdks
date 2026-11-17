@@ -53,7 +53,8 @@ public struct FlowDefinitionRequest: Codable {
     }
 }
 
-/// A flow with its graph.
+/// A flow with its graph. Requested for an organization unit the flow is shared with, it comes back as its
+/// ``variables`` only, and ``nodes`` is empty.
 public struct FlowDefinition: Codable {
     public let id: String
     public let name: String
@@ -64,6 +65,52 @@ public struct FlowDefinition: Codable {
     public let nodes: [FlowNode]
     public let createdAt: String?
     public let updatedAt: String?
+    /// The organization unit the flow was requested for.
+    public let ouId: String?
+    /// Whether the organization unit the flow was requested for owns it.
+    public let isOwnedByOU: Bool?
+    /// Set on a flow shared with the requested organization unit. A flow the unit owns declares its
+    /// variables on its `VARIABLES` node instead; ``getFlowVariableDefinitions(_:)`` reads either.
+    public let variables: [FlowVariableDefinition]?
+}
+
+extension FlowDefinition {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, handle, flowType, activeVersion, isReadOnly, nodes, createdAt, updatedAt
+        case ouId, isOwnedByOU, variables
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        handle = try container.decode(String.self, forKey: .handle)
+        flowType = try container.decode(String.self, forKey: .flowType)
+        activeVersion = try container.decodeIfPresent(Int.self, forKey: .activeVersion)
+        isReadOnly = try container.decodeIfPresent(Bool.self, forKey: .isReadOnly)
+        nodes = try container.decodeIfPresent([FlowNode].self, forKey: .nodes) ?? []
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        ouId = try container.decodeIfPresent(String.self, forKey: .ouId)
+        isOwnedByOU = try container.decodeIfPresent(Bool.self, forKey: .isOwnedByOU)
+        variables = try container.decodeIfPresent([FlowVariableDefinition].self, forKey: .variables)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(handle, forKey: .handle)
+        try container.encode(flowType, forKey: .flowType)
+        try container.encodeIfPresent(activeVersion, forKey: .activeVersion)
+        try container.encodeIfPresent(isReadOnly, forKey: .isReadOnly)
+        try container.encode(nodes, forKey: .nodes)
+        try container.encodeIfPresent(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
+        try container.encodeIfPresent(ouId, forKey: .ouId)
+        try container.encodeIfPresent(isOwnedByOU, forKey: .isOwnedByOU)
+        try container.encodeIfPresent(variables, forKey: .variables)
+    }
 }
 
 /// One saved version of a flow.
