@@ -6,6 +6,8 @@ import ThunderID
 
 /// The form field a credential-update failure belongs to.
 public enum CredentialField: Hashable {
+    /// The current value is missing or doesn't match.
+    case current
     /// The new value failed a server-side check.
     case new
     /// The failure has no single field to blame; show it at form level.
@@ -14,10 +16,8 @@ public enum CredentialField: Hashable {
 
 /// The derived state a change-credential form needs to render and to gate submission.
 ///
-/// Mirrors the JavaScript/Android SDKs' `evaluateChangePasswordForm`: there is deliberately no
-/// current-value field to evaluate. The self-service credential write endpoint does not verify
-/// the account's existing value today, so collecting one would only teach the user a false sense
-/// of security.
+/// Mirrors the JavaScript/Android SDKs' `evaluateChangePasswordForm`. The current value isn't
+/// evaluated: only the server knows whether the user already holds a value to prove.
 public struct CredentialFormEvaluation {
     public let confirmMatches: Bool
     public let meetsPolicy: Bool
@@ -52,11 +52,21 @@ public func evaluateCredentialForm(newValue: String, confirm: String, regex: Str
     )
 }
 
-/// Maps a failure from the credential write path onto the field that caused it. `400` is the new
-/// value failing a server-side check; anything else has no single field to blame.
+/// The server's code for a current value that is missing or doesn't match.
+private let invalidCurrentCredentialCode = "USR-1047"
+/// The server's code for a credential the user doesn't hold yet, refused because they hold another.
+private let credentialSetNotAllowedCode = "USR-1048"
+
+/// Maps a failure from the credential write path onto the field that caused it. A `403` for a
+/// missing or wrong current value belongs to the current value. A `400` is the new value failing a
+/// server-side check, unless the server refused to set a credential the user doesn't hold yet.
+/// Anything else has no single field to blame.
 public func mapCredentialError(_ error: Error) -> CredentialField {
-    guard let thunderError = error as? ThunderIDError, thunderError.code == .invalidInput else { return .form }
-    return .new
+    guard let thunderError = error as? ThunderIDError else { return .form }
+    let serverCode = thunderError.serverError?.code
+    if thunderError.code == .forbidden, serverCode == invalidCurrentCredentialCode { return .current }
+    if thunderError.code == .invalidInput, serverCode != credentialSetNotAllowedCode { return .new }
+    return .form
 }
 
 /// Substitutes `{credential}` / `{credentialLower}` into a translation template.
@@ -74,6 +84,7 @@ func titleCasedCredential(_ name: String) -> String {
 /// State container passed to the ``BaseChangeCredential`` builder.
 @MainActor
 public final class ChangeCredentialState: ObservableObject {
+    @Published public var currentValue: String = ""
     @Published public var newValue: String = ""
     @Published public var confirmValue: String = ""
     @Published public fileprivate(set) var error: String?
@@ -164,7 +175,12 @@ public struct BaseChangeCredential<Content: View>: View {
         state.loading = true
         defer { state.loading = false }
         do {
-            try await thunderState.client.updateUserCredentials(attribute: attribute, newValue: state.newValue)
+            try await thunderState.client.updateUserCredentials(
+                attribute: attribute,
+                currentValue: state.currentValue,
+                newValue: state.newValue
+            )
+            state.currentValue = ""
             state.newValue = ""
             state.confirmValue = ""
             state.success = true
@@ -177,9 +193,10 @@ public struct BaseChangeCredential<Content: View>: View {
 
     private func applyError(_ error: Error) {
         let field = mapCredentialError(error)
-        let template = thunderState.i18n.resolve("changeCredential.generic.error")
-        let text = substituteCredential(template, state.credentialDisplayName)
+        let key = field == .current ? "changeCredential.current.error" : "changeCredential.generic.error"
+        let text = substituteCredential(thunderState.i18n.resolve(key), state.credentialDisplayName)
         switch field {
+        case .current: state.fieldErrors[.current] = text
         case .new: state.fieldErrors[.new] = text
         case .form: state.error = text
         }
@@ -246,6 +263,7 @@ private struct ChangeCredentialRow: View {
     }
 
     private func resetFields() {
+        state.currentValue = ""
         state.newValue = ""
         state.confirmValue = ""
     }
@@ -342,6 +360,12 @@ private struct ChangeCredentialSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(spacing: 0) {
                 CredentialSecureField(
+                    placeholder: text("changeCredential.current.label"),
+                    value: $state.currentValue,
+                    testId: "thunderid-field-currentCredential"
+                )
+                Divider().background(colorScheme.changeCredentialBorder).padding(.leading, 16)
+                CredentialSecureField(
                     placeholder: text("changeCredential.new.label"),
                     value: $state.newValue,
                     testId: "thunderid-field-newCredential"
@@ -356,6 +380,9 @@ private struct ChangeCredentialSheet: View {
             .background(colorScheme.changeCredentialCard)
             .clipShape(RoundedRectangle(cornerRadius: 14))
 
+            if let currentError = state.fieldError(.current) {
+                errorText(currentError)
+            }
             if let newError = state.fieldError(.new) {
                 errorText(newError)
             } else if newInvalid {
