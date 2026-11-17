@@ -12,7 +12,9 @@ import ThunderID
 /// configures its flow. The configured flows are read only while it is on, which needs a token that
 /// may read the server configuration. Set `attributeVerification` to let them send the user a link to
 /// verify an unverified email, through the server's administrator-initiated verification flow; it is off
-/// by default and needs `baseUrl` and the root `system` permission.
+/// by default and needs `baseUrl` and the root `system` permission. The flow is the handle the server
+/// names under `adminAttributeVerificationFlow` in its `flow` configuration, and the action is offered
+/// only when that handle is set.
 public struct UserDetails<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let userId: String
@@ -53,7 +55,8 @@ public struct UserDetails<Content: View>: View {
     /// - Parameters:
     ///   - administrationMode: How the delete runs. See ``AdministrationMode``.
     ///   - lifecycleActions: Whether to offer the account lifecycle actions. Off by default.
-    ///   - attributeVerification: Whether to offer a verification link for an unverified email. Off by default.
+    ///   - attributeVerification: Whether to offer a verification link for an unverified email, when the
+    ///     server configures `adminAttributeVerificationFlow`. Off by default.
     ///   - content: Renders custom UI in place of the default view. See ``BaseUserDetails``.
     public init(
         userId: String,
@@ -117,6 +120,7 @@ private struct UserDetailsHost<Content: View>: View {
     @EnvironmentObject private var i18n: ThunderIDI18n
     @EnvironmentObject private var state: ThunderIDState
     @State private var userType: ManagedUserTypeDetails?
+    @State private var userTypeError: Error?
     @StateObject private var user: ResourceQuery<ManagedUser>
     @StateObject private var groups: ResourceQuery<MembershipGroupListResponse>
     @StateObject private var deletion: ResourceMutation<String, Void>
@@ -126,6 +130,7 @@ private struct UserDetailsHost<Content: View>: View {
     @StateObject private var verification: ResourceMutation<
         (id: String, attribute: String), UserAttributeVerificationResult
     >
+    @StateObject private var verificationFlow: ResourceQuery<[AdministrationFlowConfigKey: String]>
     let props: UserDetails<Content>
 
     init(state: ThunderIDState, props: UserDetails<Content>) {
@@ -138,6 +143,7 @@ private struct UserDetailsHost<Content: View>: View {
         _lifecycleFlows = StateObject(wrappedValue: state.accountLifecycleFlowsQuery(kind: .user))
         _lifecycle = StateObject(wrappedValue: state.accountLifecycleMutation(kind: .user))
         _verification = StateObject(wrappedValue: state.sendUserAttributeVerificationMutation())
+        _verificationFlow = StateObject(wrappedValue: state.adminAttributeVerificationFlowQuery())
         self.props = props
     }
 
@@ -156,7 +162,11 @@ private struct UserDetailsHost<Content: View>: View {
                     fallbackKey: "admin.users.details.verification.error"
                 )
                 ?? i18n.managementErrorMessage(lifecycle.error, fallbackKey: "admin.common.lifecycle.error")
-                ?? i18n.managementErrorMessage(lifecycleFlows.error, fallbackKey: "admin.common.lifecycle.load_error"),
+                ?? i18n.managementErrorMessage(lifecycleFlows.error, fallbackKey: "admin.common.lifecycle.load_error")
+                ?? i18n.managementErrorMessage(
+                    verificationFlow.error ?? userTypeError,
+                    fallbackKey: "admin.users.details.verification.load_error"
+                ),
             isDeleting: deletion.isLoading,
             isUpdating: update.isLoading || user.isLoading,
             onDelete: props.deletable ? delete : nil,
@@ -166,7 +176,7 @@ private struct UserDetailsHost<Content: View>: View {
             onLifecycleAction: props.lifecycleActions ? runLifecycleAction : nil,
             isSendingVerification: verification.isLoading,
             sentVerification: verification.data,
-            onSendVerification: props.attributeVerification ? sendVerification : nil,
+            onSendVerification: verificationHandle == nil ? nil : sendVerification,
             actions: props.actions,
             renderContent: props.content
         )
@@ -177,17 +187,25 @@ private struct UserDetailsHost<Content: View>: View {
         }
         .task(id: typeHandle) {
             userType = nil
+            userTypeError = nil
             guard let typeHandle else { return }
-            let result = try? await state.lookupUserType(handle: typeHandle)
-            if !Task.isCancelled { userType = result }
+            do {
+                let result = try await state.lookupUserType(handle: typeHandle)
+                if !Task.isCancelled { userType = result }
+            } catch {
+                if !Task.isCancelled { userTypeError = error }
+            }
         }
         .task(id: props.lifecycleActions) {
             if props.lifecycleActions { await lifecycleFlows.refetch() }
         }
+        .task(id: props.attributeVerification) {
+            if props.attributeVerification { await verificationFlow.refetch() }
+        }
     }
 
     private var typeHandle: String? {
-        user.data?.verifiedAttributes == nil ? nil : user.data?.type
+        verificationUserTypeHandle(user: user.data, attributeVerification: props.attributeVerification)
     }
 
     private var availableLifecycleActions: [AccountLifecycleAction] {
@@ -198,6 +216,11 @@ private struct UserDetailsHost<Content: View>: View {
     private func runLifecycleAction(_ action: AccountLifecycleAction, operatorNote: String?) {
         let input = AccountLifecycleInput(subject: props.userId, action: action, operatorNote: operatorNote)
         Task { await lifecycle.mutate(input) }
+    }
+
+    /// The configured verification flow handle, or `nil` when the action is off or the server sets none.
+    private var verificationHandle: String? {
+        adminVerificationFlowHandle(enabled: props.attributeVerification, configuredFlows: verificationFlow.data)
     }
 
     private func sendVerification(_ attribute: String) {
@@ -225,4 +248,20 @@ private struct UserDetailsHost<Content: View>: View {
             await update.mutate((id: props.userId, request: request))
         }
     }
+}
+
+/// The handle of the administrator-initiated verification flow to send a link through, or `nil` when the
+/// action is off or the server names none.
+func adminVerificationFlowHandle(
+    enabled: Bool,
+    configuredFlows: [AdministrationFlowConfigKey: String]?
+) -> String? {
+    guard enabled, let handle = configuredFlows?[.adminAttributeVerification], !handle.isEmpty else { return nil }
+    return handle
+}
+
+/// The user type to read for verification status, only while the verification action is on.
+func verificationUserTypeHandle(user: ManagedUser?, attributeVerification: Bool) -> String? {
+    guard attributeVerification, let user, user.verifiedAttributes != nil else { return nil }
+    return user.type
 }

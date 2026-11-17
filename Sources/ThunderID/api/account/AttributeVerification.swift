@@ -7,8 +7,10 @@ import Foundation
 public enum AttributeVerification {
     /// Handle of the self attribute verification flow the server ships, used unless the app names another.
     public static let defaultFlowHandle = "default-self-attribute-verification-flow"
-    /// Handle of the administrator-initiated verification flow the server ships, used unless the app names
-    /// another.
+    /// Handle of the administrator-initiated verification flow the server ships. The SDK no longer
+    /// defaults to it: ``UsersAPI/sendAttributeVerification(id:attribute:handle:fetcher:)`` reads the
+    /// handle the server configures unless the app names one.
+    @available(*, deprecated, message: "The handle comes from the server's adminAttributeVerificationFlow setting.")
     public static let adminFlowHandle = "default-admin-attribute-verification-flow"
     /// Flow input naming the user an administrator-initiated flow acts on.
     public static let subjectInput = "subject"

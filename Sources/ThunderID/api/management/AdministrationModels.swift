@@ -18,6 +18,7 @@ public enum AdministrationMode: String, Codable, CaseIterable {
 /// unset key is the opt-out: the operation calls the management API directly.
 public enum AdministrationFlowConfigKey: String, Codable, CaseIterable {
     case actionDeletion = "actionDeletionFlow"
+    case adminAttributeVerification = "adminAttributeVerificationFlow"
     case agentSuspend = "agentSuspendFlow"
     case agentUnlock = "agentUnlockFlow"
     case agentUnsuspend = "agentUnsuspendFlow"

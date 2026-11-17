@@ -39,16 +39,19 @@ public extension UsersAPI {
     /// - Parameters:
     ///   - id: The user's identifier.
     ///   - attribute: The attribute to verify, such as `email`.
-    ///   - handle: Handle of the administrator-initiated verification flow to run.
+    ///   - handle: Handle of the administrator-initiated verification flow to run. When `nil`, the handle
+    ///     the server names under `adminAttributeVerificationFlow` in the `flow` server-config section.
     /// - Returns: The channel and the masked destination the link was sent to.
     /// - Throws: ``ThunderIDErrorCode/invalidInput`` before any request when `id` or `attribute` is blank;
+    ///   ``ThunderIDErrorCode/administrationFlowNotConfigured`` when no handle is given and the server
+    ///   names none;
     ///   ``ThunderIDErrorCode/administrationFlowFailed`` when a step refuses, with the step's error (such
     ///   as `FET-1114` for a suspended user) as ``ThunderIDError/flowError``, or when the flow reports no
     ///   sent link; the usual API errors when the server refuses the request.
     func sendAttributeVerification(
         id: String,
         attribute: String,
-        handle: String = AttributeVerification.adminFlowHandle,
+        handle: String? = nil,
         fetcher: ThunderIDFetcher? = nil
     ) async throws -> UserAttributeVerificationResult {
         guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -56,8 +59,24 @@ public extension UsersAPI {
             throw ThunderIDError(code: .invalidInput, message: "A user identifier and an attribute are required.")
         }
         try transport.requireFlowBaseUrl()
+        let flowHandle: String
+        if let handle, !handle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            flowHandle = handle
+        } else if let configured = try await transport.administrationFlows.resolveHandles(
+            [.adminAttributeVerification],
+            fetcher: fetcher
+        )[.adminAttributeVerification] {
+            flowHandle = configured
+        } else {
+            throw ThunderIDError(
+                code: .administrationFlowNotConfigured,
+                message: "No attribute verification flow is configured, so the link was not sent. Set the "
+                    + "\(AdministrationFlowConfigKey.adminAttributeVerification.rawValue) handle in the server "
+                    + "configuration."
+            )
+        }
         let request = AdminInitiatedFlowRequest(
-            handle: handle,
+            handle: flowHandle,
             inputs: [AttributeVerification.attributeInput: attribute, AttributeVerification.subjectInput: id]
         )
         var sensitiveTransport = transport

@@ -48,8 +48,11 @@ final class UserDetailsVerificationTests: XCTestCase {
     // MARK: - Strings
 
     func testEveryVerificationStringIsInTheBundle() {
-        XCTAssertEqual(i18n.resolve("admin.users.details.verification.send"), "Send verification link")
-        XCTAssertEqual(i18n.resolve("admin.users.details.verification.send_short"), "Send link")
+        XCTAssertEqual(
+            i18n.resolve("admin.users.details.verification.load_error"),
+            "The verification settings could not be loaded."
+        )
+        XCTAssertEqual(i18n.resolve("admin.users.details.verification.verify"), "Verify")
         XCTAssertEqual(
             i18n.resolve("admin.users.details.verification.error"),
             "Could not send the verification link. Please try again."
@@ -65,6 +68,26 @@ final class UserDetailsVerificationTests: XCTestCase {
             i18n.verificationSentMessage(UserAttributeVerificationResult(channel: "email")),
             "Verification link sent."
         )
+    }
+
+    // MARK: - Offering the action
+
+    func testOffersTheActionOnlyWhenEnabledAndTheServerNamesAFlow() {
+        let configured: [AdministrationFlowConfigKey: String] = [.adminAttributeVerification: "admin-verification"]
+
+        XCTAssertEqual(adminVerificationFlowHandle(enabled: true, configuredFlows: configured), "admin-verification")
+        XCTAssertNil(adminVerificationFlowHandle(enabled: false, configuredFlows: configured))
+        XCTAssertNil(adminVerificationFlowHandle(enabled: true, configuredFlows: [:]))
+        XCTAssertNil(adminVerificationFlowHandle(enabled: true, configuredFlows: nil))
+        XCTAssertNil(adminVerificationFlowHandle(enabled: true, configuredFlows: [.adminAttributeVerification: ""]))
+        XCTAssertNil(adminVerificationFlowHandle(enabled: true, configuredFlows: [.userSuspend: "s"]))
+    }
+
+    func testReadsTheUserTypeOnlyWhileVerificationIsOn() throws {
+        XCTAssertEqual(verificationUserTypeHandle(user: try user(), attributeVerification: true), "customer")
+        XCTAssertNil(verificationUserTypeHandle(user: try user(), attributeVerification: false))
+        XCTAssertNil(verificationUserTypeHandle(user: try user(verified: nil), attributeVerification: true))
+        XCTAssertNil(verificationUserTypeHandle(user: nil, attributeVerification: true))
     }
 
     // MARK: - Built-in view

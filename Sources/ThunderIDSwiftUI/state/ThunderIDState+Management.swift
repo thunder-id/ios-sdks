@@ -132,10 +132,22 @@ public extension ThunderIDState {
         )
     }
 
+    /// The handle of the administrator-initiated verification flow the server configures, keyed by
+    /// `flow` server-config key. Empty when none is set, in which case the send action is not offered.
+    /// Reading it needs a token that may read the server configuration.
+    func adminAttributeVerificationFlowQuery(
+        fetcher: ThunderIDFetcher? = nil
+    ) -> ResourceQuery<[AdministrationFlowConfigKey: String]> {
+        let client = client
+        return query(key: ["administration-flows", "attribute-verification"]) {
+            try await client.administrationFlows.resolveHandles([.adminAttributeVerification], fetcher: fetcher)
+        }
+    }
+
     /// Sends a user a link to verify an attribute, through the administrator-initiated verification flow,
-    /// then refetches the user.
+    /// then refetches the user. With no `handle`, it runs the handle the server configures.
     func sendUserAttributeVerificationMutation(
-        handle: String = AttributeVerification.adminFlowHandle,
+        handle: String? = nil,
         fetcher: ThunderIDFetcher? = nil
     ) -> ResourceMutation<(id: String, attribute: String), UserAttributeVerificationResult> {
         let client = client

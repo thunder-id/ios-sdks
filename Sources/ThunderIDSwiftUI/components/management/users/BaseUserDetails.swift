@@ -47,6 +47,7 @@ public struct BaseUserDetails<Content: View>: View {
     let actions: AnyView?
 
     @State private var draft: [String: String]?
+    @State private var sendingAttribute: String?
 
     let content: ((UserDetailsState) -> Content)?
 
@@ -191,7 +192,9 @@ public struct BaseUserDetails<Content: View>: View {
         let eligible = sendableAttributes
         guard !eligible.isEmpty, !isUpdating, !isSendingVerification, let onSendVerification else { return nil }
         return { name in
-            if eligible.contains(name) { onSendVerification(name) }
+            guard eligible.contains(name) else { return }
+            sendingAttribute = name
+            onSendVerification(name)
         }
     }
 
@@ -341,8 +344,8 @@ public struct BaseUserDetails<Content: View>: View {
             name: name,
             value: value,
             isVerified: user.verifiedAttributes?[name] != nil,
-            isSending: isSendingVerification,
-            isUpdating: isUpdating,
+            isSending: isSendingVerification && sendingAttribute == name,
+            isUpdating: isUpdating || isSendingVerification,
             onSend: sendableAttributes.contains(name) ? { sendAction?(name) } : nil
         )
     }

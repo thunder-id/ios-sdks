@@ -15,7 +15,11 @@ final class AdministrationFlowTests: XCTestCase {
     }
 
     func testConstantsMatchTheServer() {
-        XCTAssertEqual(AdministrationFlowConfigKey.allCases.count, 17)
+        XCTAssertEqual(AdministrationFlowConfigKey.allCases.count, 18)
+        XCTAssertEqual(
+            AdministrationFlowConfigKey.adminAttributeVerification.rawValue,
+            "adminAttributeVerificationFlow"
+        )
         XCTAssertEqual(AdministrationFlowConfigKey.secretRegeneration.rawValue, "secretRegenerationFlow")
         XCTAssertEqual(AdministrationFlowConfigKey.groupMembershipRemoval.rawValue, "groupMembershipRemovalFlow")
         XCTAssertEqual(AdministrationFlowInput.subject, "subject")

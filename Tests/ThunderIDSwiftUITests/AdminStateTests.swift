@@ -74,12 +74,40 @@ final class AdminStateTests: XCTestCase {
         let user = state.userQuery(id: "u-1")
         await user.refetch()
 
-        let result = await state.sendUserAttributeVerificationMutation().mutate((id: "u-1", attribute: "email"))
+        let result = await state.sendUserAttributeVerificationMutation(handle: "admin-verification")
+            .mutate((id: "u-1", attribute: "email"))
 
         XCTAssertEqual(result, UserAttributeVerificationResult(channel: "email", maskedDestination: "a•••@x.io"))
         await waitFor { MockURLProtocol.requestCount(forPath: "/users/u-1") == 2 }
         XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/flow/execute"), 1)
         XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/users/u-1"), 2)
+    }
+
+    func testSendingAVerificationLinkRunsTheHandleItIsGivenWithoutReadingConfig() async throws {
+        let state = try await makeState()
+        respond(
+            #"{"flowStatus":"INCOMPLETE","data":{"additionalData":{"channel":"email"}},"# +
+            #""merged":{"adminAttributeVerificationFlow":{"defaultHandle":"configured"}}}"#
+        )
+
+        _ = await state.sendUserAttributeVerificationMutation(handle: "given").mutate((id: "u-1", attribute: "email"))
+
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/flow/execute"), 1)
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/server-config/flow"), 0)
+    }
+
+    func testSendingAVerificationLinkWithNoHandleReadsItFromConfig() async throws {
+        let state = try await makeState()
+        respond(
+            #"{"flowStatus":"INCOMPLETE","data":{"additionalData":{"channel":"email"}},"# +
+            #""merged":{"adminAttributeVerificationFlow":{"defaultHandle":"configured"}}}"#
+        )
+
+        let result = await state.sendUserAttributeVerificationMutation().mutate((id: "u-1", attribute: "email"))
+
+        XCTAssertEqual(result, UserAttributeVerificationResult(channel: "email"))
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/server-config/flow"), 1)
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/flow/execute"), 1)
     }
 
     func testFailedMutationReportsItsErrorWithoutThrowing() async throws {

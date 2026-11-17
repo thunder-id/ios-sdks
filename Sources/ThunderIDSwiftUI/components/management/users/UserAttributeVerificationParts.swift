@@ -74,9 +74,10 @@ struct UserAttributeVerificationRow: View {
     }
 
     private func sendButton(action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        let verify = i18n.resolve("admin.users.details.verification.verify")
+        return Button(action: action) {
             ZStack {
-                Label(i18n.resolve("admin.users.details.verification.send_short"), systemImage: "paperplane")
+                Label(verify, systemImage: "paperplane")
                     .foregroundStyle(isUpdating ? Color.secondary : Color.accentColor)
                     .opacity(isSending ? 0 : 1)
                 if isSending {
@@ -88,7 +89,7 @@ struct UserAttributeVerificationRow: View {
         }
         .buttonStyle(.borderless)
         .disabled(isSending || isUpdating)
-        .accessibilityLabel(i18n.resolve("admin.users.details.verification.send"))
+        .accessibilityLabel("\(verify) \(name)")
         .accessibilityIdentifier("admin-user-details-verification-send-\(name)")
     }
 }
