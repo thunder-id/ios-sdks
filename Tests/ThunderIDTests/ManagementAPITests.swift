@@ -95,6 +95,54 @@ final class ManagementAPITests: XCTestCase {
         XCTAssertEqual((body["attributes"] as? [String: Any])?["name"] as? String, "Triage")
     }
 
+    func testAgentCreateSendsTheOwnerAsAnObject() async throws {
+        let recorder = RecordingFetcher()
+        recorder.respond(
+            #"{"id":"ag-1","ouId":"ou","type":"default","#
+                + #""owner":{"id":"jane@example.com","idType":"email","isLocal":false}}"#
+        )
+        let client = try await makeClient(fetcher: recorder.fetcher)
+        var request = CreateAgentRequest(ouId: "ou", type: "default")
+        request.owner = AgentOwner(id: "jane@example.com", idType: .email, isLocal: false)
+
+        let agent = try await client.agents.create(request)
+
+        XCTAssertEqual(agent.owner, request.owner)
+        let sent = try XCTUnwrap(recorder.requests.first)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: sent.httpBody ?? Data()) as? [String: Any])
+        let owner = try XCTUnwrap(body["owner"] as? [String: Any])
+        XCTAssertEqual(Set(owner.keys), ["id", "idType", "isLocal"])
+        XCTAssertEqual(owner["id"] as? String, "jane@example.com")
+        XCTAssertEqual(owner["idType"] as? String, "email")
+        XCTAssertEqual(owner["isLocal"] as? Bool, false)
+    }
+
+    func testAgentOwnerLeavesUnsetFieldsToTheServer() throws {
+        let encoded = try JSONEncoder().encode(AgentOwner(id: "u-1"))
+        let owner = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+
+        XCTAssertEqual(Set(owner.keys), ["id"])
+        XCTAssertEqual(owner["id"] as? String, "u-1")
+    }
+
+    func testAgentReadsDecodeTheOwnerObject() async throws {
+        let recorder = RecordingFetcher()
+        recorder.respond(
+            #"{"id":"ag-1","ouId":"ou","type":"default","#
+                + #""owner":{"id":"jane@example.com","idType":"email","isLocal":false}}"#
+        )
+        let client = try await makeClient(fetcher: recorder.fetcher)
+
+        let agent = try await client.agents.get(id: "ag-1")
+        recorder.respond(#"{"id":"ag-2","ouId":"ou","type":"default","owner":{"id":"u-1"}}"#)
+        let local = try await client.agents.get(id: "ag-2")
+
+        XCTAssertEqual(agent.owner, AgentOwner(id: "jane@example.com", idType: .email, isLocal: false))
+        XCTAssertEqual(local.owner, AgentOwner(id: "u-1"))
+        XCTAssertNil(local.owner?.idType)
+        XCTAssertNil(local.owner?.isLocal)
+    }
+
     func testAgentReadsDecodeTheDisplayName() async throws {
         let recorder = RecordingFetcher()
         recorder.respond(
