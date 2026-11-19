@@ -7,7 +7,9 @@ import Foundation
 /// shipped locale.
 public enum DefaultStrings {
     /// The English (`en-US`) strings, the last fallback for every key.
-    public static let all: [String: String] = core.merging(AdminDefaultStrings.all) { current, _ in current }
+    public static let all: [String: String] = core
+        .merging(AdminDefaultStrings.all) { current, _ in current }
+        .merging(PersonalAgentDefaultStrings.all) { current, _ in current }
 
     /// The locales the SDK ships strings for, the same set the JavaScript SDK ships.
     public static let locales: [String] = [

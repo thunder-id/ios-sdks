@@ -126,19 +126,37 @@ public struct BaseAgentDetails<Content: View>: View {
         i18n.resolve("admin.agents.details.delete.confirm", ["name": agent.resolvedName])
     }
 
-    private func details(_ agent: Agent) -> some View {
+    private func overview(_ agent: Agent) -> [(label: String, value: String)] {
         var overview: [(label: String, value: String)] = [
             (i18n.resolve("admin.agents.details.type"), agent.type),
-            (i18n.resolve("admin.agents.details.owner"), agent.owner ?? i18n.resolve("admin.agents.details.no_owner")),
+            (
+                i18n.resolve("admin.agents.details.owner"),
+                agent.owner?.id ?? i18n.resolve("admin.agents.details.no_owner")
+            ),
             (i18n.resolve("admin.common.columns.organization_unit"), agent.ouHandle ?? agent.ouId)
         ]
+        if agent.isPersonal {
+            overview.append((i18n.resolve("admin.agents.details.kind"), i18n.resolve("admin.agents.kind.personal")))
+        }
         if let status = agent.status {
             overview.append((i18n.resolve("admin.common.columns.status"), i18n.accessStatusLabel(status.value)))
+            if !status.adminSuspendedBy.isEmpty {
+                let parties = status.adminSuspendedBy.map {
+                    i18n.resolve("admin.agents.details.suspension.\($0.rawValue)")
+                }
+                overview.append(
+                    (i18n.resolve("admin.agents.details.suspension.title"), parties.joined(separator: ", "))
+                )
+            }
         }
         if let clientId = agent.clientId {
             overview.append((i18n.resolve("admin.agents.list.columns.client_id"), clientId))
         }
-        return AdminSection(
+        return overview
+    }
+
+    private func details(_ agent: Agent) -> some View {
+        AdminSection(
             identifier: "admin-agent-details",
             title: agent.resolvedName,
             description: agent.description,
@@ -148,7 +166,7 @@ public struct BaseAgentDetails<Content: View>: View {
                     AdminErrorBanner(message: error)
                 }
                 AdminPanel(title: i18n.resolve("admin.agents.details.overview")) {
-                    AdminDetailList(items: overview)
+                    AdminDetailList(items: overview(agent))
                 }
                 AdminPanel(title: i18n.resolve("admin.agents.details.groups")) {
                     AdminChipList(
@@ -354,7 +372,12 @@ private struct AgentDetailsHost<Content: View>: View {
 
     private var availableLifecycleActions: [AccountLifecycleAction] {
         guard props.lifecycleActions, let flows = lifecycleFlows.data else { return [] }
-        return AccountLifecycleAction.available(for: .agent, status: agent.data?.status?.value, configuredFlows: flows)
+        return AccountLifecycleAction.available(
+            for: .agent,
+            status: agent.data?.status?.value,
+            configuredFlows: flows,
+            appliedBy: agent.data?.status?.details?.appliedBy
+        )
     }
 
     private func runLifecycleAction(_ action: AccountLifecycleAction, operatorNote: String?) {
@@ -368,5 +391,14 @@ private struct AgentDetailsHost<Content: View>: View {
                 props.onDeleted?()
             }
         }
+    }
+}
+
+extension AccessStatus {
+    /// Who the admin views name as holding the suspension. A suspension that names no party is the
+    /// organization's, as the lifecycle actions read it.
+    var adminSuspendedBy: [SuspensionAppliedBy] {
+        guard value == .suspended else { return [] }
+        return suspendedBy.isEmpty ? [.organization] : suspendedBy
     }
 }

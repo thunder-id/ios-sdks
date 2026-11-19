@@ -24,6 +24,8 @@ struct ComponentPreview: View {
     @ViewBuilder private var standardPreview: some View {
         switch spec.group {
         case "Actions": actionPreview
+        case "User" where spec.id.hasPrefix("personalAgent"):
+            PersonalAgentPreview(id: spec.id, values: values, onEvent: onEvent)
         case "User": UserPreview(id: spec.id, values: values, onEvent: onEvent)
         case "Flows": FlowPreview(id: spec.id, values: values, onEvent: onEvent)
         case "Organization": OrganizationUnitSwitcherPreview(values: values, onEvent: onEvent)

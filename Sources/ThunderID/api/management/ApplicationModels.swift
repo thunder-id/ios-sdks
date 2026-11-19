@@ -154,6 +154,35 @@ public struct OAuth2Config: Codable {
     }
 }
 
+public extension OAuth2Config {
+    /// Reads `grantTypes` and `responseTypes` as empty when the server leaves them out, as it does for an
+    /// empty list, such as an agent whose grants were all removed or one with only the CIBA grant.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            grantTypes: try container.decodeIfPresent([String].self, forKey: .grantTypes) ?? [],
+            responseTypes: try container.decodeIfPresent([String].self, forKey: .responseTypes) ?? []
+        )
+        clientId = try container.decodeIfPresent(String.self, forKey: .clientId)
+        clientSecret = try container.decodeIfPresent(String.self, forKey: .clientSecret)
+        redirectUris = try container.decodeIfPresent([String].self, forKey: .redirectUris)
+        postLogoutRedirectUris = try container.decodeIfPresent([String].self, forKey: .postLogoutRedirectUris)
+        tokenEndpointAuthMethod = try container.decodeIfPresent(String.self, forKey: .tokenEndpointAuthMethod)
+        pkceRequired = try container.decodeIfPresent(Bool.self, forKey: .pkceRequired)
+        publicClient = try container.decodeIfPresent(Bool.self, forKey: .publicClient)
+        scopes = try container.decodeIfPresent([String].self, forKey: .scopes)
+        token = try container.decodeIfPresent(OAuth2TokenConfig.self, forKey: .token)
+        userInfo = try container.decodeIfPresent(UserInfoConfig.self, forKey: .userInfo)
+        scopeClaims = try container.decodeIfPresent([String: [String]].self, forKey: .scopeClaims)
+        requirePushedAuthorizationRequests = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .requirePushedAuthorizationRequests
+        )
+        certificate = try container.decodeIfPresent(ApplicationCertificate.self, forKey: .certificate)
+        acrValues = try container.decodeIfPresent([String].self, forKey: .acrValues)
+    }
+}
+
 /// A certificate attached to an OAuth 2.0 application, e.g. a JWKS URI.
 public struct ApplicationCertificate: Codable {
     public var type: String

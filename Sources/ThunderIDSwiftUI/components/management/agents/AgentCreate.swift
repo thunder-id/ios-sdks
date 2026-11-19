@@ -247,7 +247,7 @@ public struct AgentCreate<Content: View>: View {
                                 projectId: placement.projectId
                             )
                             request.description = submission.description
-                            request.owner = owner
+                            request.owner = owner.map { AgentOwner(id: $0) }
                             return request
                         }, onCreated: { onCreated?($0) })
                     },

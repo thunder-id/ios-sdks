@@ -164,10 +164,20 @@ public struct BaseAgentList<Content: View>: View {
                         )
                     },
                     row: { agent in
-                        AdminRowLabel(
-                            title: agent.resolvedName,
-                            details: [agent.type, agent.clientId ?? "", agent.ouHandle ?? agent.ouId]
-                        )
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            AdminRowLabel(
+                                title: agent.resolvedName,
+                                details: [agent.type, agent.clientId ?? "", agent.ouHandle ?? agent.ouId]
+                            )
+                            if agent.isPersonal {
+                                Text(i18n.resolve("admin.agents.kind.personal"))
+                                    .font(.footnote)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.accentColor.opacity(0.12)))
+                                    .accessibilityIdentifier("admin-agent-list-personal")
+                            }
+                        }
                     },
                     i18n: i18n
                 )

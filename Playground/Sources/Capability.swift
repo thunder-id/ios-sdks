@@ -16,6 +16,7 @@ enum CapabilityID: String, CaseIterable {
     case attributeVerification
     case organizations
     case organizationSwitch
+    case personalAgents
     case pushedAuthorization
     case ciba
     case deviceAuthorization
@@ -154,6 +155,7 @@ enum CapabilityCatalog {
             )
         ]),
         organizationSection,
+        CapabilitySection(name: "Personal agents", items: [personalAgentCapability]),
         grantSection,
         CapabilitySection(name: "UI", items: [
             Capability(
