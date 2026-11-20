@@ -147,4 +147,26 @@ final class AdminStateTests: XCTestCase {
         XCTAssertFalse(granted.can("system:group:view"))
         XCTAssertEqual(MockURLProtocol.requestCount, 0)
     }
+
+    func testDeletingAPersonalAgentRefetchesItsDetails() async throws {
+        let state = try await makeState()
+        MockURLProtocol.handler = { request in
+            let isDelete = request.httpMethod == "DELETE"
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: isDelete ? 204 : 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, isDelete ? Data() : Data(#"{"id":"a-1","ouId":"ou","type":"assistant"}"#.utf8))
+        }
+        let agent = state.meAgentQuery(id: "a-1")
+        await agent.refetch()
+
+        let deleted = await state.deleteMeAgentMutation().mutate("a-1")
+
+        XCTAssertNotNil(deleted)
+        await waitFor { MockURLProtocol.requestCount(forPath: "/users/me/agents/a-1") == 3 }
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/users/me/agents/a-1"), 3)
+    }
 }

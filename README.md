@@ -70,6 +70,15 @@ The signed-in user's organization units, and signing in to one of them:
 - `ProjectList`, `ProjectCreate`, `ProjectDetails` and `ProjectSwitcher` manage projects (Control Plane only). `ProjectSwitcher` sets `ThunderIDState.currentProject`, kept per vendor; it is client-side context, not a sign-in. A project is not an organization unit: only applications and agents take one. `ApplicationList` and `AgentList` list the current project's applications and agents (an explicit `projectId` wins; the server combines a project with no attribute filter, so `AgentList` hides its search while a project applies), and `ApplicationCreate` and `AgentCreate` create in the project when the app passes no organization unit. Every other component keeps its own organization unit default (the signed-in user's unit).
 - `OrganizationUnitList`, `OrganizationUnitCreate` and `OrganizationUnitDetails` manage organization units, their children and what they hold. `SharingPolicies` lists and, when `editable`, edits the sharing policies of a user, application, role or flow, with an organization unit's overlay rules when `ouId` is given.
 
+## Personal agents
+
+The agents the signed-in user owns, through the owner self-service API (`/users/me/agents`). These are the user's own requests: they go through the SDK's transport with the user's token, like the other `/users/me` calls, never `http.fetcher`.
+
+- `getMeAgents(kind:limit:offset:)` lists the user's agents (`kind: .personal` for personal agents only), and `getMeAgent(id:)` reads one. `updateMeAgent(id:_:)` replaces the part an owner may change (the attributes, including `name`, the description, the grant types and the redirect URIs); `PersonalAgentFormValues` builds the request from an agent and keeps the attributes it does not edit. `deleteMeAgent(id:)` deletes one.
+- `suspendMeAgent(id:)` and `unsuspendMeAgent(id:)` place and lift the owner's own suspension, and `suspendAllMeAgents()` suspends every personal agent the owner has not already suspended. The owner's suspension is independent of the organization's: `MeAgentSuspensionAction.available(for:)` offers an unsuspend only while the owner holds the agent suspended, and lifting it leaves any other suspension in force.
+- `PersonalAgentList` and `PersonalAgentDetails`, with their `Base` variants, show the user's personal agents and the actions the app turns on (`suspendable`, `editable`, `deletable`). Deleting and suspending ask for confirmation first.
+- `AgentList` marks a personal agent, and `AgentDetails` shows its kind and who holds a suspension (`status.details.appliedBy`). The organization lifts only its own suspension, so for an agent only its owner suspended, the lifecycle actions offer Suspend instead of Unsuspend.
+
 ## Optional grants
 
 - **Pushed authorization requests (RFC 9126).** Set `pushedAuthorizationRequests: true`, or let the server's metadata require it, and build the sign-in URL with `signInURL(options:)`: it posts the request to `/oauth2/par` and authorizes with the returned `request_uri`. `buildSignInURL(options:)` cannot push, so it refuses while `pushedAuthorizationRequests` is on.

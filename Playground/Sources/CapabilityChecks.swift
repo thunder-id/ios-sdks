@@ -36,6 +36,7 @@ struct CheckContext {
         .merging(serverResourceRunners) { current, _ in current }
         .merging(sharingProjectRunners) { current, _ in current }
         .merging(organizationRunners) { current, _ in current }
+        .merging(personalAgentRunners) { current, _ in current }
 
     private static let authRunners: [CapabilityID: Runner] = [
         .browserSignIn: { try await $0.signInWithBrowser() },

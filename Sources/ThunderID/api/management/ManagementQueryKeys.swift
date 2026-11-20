@@ -22,6 +22,10 @@ public enum AgentQueryKeys {
     public static let agent = "agent"
     public static let agents = "agents"
     public static let agentTypes = "agent-types"
+    /// One of the signed-in user's own agents.
+    public static let meAgent = "me-agent"
+    /// The signed-in user's own agents.
+    public static let meAgents = "me-agents"
 }
 
 /// Cache keys for group resources. ``memberships`` covers the groups a user or an agent belongs to.

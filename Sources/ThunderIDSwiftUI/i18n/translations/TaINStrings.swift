@@ -6,7 +6,9 @@ import Foundation
 /// The ta-IN strings for all ThunderIDSwiftUI components. The keys and text of the `admin.*` strings, and
 /// of the others where the JavaScript SDK has the same text, match its translations.
 enum TaINStrings {
-    static let all: [String: String] = base.merging(resources) { current, _ in current }
+    static let all: [String: String] = base
+        .merging(resources) { current, _ in current }
+        .merging(agents) { current, _ in current }
 
     private static let base: [String: String] = [
         "signIn.button": "உள்நுழை",

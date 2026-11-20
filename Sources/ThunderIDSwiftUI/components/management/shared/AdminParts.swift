@@ -237,6 +237,7 @@ struct AdminTextField: View {
     let name: String
     var isSecure = false
     var isRequired = false
+    var isMultiline = false
     @Binding var text: String
 
     var body: some View {
@@ -248,6 +249,11 @@ struct AdminTextField: View {
             Group {
                 if isSecure {
                     SecureField(label, text: $text)
+                } else if isMultiline {
+                    TextField(label, text: $text, axis: .vertical)
+                        .lineLimit(1...4)
+                        .autocorrectionDisabled()
+                        .adminNoAutocapitalization()
                 } else {
                     TextField(label, text: $text)
                         .autocorrectionDisabled()

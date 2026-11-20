@@ -40,8 +40,8 @@ The app has four tabs:
   `UserCreate`, `GroupList`, `GroupDetails`, `GroupCreate`, `GroupMembers`, `RoleList`, `RoleDetails`,
   `RoleCreate`, `RolePermissions`, `RoleAssignments`, `AgentList`, `AgentDetails`, `AgentCreate`,
   `ApplicationList`, `ApplicationDetails`, `ApplicationCreate`) are under the
-  `Admin ·` groups. The **Projects**, **Organization units**, **Sharing** and **Device grant** groups
-  each have Sample, Live and Custom rendering stories. Their Sample, Loading, Empty, Error and Submitting stories render the `Base*`
+  `Admin ·` groups. The **Projects**, **Organization units**, **Sharing** and **Device grant** groups, and
+  `PersonalAgentList` and `PersonalAgentDetails` under **User**, each have Sample, Live and Custom rendering stories. Their Sample, Loading, Empty, Error and Submitting stories render the `Base*`
   view with sample records (members and assignments can be added and removed locally); Live
   renders the connected view against the management API with the signed-in user's token. Live
   create stories create real records. `UserDetails` also has Verification link sent and Email verified

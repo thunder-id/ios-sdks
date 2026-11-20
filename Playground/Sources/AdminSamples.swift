@@ -106,6 +106,8 @@ enum AdminSamples {
       {"id": "agt-billing", "ouId": "ou-1", "ouHandle": "default", "type": "assistant",
        "display": "Billing assistant", "attributes": {"name": "Billing assistant"},
        "description": "Answers invoice questions"},
+      {"id": "agt-spend", "ouId": "ou-1", "ouHandle": "default", "type": "assistant", "kind": "personal-assistant",
+       "display": "Spending assistant", "attributes": {"name": "Spending assistant"}, "clientId": "spend-assistant"},
       {"id": "agt-sync", "ouId": "ou-1", "type": "service", "display": "Directory sync",
        "attributes": {"name": "Directory sync"}, "isReadOnly": true}
     ]
@@ -114,7 +116,7 @@ enum AdminSamples {
     static let agent: Agent = decode("""
     {"id": "agt-triage", "ouId": "ou-1", "ouHandle": "default", "type": "assistant",
      "display": "Ticket triage agent", "description": "Labels and routes support tickets",
-     "owner": "usr-liam", "clientId": "triage",
+     "owner": {"id": "usr-liam"}, "clientId": "triage",
      "attributes": {"name": "Ticket triage agent", "model": "triage-v2"},
      "status": {"value": "ACTIVE"}}
     """)

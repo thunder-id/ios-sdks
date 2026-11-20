@@ -53,14 +53,21 @@ public enum AccountLifecycleAction: String, CaseIterable, Identifiable {
     ///   - status: Its effective access status. An identity with none reads as active.
     ///   - configuredFlows: The flows the server configures, as ``AdministrationFlowsAPI/resolve(_:fetcher:)``
     ///     returns them.
+    ///   - appliedBy: Who holds a suspension, from ``AccessStatusDetails/appliedBy``. The organization lifts
+    ///     only its own suspension: a suspension held only by others, such as an agent's owner, offers the
+    ///     organization's own suspension instead of an unsuspend. `nil` or empty reads as the organization's.
     /// - Returns: The actions to offer, most expected first.
     public static func available(
         for kind: AccountLifecycleSubjectKind,
         status: AccessStatusValue?,
-        configuredFlows: [AdministrationFlowConfigKey: String]
+        configuredFlows: [AdministrationFlowConfigKey: String],
+        appliedBy: [SuspensionAppliedBy]? = nil
     ) -> [AccountLifecycleAction] {
         let configKeys = kind.flowConfigKeys
-        return allowed(by: status ?? .active).filter { action in
+        let heldByOthersOnly = status == .suspended
+            && !(appliedBy ?? []).isEmpty
+            && appliedBy?.contains(.organization) == false
+        return (heldByOthersOnly ? [.suspend] : allowed(by: status ?? .active)).filter { action in
             guard let configKey = configKeys[action], let flow = configuredFlows[configKey] else { return false }
             return !flow.isEmpty
         }
