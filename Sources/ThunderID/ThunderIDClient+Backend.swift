@@ -48,6 +48,7 @@ public extension ThunderIDClient {
 extension ThunderIDClient {
     /// The session ended elsewhere: the backend client has already cleared the stored handle and token.
     func sessionEnded() {
+        telemetryClient?.sessionExpired()
         currentUser = nil
         signOutListeners.forEach { $0() }
     }
@@ -70,7 +71,9 @@ extension ThunderIDClient {
         let transport = BackendHttpClient(backend: client, http: backendHttpClient)
         backend = client
         backendHttp = transport
-        http.setTransport { request, fetcher in try await transport.send(request, fetcher: fetcher) }
+        http.setTransport { request, fetcher, observe in
+            try await transport.send(request, fetcher: fetcher, observe: observe)
+        }
         // Read the session now, so the client reports loading until it is known whether the user is signed in.
         Task {
             await client.startWatching(pollInterval: config.session.checkInterval)

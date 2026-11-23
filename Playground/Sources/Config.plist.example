@@ -14,6 +14,8 @@
     <string>dev.thunderid.playground://signout</string>
     <key>THUNDERID_SCOPES</key>
     <string>openid profile email</string>
+    <!-- Optional: an HTTPS endpoint that receives usage telemetry as JSON. Unset leaves telemetry off. -->
+    <!-- <key>THUNDERID_TELEMETRY_ENDPOINT</key><string>https://localhost:4318/v1/logs</string> -->
     <!-- Optional: per-collection management endpoint overrides. Unset ones use THUNDERID_BASE_URL. -->
     <!-- <key>THUNDERID_ENDPOINT_APPLICATIONS</key><string>https://localhost:9090/applications</string> -->
     <!-- <key>THUNDERID_ENDPOINT_USERS</key><string>https://localhost:9090/users</string> -->

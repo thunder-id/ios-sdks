@@ -70,6 +70,11 @@ public struct ThunderIDConfig {
     /// `VendorConstants.vendorPrefix` ("thunderid").
     public var vendor: String
 
+    // MARK: - Telemetry
+    /// Usage events reported to an endpoint the app configures: screen views, API events, auth events and
+    /// links that leave the app. Off by default, and off until ``TelemetryConfig/endpoint`` is set.
+    public var telemetry: TelemetryConfig?
+
     public init(
         baseUrl: String,
         clientId: String? = nil,
@@ -94,7 +99,8 @@ public struct ThunderIDConfig {
         http: ThunderIDHttpConfig = .init(),
         storage: StorageAdapter? = nil,
         instanceId: Int? = nil,
-        vendor: String = VendorConstants.vendorPrefix
+        vendor: String = VendorConstants.vendorPrefix,
+        telemetry: TelemetryConfig? = nil
     ) {
         self.baseUrl = baseUrl
         self.clientId = clientId
@@ -120,6 +126,7 @@ public struct ThunderIDConfig {
         self.storage = storage
         self.instanceId = instanceId
         self.vendor = vendor
+        self.telemetry = telemetry
     }
 }
 

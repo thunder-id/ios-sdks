@@ -29,7 +29,9 @@ struct RichTextLinks: View {
                         }
                         .buttonStyle(.plain)
                     } else if let url = segment.url {
+                        // A link that leaves the app is reported to telemetry, when it is on.
                         Link(segment.text, destination: url)
+                            .telemetryLinks()
                     } else {
                         // The anchor's href didn't resolve to a usable URL (e.g. the flow meta
                         // response has no configured URL for this link) — still render it

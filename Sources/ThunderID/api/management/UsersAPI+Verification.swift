@@ -85,7 +85,8 @@ public extension UsersAPI {
             method: "POST",
             path: "flow/execute",
             body: try JSONEncoder().encode(request),
-            fetcher: fetcher
+            fetcher: fetcher,
+            observe: false
         )
         return try Self.sentVerification(from: result)
     }

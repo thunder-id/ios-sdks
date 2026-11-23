@@ -38,7 +38,9 @@ let package = Package(
         .testTarget(
             name: "ThunderIDTests",
             dependencies: ["ThunderID"],
-            path: "Tests/ThunderIDTests"
+            path: "Tests/ThunderIDTests",
+            // Read from the source tree by the telemetry naming test, so it is shared with the other SDKs as is.
+            exclude: ["telemetry/fixtures"]
         ),
         .testTarget(
             name: "ThunderIDSwiftUITests",

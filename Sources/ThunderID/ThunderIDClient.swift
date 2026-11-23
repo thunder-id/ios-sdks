@@ -19,6 +19,8 @@ public final class ThunderIDClient {
     var backend: BackendClient?
     var backendHttp: BackendHttpClient?
     var signOutListeners: [() -> Void] = []
+    /// Set when ``ThunderIDConfig/telemetry`` has an HTTPS endpoint.
+    var telemetryClient: ClientTelemetry?
     /// The server's OpenID provider metadata, read once when an operation first needs it.
     var cachedServerMetadata: ServerMetadata?
     /// The organization unit the redirect sign-in in progress is bounded to: its code is redeemed only at
@@ -66,8 +68,10 @@ public final class ThunderIDClient {
         if let backendEndpoints {
             // The backend holds the tokens, so no request carries one: they go through the backend instead.
             setUpBackend(backendEndpoints, config: config, http: http, tokenStore: tokenStore!, session: session)
+            startTelemetry(config, http: http, backend: backendHttp.map { (backendEndpoints, $0) }, session: session)
             return true
         }
+        startTelemetry(config, http: http, backend: nil, session: session)
         http.setAccessTokenProvider { [weak self] in
             guard let self, let config = self.config else {
                 throw ThunderIDError(code: .sdkNotInitialized, message: "Not initialized")
@@ -83,6 +87,7 @@ public final class ThunderIDClient {
         }
         if let baseUrl { current = ThunderIDConfig(baseUrl: baseUrl, clientId: current.clientId) }
         tearDownBackend()
+        telemetryClient = nil
         config = nil
         return try await initialize(config: current)
     }
@@ -137,6 +142,7 @@ public final class ThunderIDClient {
         }
         try keepFlowSessions(from: response)
         try establishSessionIfNeeded(from: response)
+        await reportFlowStep(response, isSignIn: request.flowType == .authentication)
         return response
     }
 
@@ -206,45 +212,15 @@ public final class ThunderIDClient {
     /// Exchanges the authorization code received from the redirect callback for tokens.
     /// When sign-in runs on the app's backend, it exchanges the callback's `session_code` for the session.
     public func handleRedirectCallback(url: URL) async throws -> User {
-        let cfg = try requireConfig()
-        if let backend { return try await handleBackendCallback(url: url, backend: backend) }
-        guard let clientId = cfg.clientId else {
-            throw ThunderIDError(code: .invalidConfiguration, message: "clientId required")
-        }
-        if let ouId = pendingOrganizationUnitId {
-            return try await handleBoundedCallback(url: url, organizationUnitId: ouId, clientId: clientId, config: cfg)
-        }
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
-            throw ThunderIDError(code: .invalidGrant, message: "Authorization code missing from callback URL")
-        }
-        guard let verifier = pkceManager.codeVerifier else {
-            throw ThunderIDError(
-                code: .invalidGrant,
-                message: "PKCE verifier not found; ensure signIn was called first"
-            )
-        }
-        defer { pkceManager.clearVerifier() }
-        let form: [(String, String)] = [
-            ("grant_type", "authorization_code"),
-            ("code", code),
-            ("client_id", clientId),
-            ("redirect_uri", cfg.afterSignInUrl ?? ""),
-            ("code_verifier", verifier)
-        ]
-        let tokenEndpoint = try await discoveredEndpoint(\.tokenEndpoint, fallback: "/oauth2/token")
-        let tokenResponse: TokenResponse = try await httpClient!.postForm(url: tokenEndpoint, form: form)
-        if let idToken = tokenResponse.idToken {
-            try await tokenValidator?.validate(idToken: idToken, nonce: nil)
-        }
-        try tokenStore!.save(tokenResponse)
-        return try await getUser()
+        try await reportingSignIn { try await completeRedirectCallback(url: url) }
     }
 
     public func signOut(options: SignOutOptions? = nil, sessionId: String? = nil) async throws -> String {
         try requireInitialized()
         _isLoading = true
         defer { _isLoading = false }
+        // Sent before the session it names is cleared.
+        await telemetryClient?.signedOut()
         if let backend {
             currentUser = nil
             return try await backend.signOut() ?? config?.afterSignOutUrl ?? "/"
@@ -299,6 +275,7 @@ public final class ThunderIDClient {
         }
         try keepFlowSessions(from: response)
         try establishSessionIfNeeded(from: response)
+        await reportFlowStep(response, isSignIn: false)
         return response
     }
 
@@ -435,6 +412,46 @@ public final class ThunderIDClient {
         if let claims = try? decodeJwtToken(assertion) as [String: AnyCodable] {
             currentUser = User(claims: claims)
         }
+    }
+}
+
+private extension ThunderIDClient {
+    /// Exchanges the code a redirect callback carries for tokens, or the backend's `session_code` for the
+    /// session.
+    func completeRedirectCallback(url: URL) async throws -> User {
+        let cfg = try requireConfig()
+        if let backend { return try await handleBackendCallback(url: url, backend: backend) }
+        guard let clientId = cfg.clientId else {
+            throw ThunderIDError(code: .invalidConfiguration, message: "clientId required")
+        }
+        if let ouId = pendingOrganizationUnitId {
+            return try await handleBoundedCallback(url: url, organizationUnitId: ouId, clientId: clientId, config: cfg)
+        }
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
+            throw ThunderIDError(code: .invalidGrant, message: "Authorization code missing from callback URL")
+        }
+        guard let verifier = pkceManager.codeVerifier else {
+            throw ThunderIDError(
+                code: .invalidGrant,
+                message: "PKCE verifier not found; ensure signIn was called first"
+            )
+        }
+        defer { pkceManager.clearVerifier() }
+        let form: [(String, String)] = [
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("client_id", clientId),
+            ("redirect_uri", cfg.afterSignInUrl ?? ""),
+            ("code_verifier", verifier)
+        ]
+        let tokenEndpoint = try await discoveredEndpoint(\.tokenEndpoint, fallback: "/oauth2/token")
+        let tokenResponse: TokenResponse = try await httpClient!.postForm(url: tokenEndpoint, form: form)
+        if let idToken = tokenResponse.idToken {
+            try await tokenValidator?.validate(idToken: idToken, nonce: nil)
+        }
+        try tokenStore!.save(tokenResponse)
+        return try await getUser()
     }
 }
 

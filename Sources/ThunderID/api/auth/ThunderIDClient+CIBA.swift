@@ -172,6 +172,7 @@ extension ThunderIDClient {
                 }
                 try tokenStore!.save(response)
                 currentUser = nil
+                await telemetryClient?.signedIn()
                 return response
             } catch let failure as OAuthFailure {
                 switch failure.error {

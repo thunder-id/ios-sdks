@@ -99,20 +99,22 @@ struct ManagementTransport {
     }
 
     /// Sends a request to a server-level path, `{baseUrl}/{path}`, whatever collection URL this
-    /// transport addresses.
+    /// transport addresses. Clear `observe` for a flow execution, which is never an API event.
     func server<T: Decodable>(
         method: String,
         path: String,
         query: [URLQueryItem] = [],
         body: Data? = nil,
-        fetcher: ThunderIDFetcher?
+        fetcher: ThunderIDFetcher?,
+        observe: Bool = true
     ) async throws -> T {
         try await httpClient.send(
             method: method,
             url: Self.resolve("\(try requireBaseUrl())/\(path)", query: query),
             body: body,
             isSensitive: isSensitive,
-            fetcher: fetcher ?? self.fetcher
+            fetcher: fetcher ?? self.fetcher,
+            observe: observe
         )
     }
 
