@@ -84,13 +84,47 @@ jobs:
           sed -i '' "s/s.version          = '$current'/s.version          = '$new_version'/" ThunderID.podspec
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
 
+      # The CHANGELOG entry is GitHub's generated release notes for the new version: the pull
+      # requests merged since the latest release, grouped by their `Type/*` label as configured in
+      # .github/release.yml (pr-label-check.yml makes every pull request carry one). The GitHub
+      # release below uses the same notes.
+      - name: 📝 Update CHANGELOG
+        env:
+          GH_TOKEN: ${{ secrets.THUNDERID_AUTOMATION_BOT }}
+          VERSION: ${{ steps.bump.outputs.version }}
+          RELEASE_REF: ${{ github.ref_name }}
+        run: |
+          # The previous release, set explicitly: left out, GitHub guesses it and can skip one.
+          args=(-f "tag_name=${VERSION}" -f "target_commitish=${RELEASE_REF}")
+          previous=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name 2>/dev/null || true)
+          if [ -n "$previous" ]; then args+=(-f "previous_tag_name=${previous}"); fi
+          notes=$(gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" "${args[@]}" --jq .body)
+          # The GitHub release uses the notes as they are.
+          printf '%s\n' "$notes" > "$RUNNER_TEMP/release-notes.md"
+          {
+            echo "## ${VERSION}"
+            echo
+            # Keep the sections and the compare link; drop the generator comment, the top-level
+            # "What's Changed" heading and the "New Contributors" section.
+            awk '
+              /^<!--/ { next }
+              /^## What.s Changed/ { next }
+              /^## New Contributors/ { skip = 1; next }
+              /^\*\*Full Changelog\*\*/ { skip = 0 }
+              !skip
+            ' <<< "$notes" | sed -e '/./,$!d'
+            echo
+            if [ -f CHANGELOG.md ]; then cat CHANGELOG.md; fi
+          } > CHANGELOG.md.new
+          mv CHANGELOG.md.new CHANGELOG.md
+
       - name: 📤 Commit, Tag & Push
         env:
           RELEASE_REF: ${{ github.ref_name }}
         run: |
           git config user.name "${{ env.RELEASE_GIT_USER_NAME }}"
           git config user.email "${{ env.RELEASE_GIT_USER_EMAIL }}"
-          git add ThunderID.podspec
+          git add ThunderID.podspec CHANGELOG.md
           git diff --cached --quiet || git commit -m "[Release] ThunderID v${{ steps.bump.outputs.version }}"
           for i in $(seq 1 5); do
             git pull --rebase --autostash origin "$RELEASE_REF"
@@ -108,4 +142,4 @@ jobs:
         run: |
           gh release create "${VERSION}" \
             --title "ThunderID iOS SDK v${VERSION}" \
-            --generate-notes
+            --notes-file "$RUNNER_TEMP/release-notes.md"
