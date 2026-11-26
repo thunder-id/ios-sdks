@@ -193,8 +193,8 @@ public extension BaseApplicationList where Content == EmptyView {
 /// (``ThunderIDState/currentProject``), it lists the applications the project's root organization unit
 /// owns, followed by the applications shared into it.
 ///
-/// The server defines no application-specific permission: applications are guarded by the root
-/// `system` permission, for reading and writing alike. A request the token is not allowed to make
+/// Wrap it in `CapabilityGuard(resource: "app")` to show it only to a user the server reports may view
+/// applications. The server still authorizes every request, and one the token is not allowed to make
 /// shows the translated forbidden message.
 public struct ApplicationList<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState

@@ -167,6 +167,10 @@ public extension BaseRoleDetails where Content == EmptyView {
 /// back to the API when none is configured. It defaults to `.native`. Assignees are offered from the
 /// role's organization unit. With `content`, the custom UI replaces the whole view, permissions and
 /// assignments included.
+///
+/// Its data-changing actions are offered only when turned on here and the server's capabilities report the
+/// signed-in user may perform them (``CapabilitiesState``); a locked record opens read-only. Capabilities are
+/// not an authorization decision: the server still authorizes every request.
 public struct RoleDetails<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let roleId: String
@@ -249,6 +253,7 @@ private struct RoleDetailsHost<Content: View>: View {
     @StateObject private var role: ResourceQuery<Role>
     @StateObject private var deletion: ResourceMutation<String, Void>
     let props: RoleDetails<Content>
+    @ObservedObject private var capabilities: CapabilitiesState
 
     init(state: ThunderIDState, props: RoleDetails<Content>) {
         _role = StateObject(wrappedValue: state.roleQuery(id: props.roleId))
@@ -256,7 +261,12 @@ private struct RoleDetailsHost<Content: View>: View {
             wrappedValue: state.deleteRoleMutation(administrationMode: props.administrationMode)
         )
         self.props = props
+        _capabilities = ObservedObject(wrappedValue: state.capabilities)
     }
+
+    private var access: RecordAccess { capabilities.recordAccess("role", isReadOnly: role.data?.isReadOnly) }
+    private var editable: Bool { props.editable && !access.readOnly }
+    private var deletable: Bool { props.deletable && access.canDelete }
 
     var body: some View {
         BaseRoleDetails(
@@ -265,18 +275,18 @@ private struct RoleDetailsHost<Content: View>: View {
             error: i18n.managementErrorMessage(role.error, fallbackKey: "admin.roles.details.error")
                 ?? i18n.managementErrorMessage(deletion.error, fallbackKey: "admin.roles.details.delete.error"),
             isDeleting: deletion.isLoading,
-            onDelete: props.deletable ? delete : nil,
+            onDelete: deletable ? delete : nil,
             actions: props.actions,
             sections: AnyView(
                 VStack(alignment: .leading, spacing: 12) {
                     RolePermissions(
                         roleId: props.roleId,
-                        editable: props.editable && role.data != nil,
+                        editable: editable && role.data != nil,
                         administrationMode: props.administrationMode
                     )
                     RoleAssignments(
                         roleId: props.roleId,
-                        editable: props.editable && role.data != nil,
+                        editable: editable && role.data != nil,
                         administrationMode: props.administrationMode,
                         ouId: role.data?.ouId
                     )
@@ -284,6 +294,7 @@ private struct RoleDetailsHost<Content: View>: View {
             ),
             renderContent: props.content
         )
+        .task { capabilities.load() }
         .task { await role.refetch() }
     }
 

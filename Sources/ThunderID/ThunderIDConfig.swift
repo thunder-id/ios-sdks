@@ -147,6 +147,8 @@ public struct ThunderIDEndpoints {
     public var applications: String?
     /// Defaults to `{baseUrl}/authorization-detail-types`.
     public var authorizationDetailTypes: String?
+    /// Defaults to `{baseUrl}/capabilities`.
+    public var capabilities: String?
     /// Defaults to `{baseUrl}/oauth2/dcr/register`.
     public var clientRegistrations: String?
     /// Defaults to `{baseUrl}/configuration-versions`.
@@ -198,6 +200,7 @@ public struct ThunderIDEndpoints {
         agentTypes: String? = nil,
         applications: String? = nil,
         authorizationDetailTypes: String? = nil,
+        capabilities: String? = nil,
         clientRegistrations: String? = nil,
         configurationVersions: String? = nil,
         connections: String? = nil,
@@ -227,6 +230,7 @@ public struct ThunderIDEndpoints {
         self.agentTypes = agentTypes
         self.applications = applications
         self.authorizationDetailTypes = authorizationDetailTypes
+        self.capabilities = capabilities
         self.clientRegistrations = clientRegistrations
         self.configurationVersions = configurationVersions
         self.connections = connections

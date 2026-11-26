@@ -164,6 +164,10 @@ public extension BaseGroupDetails where Content == EmptyView {
 /// deletion flow revokes what the members held through the group first), falling back to the API when
 /// none is configured. It defaults to `.native`. The members are offered from the group's organization
 /// unit. With `content`, the custom UI replaces the whole view, members included.
+///
+/// Its data-changing actions are offered only when turned on here and the server's capabilities report the
+/// signed-in user may perform them (``CapabilitiesState``); a locked record opens read-only. Capabilities are
+/// not an authorization decision: the server still authorizes every request.
 public struct GroupDetails<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let groupId: String
@@ -246,6 +250,7 @@ private struct GroupDetailsHost<Content: View>: View {
     @StateObject private var group: ResourceQuery<ManagedGroup>
     @StateObject private var deletion: ResourceMutation<String, Void>
     let props: GroupDetails<Content>
+    @ObservedObject private var capabilities: CapabilitiesState
 
     init(state: ThunderIDState, props: GroupDetails<Content>) {
         _group = StateObject(wrappedValue: state.groupQuery(id: props.groupId))
@@ -253,7 +258,12 @@ private struct GroupDetailsHost<Content: View>: View {
             wrappedValue: state.deleteGroupMutation(administrationMode: props.administrationMode)
         )
         self.props = props
+        _capabilities = ObservedObject(wrappedValue: state.capabilities)
     }
+
+    private var access: RecordAccess { capabilities.recordAccess("group", isReadOnly: nil) }
+    private var editable: Bool { props.editable && !access.readOnly }
+    private var deletable: Bool { props.deletable && access.canDelete }
 
     var body: some View {
         BaseGroupDetails(
@@ -262,18 +272,19 @@ private struct GroupDetailsHost<Content: View>: View {
             error: i18n.managementErrorMessage(group.error, fallbackKey: "admin.groups.details.error")
                 ?? i18n.managementErrorMessage(deletion.error, fallbackKey: "admin.groups.details.delete.error"),
             isDeleting: deletion.isLoading,
-            onDelete: props.deletable ? delete : nil,
+            onDelete: deletable ? delete : nil,
             actions: props.actions,
             sections: AnyView(
                 GroupMembers(
                     groupId: props.groupId,
-                    editable: props.editable && group.data != nil,
+                    editable: editable && group.data != nil,
                     administrationMode: props.administrationMode,
                     ouId: group.data?.ouId
                 )
             ),
             renderContent: props.content
         )
+        .task { capabilities.load() }
         .task { await group.refetch() }
     }
 

@@ -116,6 +116,28 @@ extension CheckContext {
             + (admin.isEmpty ? "no management view permissions" : "can \(admin.joined(separator: ", "))")
     }
 
+    /// Reads the capabilities directly and through the shared `CapabilitiesState`, and checks they agree
+    /// and that a resource the server did not report is denied.
+    func managementCapabilities() async throws -> String {
+        try await requireSignedIn()
+        let direct = try await client.getCapabilities()
+        let shared = state.capabilities
+        shared.load()
+        for _ in 0..<100 where shared.isLoading || (shared.capabilities == nil && shared.error == nil) {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        if let error = shared.error { throw error }
+        guard shared.capabilities == direct else {
+            throw CheckFailure("getCapabilities() and CapabilitiesState disagree")
+        }
+        guard !shared.can("playground-unreported") else {
+            throw CheckFailure("can() allowed a resource the server did not report")
+        }
+        let viewable = direct.resources.keys.sorted().filter { direct.can($0) }
+        log.record("capabilities:scope", direct.scope.type, kind: .success)
+        return "Scope \(direct.scope.type); may view \(viewable.count) of \(direct.resources.count) resources"
+    }
+
     /// An unsigned JWT with `claims` as its payload. `fromAccessToken` does not verify signatures.
     static func unsignedToken(_ claims: [String: Any]) -> String {
         func encode(_ object: [String: Any]) -> String {

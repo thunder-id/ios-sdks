@@ -70,6 +70,12 @@ The signed-in user's organization units, and signing in to one of them:
 - `ProjectList`, `ProjectCreate`, `ProjectDetails` and `ProjectSwitcher` manage projects (Control Plane only). `ProjectSwitcher` sets `ThunderIDState.currentProject`, kept per vendor; it is client-side context, not a sign-in. A project is not an organization unit: only applications and agents take one. `ApplicationList` and `AgentList` list the current project's applications and agents (an explicit `projectId` wins; the server combines a project with no attribute filter, so `AgentList` hides its search while a project applies), and `ApplicationCreate` and `AgentCreate` create in the project when the app passes no organization unit. Every other component keeps its own organization unit default (the signed-in user's unit).
 - `OrganizationUnitList`, `OrganizationUnitCreate` and `OrganizationUnitDetails` manage organization units, their children and what they hold. `SharingPolicies` lists and, when `editable`, edits the sharing policies of a user, application, role or flow, with an organization unit's overlay rules when `ouId` is given.
 
+## Management capabilities
+
+`client.getCapabilities()` reads `GET /capabilities`: which management actions the signed-in user's access token allows, per resource (`app`, `user`, `group`, ...) and action (`view`, `create`, `update`, `delete`). In SwiftUI, `ThunderIDState.capabilities` holds one shared read for every view under `ThunderIDProvider`: nothing is read until a view uses it, and it is read again when the user, their organization unit or their granted permissions change. `can(_:_:)` answers `false` while loading, after a failed read (reported in `error`, with `retry()`), and for anything the server did not report. `CapabilityGuard` renders its content only when an action is allowed, and the management components offer an action only when the app turns it on and the capabilities allow it.
+
+Capabilities are not an authorization decision. They decide what an app offers; the server authorizes every management request, and the SDK never skips or blocks a request because of them.
+
 ## Optional grants
 
 - **Pushed authorization requests (RFC 9126).** Set `pushedAuthorizationRequests: true`, or let the server's metadata require it, and build the sign-in URL with `signInURL(options:)`: it posts the request to `/oauth2/par` and authorizes with the returned `request_uri`. `buildSignInURL(options:)` cannot push, so it refuses while `pushedAuthorizationRequests` is on.

@@ -210,6 +210,9 @@ public extension BaseUserCreate where Content == EmptyView {
 
 /// Creates a user through the management API. New users go into `ouId`, or the signed-in user's
 /// own organization unit when it is not given.
+///
+/// It renders only for a user the server's capabilities report may create one (``CapabilitiesState``).
+/// Capabilities are not an authorization decision: the server still authorizes every request.
 public struct UserCreate<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let ouId: String?
@@ -259,7 +262,12 @@ public struct UserCreate<Content: View>: View {
         )
     }
 
+    // Creating is offered only to a user the server reports may create one; the server still authorizes it.
     public var body: some View {
+        CapabilityGuard(resource: "user", action: "create") { createBody }
+    }
+
+    @ViewBuilder private var createBody: some View {
         let state = thunderState
         AdminQueryReader(state.userTypesQuery(limit: 100)) { types in
             AdminCreateHost(state: state, ouId: ouId, mutation: state.createUserMutation()) { host in

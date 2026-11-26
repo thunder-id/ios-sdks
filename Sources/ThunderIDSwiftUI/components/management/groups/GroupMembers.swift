@@ -148,6 +148,10 @@ public extension BaseGroupMembers where Content == EmptyView {
 /// member is removed: `.flow` runs the membership removal flow the server configures, which can revoke
 /// what the member held through the group first. It defaults to `.native`. Set `ouId` to offer only the
 /// users and agents of that organization unit.
+///
+/// Its data-changing actions are offered only when turned on here and the server's capabilities report the
+/// signed-in user may perform them (``CapabilitiesState``); a locked record opens read-only. Capabilities are
+/// not an authorization decision: the server still authorizes every request.
 public struct GroupMembers<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let groupId: String
@@ -239,6 +243,7 @@ private struct GroupMembersHost<Content: View>: View {
     @StateObject private var add: ResourceMutation<GroupMembersInput, ManagedGroup>
     @StateObject private var remove: ResourceMutation<GroupMembersInput, ManagedGroup>
     let props: GroupMembers<Content>
+    @ObservedObject private var capabilities: CapabilitiesState
 
     init(state: ThunderIDState, props: GroupMembers<Content>) {
         _members = StateObject(wrappedValue: state.groupMembersQuery(groupId: props.groupId, limit: 100))
@@ -249,12 +254,15 @@ private struct GroupMembersHost<Content: View>: View {
             wrappedValue: state.removeGroupMembersMutation(administrationMode: props.administrationMode)
         )
         self.props = props
+        _capabilities = ObservedObject(wrappedValue: state.capabilities)
     }
+
+    private var editable: Bool { props.editable && capabilities.can("group", "update") }
 
     var body: some View {
         BaseGroupMembers(
             members: members.data?.members ?? [],
-            candidates: props.editable
+            candidates: editable
                 ? [.user: AdminCandidates.users(users.data), .agent: AdminCandidates.agents(agents.data)]
                 : nil,
             isLoading: members.isLoading,
@@ -266,13 +274,14 @@ private struct GroupMembersHost<Content: View>: View {
             isMutating: add.isLoading || remove.isLoading,
             title: props.title,
             description: props.description,
-            onAdd: props.editable ? addMember : nil,
-            onRemove: props.editable ? removeMember : nil,
+            onAdd: editable ? addMember : nil,
+            onRemove: editable ? removeMember : nil,
             renderContent: props.content
         )
+        .task { capabilities.load() }
         .task {
             await members.refetch()
-            guard props.editable else { return }
+            guard editable else { return }
             await users.refetch()
             await agents.refetch()
         }

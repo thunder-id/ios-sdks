@@ -183,6 +183,10 @@ public extension BaseRoleAssignments where Content == EmptyView {
 /// off by default. `administrationMode` chooses how an assignment is removed: `.flow` runs the
 /// assignment removal flow the server configures, which can revoke the scopes it conveyed first. It
 /// defaults to `.native`. Set `ouId` to offer only the users, groups and agents of that organization unit.
+///
+/// Its data-changing actions are offered only when turned on here and the server's capabilities report the
+/// signed-in user may perform them (``CapabilitiesState``); a locked record opens read-only. Capabilities are
+/// not an authorization decision: the server still authorizes every request.
 public struct RoleAssignments<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let roleId: String
@@ -289,6 +293,7 @@ private struct RoleAssignmentsHost<Content: View>: View {
     @StateObject private var assign: ResourceMutation<RoleAssignmentsInput, Void>
     @StateObject private var unassign: ResourceMutation<RoleAssignmentsInput, Void>
     let props: RoleAssignments<Content>
+    @ObservedObject private var capabilities: CapabilitiesState
     let typeFilter: RoleAssigneeType?
     let onTypeFilterChange: ((RoleAssigneeType?) -> Void)?
 
@@ -309,14 +314,17 @@ private struct RoleAssignmentsHost<Content: View>: View {
             wrappedValue: state.removeRoleAssignmentsMutation(administrationMode: props.administrationMode)
         )
         self.props = props
+        _capabilities = ObservedObject(wrappedValue: state.capabilities)
         self.typeFilter = typeFilter
         self.onTypeFilterChange = onTypeFilterChange
     }
 
+    private var editable: Bool { props.editable && capabilities.can("role", "update") }
+
     var body: some View {
         BaseRoleAssignments(
             assignments: assignments.data?.assignments ?? [],
-            candidates: props.editable ? candidates : nil,
+            candidates: editable ? candidates : nil,
             isLoading: assignments.isLoading,
             error: i18n.managementErrorMessage(assignments.error, fallbackKey: "admin.roles.assignments.error")
                 ?? i18n.managementErrorMessage(
@@ -326,15 +334,16 @@ private struct RoleAssignmentsHost<Content: View>: View {
             isMutating: assign.isLoading || unassign.isLoading,
             title: props.title,
             description: props.description,
-            onAssign: props.editable ? addAssignment : nil,
-            onUnassign: props.editable ? removeAssignment : nil,
+            onAssign: editable ? addAssignment : nil,
+            onUnassign: editable ? removeAssignment : nil,
             typeFilter: typeFilter,
             onTypeFilterChange: onTypeFilterChange,
             renderContent: props.content
         )
+        .task { capabilities.load() }
         .task {
             await assignments.refetch()
-            guard props.editable else { return }
+            guard editable else { return }
             await users.refetch()
             await groups.refetch()
             await agents.refetch()

@@ -202,6 +202,9 @@ public extension BaseOrganizationUnitCreate where Content == EmptyView {
 /// Creates an organization unit through the management API, beneath `parentId` when it is given.
 /// Otherwise the parent is picked from the root units, starting at the current project's root unit when
 /// one is selected (see ``ProjectSwitcher``), and may be left empty for a new root.
+///
+/// It renders only for a user the server's capabilities report may create one (``CapabilitiesState``).
+/// Capabilities are not an authorization decision: the server still authorizes every request.
 public struct OrganizationUnitCreate<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let parentId: String?
@@ -246,7 +249,12 @@ public struct OrganizationUnitCreate<Content: View>: View {
         )
     }
 
+    // Creating is offered only to a user the server reports may create one; the server still authorizes it.
     public var body: some View {
+        CapabilityGuard(resource: "ou", action: "create") { createBody }
+    }
+
+    @ViewBuilder private var createBody: some View {
         OrganizationUnitCreateHost(state: thunderState, props: self)
     }
 }

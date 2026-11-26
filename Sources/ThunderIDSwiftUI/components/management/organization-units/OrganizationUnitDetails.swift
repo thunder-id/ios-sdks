@@ -121,6 +121,10 @@ public extension BaseOrganizationUnitDetails where Content == EmptyView {
 /// off by default, and a delete asks for confirmation first. The server refuses to delete a unit that
 /// still holds child units or other resources, and to change a declarative unit; each refusal is shown
 /// as its own translated message.
+///
+/// Its data-changing actions are offered only when turned on here and the server's capabilities report the
+/// signed-in user may perform them (``CapabilitiesState``); a locked record opens read-only. Capabilities are
+/// not an authorization decision: the server still authorizes every request.
 public struct OrganizationUnitDetails<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let organizationUnitId: String
@@ -213,6 +217,7 @@ private struct OrganizationUnitDetailsHost<Content: View>: View {
     @StateObject private var update: ResourceMutation<(id: String, request: OrganizationUnitRequest), OrganizationUnit>
     @StateObject private var deletion: ResourceMutation<String, Void>
     let props: OrganizationUnitDetails<Content>
+    @ObservedObject private var capabilities: CapabilitiesState
 
     init(state: ThunderIDState, props: OrganizationUnitDetails<Content>) {
         let id = props.organizationUnitId
@@ -224,7 +229,12 @@ private struct OrganizationUnitDetailsHost<Content: View>: View {
         _update = StateObject(wrappedValue: state.updateOrganizationUnitMutation())
         _deletion = StateObject(wrappedValue: state.deleteOrganizationUnitMutation())
         self.props = props
+        _capabilities = ObservedObject(wrappedValue: state.capabilities)
     }
+
+    private var access: RecordAccess { capabilities.recordAccess("ou") }
+    private var editable: Bool { props.editable && !access.readOnly }
+    private var deletable: Bool { props.deletable && access.canDelete }
 
     var body: some View {
         BaseOrganizationUnitDetails(
@@ -239,12 +249,13 @@ private struct OrganizationUnitDetailsHost<Content: View>: View {
                 isUpdating: update.isLoading,
                 isDeleting: deletion.isLoading,
                 onSelectChild: props.onSelectChild,
-                onUpdate: props.editable && unit.data != nil ? save : nil,
-                onDelete: props.deletable && unit.data != nil ? delete : nil
+                onUpdate: editable && unit.data != nil ? save : nil,
+                onDelete: deletable && unit.data != nil ? delete : nil
             ),
             actions: props.actions,
             renderContent: props.content
         )
+        .task { capabilities.load() }
         .task {
             await unit.refetch()
             guard unit.data != nil else { return }

@@ -16,7 +16,7 @@ final class ProjectComponentTests: XCTestCase {
     }
 
     private func render(_ view: some View, state: ThunderIDState? = nil) {
-        let state = state ?? ThunderIDState(client: ThunderIDClient(), i18n: i18n)
+        let state = state ?? ThunderIDState(client: ThunderIDClient(), i18n: i18n).allowingEverything()
         let renderer = ImageRenderer(
             content: view
                 .environmentObject(i18n)

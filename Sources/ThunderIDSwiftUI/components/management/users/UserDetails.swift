@@ -15,6 +15,10 @@ import ThunderID
 /// by default and needs `baseUrl` and the root `system` permission. The flow is the handle the server
 /// names under `adminAttributeVerificationFlow` in its `flow` configuration, and the action is offered
 /// only when that handle is set.
+///
+/// Its data-changing actions are offered only when turned on here and the server's capabilities report the
+/// signed-in user may perform them (``CapabilitiesState``); a locked record opens read-only. Capabilities are
+/// not an authorization decision: the server still authorizes every request.
 public struct UserDetails<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let userId: String
@@ -132,6 +136,7 @@ private struct UserDetailsHost<Content: View>: View {
     >
     @StateObject private var verificationFlow: ResourceQuery<[AdministrationFlowConfigKey: String]>
     let props: UserDetails<Content>
+    @ObservedObject private var capabilities: CapabilitiesState
 
     init(state: ThunderIDState, props: UserDetails<Content>) {
         _user = StateObject(wrappedValue: state.userQuery(id: props.userId))
@@ -145,7 +150,13 @@ private struct UserDetailsHost<Content: View>: View {
         _verification = StateObject(wrappedValue: state.sendUserAttributeVerificationMutation())
         _verificationFlow = StateObject(wrappedValue: state.adminAttributeVerificationFlowQuery())
         self.props = props
+        _capabilities = ObservedObject(wrappedValue: state.capabilities)
     }
+
+    private var access: RecordAccess { capabilities.recordAccess("user", isReadOnly: user.data?.isReadOnly) }
+    private var editable: Bool { props.editable && !access.readOnly }
+    private var deletable: Bool { props.deletable && access.canDelete }
+    private var lifecycleActions: Bool { props.lifecycleActions && access.canChangeState }
 
     var body: some View {
         BaseUserDetails(
@@ -169,17 +180,18 @@ private struct UserDetailsHost<Content: View>: View {
                 ),
             isDeleting: deletion.isLoading,
             isUpdating: update.isLoading || user.isLoading,
-            onDelete: props.deletable ? delete : nil,
-            onUpdate: props.editable && user.data != nil ? save : nil,
+            onDelete: deletable ? delete : nil,
+            onUpdate: editable && user.data != nil ? save : nil,
             isRunningLifecycleAction: lifecycle.isLoading,
             lifecycleActions: availableLifecycleActions,
-            onLifecycleAction: props.lifecycleActions ? runLifecycleAction : nil,
+            onLifecycleAction: lifecycleActions ? runLifecycleAction : nil,
             isSendingVerification: verification.isLoading,
             sentVerification: verification.data,
             onSendVerification: verificationHandle == nil ? nil : sendVerification,
             actions: props.actions,
             renderContent: props.content
         )
+        .task { capabilities.load() }
         .task {
             async let loadUser: Void = { _ = await user.refetch() }()
             async let loadGroups: Void = { _ = await groups.refetch() }()
@@ -196,8 +208,8 @@ private struct UserDetailsHost<Content: View>: View {
                 if !Task.isCancelled { userTypeError = error }
             }
         }
-        .task(id: props.lifecycleActions) {
-            if props.lifecycleActions { await lifecycleFlows.refetch() }
+        .task(id: lifecycleActions) {
+            if lifecycleActions { await lifecycleFlows.refetch() }
         }
         .task(id: props.attributeVerification) {
             if props.attributeVerification { await verificationFlow.refetch() }
@@ -209,7 +221,7 @@ private struct UserDetailsHost<Content: View>: View {
     }
 
     private var availableLifecycleActions: [AccountLifecycleAction] {
-        guard props.lifecycleActions, let flows = lifecycleFlows.data else { return [] }
+        guard lifecycleActions, let flows = lifecycleFlows.data else { return [] }
         return AccountLifecycleAction.available(for: .user, status: user.data?.status?.value, configuredFlows: flows)
     }
 

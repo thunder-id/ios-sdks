@@ -209,6 +209,9 @@ public extension BaseProjectCreate where Content == EmptyView {
 }
 
 /// Creates a project through the management API. Only the Control Plane serves projects.
+///
+/// It renders only for a user the server's capabilities report may create one (``CapabilitiesState``).
+/// Capabilities are not an authorization decision: the server still authorizes every request.
 public struct ProjectCreate<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let title: String?
@@ -248,7 +251,12 @@ public struct ProjectCreate<Content: View>: View {
         )
     }
 
+    // Creating is offered only to a user the server reports may create one; the server still authorizes it.
     public var body: some View {
+        CapabilityGuard(resource: "project", action: "create") { createBody }
+    }
+
+    @ViewBuilder private var createBody: some View {
         ProjectCreateHost(state: thunderState, props: self)
     }
 }
