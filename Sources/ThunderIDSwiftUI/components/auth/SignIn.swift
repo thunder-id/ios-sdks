@@ -405,26 +405,22 @@ public struct BaseSignIn<Content: View>: View {
     /// Runs the native WebAuthn ceremony (`PasskeyAuthSession.authenticate` for a
     /// `passkeyChallenge`, `.register` for `passkeyCreationOptions`) and resubmits the flow with
     /// the resulting flat inputs, without requiring another user tap. On ceremony failure (user
-    /// cancellation, no credential, etc.) the error is surfaced and the flow is left as-is so the
-    /// user can retry.
+    /// cancellation, no credential, etc.) the flow is told through `passkeyError`, and the step it
+    /// returns is rendered so the user can retry.
     private func performPasskeyCeremony(
         flowId: String,
         challengeToken: String?,
         passkeyChallenge: String?,
         passkeyCreationOptions: String?
     ) async {
-        do {
-            let inputs: [String: String]
+        let inputs = await PasskeyCeremony.inputs {
             if let passkeyChallenge {
-                inputs = try await passkeyAuthSession.authenticate(requestOptionsJson: passkeyChallenge)
-            } else {
-                inputs = try await passkeyAuthSession.register(creationOptionsJson: passkeyCreationOptions ?? "")
+                return try await passkeyAuthSession.authenticate(requestOptionsJson: passkeyChallenge)
             }
-            await submit(actionId: nil, inputs: inputs, flowId: flowId, challengeToken: challengeToken)
-        } catch {
-            signInState.error = error.localizedDescription
-            onError?(error.localizedDescription)
+            return try await passkeyAuthSession.register(creationOptionsJson: passkeyCreationOptions ?? "")
         }
+        guard let inputs else { return }
+        await submit(actionId: nil, inputs: inputs, flowId: flowId, challengeToken: challengeToken)
     }
 
     private func handleRedirection(_ redirectURL: String, response: EmbeddedFlowResponse, actionId: String?) async {
@@ -447,6 +443,26 @@ public struct BaseSignIn<Content: View>: View {
                 ? i18n.resolve("signIn.federatedError") : error.localizedDescription
             signInState.error = message
             onError?(message)
+        }
+    }
+}
+
+/// The flow inputs that answer a waiting passkey step.
+@MainActor
+enum PasskeyCeremony {
+    /// The flow input that reports a failed passkey prompt in place of the credential.
+    static let errorInput = "passkeyError"
+
+    /// The ceremony's credential inputs, or `passkeyError` with the failure's code when it failed.
+    /// Nil when the task was cancelled, which is not a failed prompt.
+    static func inputs(_ ceremony: () async throws -> [String: String]) async -> [String: String]? {
+        do {
+            return try await ceremony()
+        } catch is CancellationError {
+            return nil
+        } catch {
+            let code = (error as? ThunderIDError)?.code ?? .passkeyFailed
+            return [errorInput: code.rawValue]
         }
     }
 }
