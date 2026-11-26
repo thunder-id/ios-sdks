@@ -114,7 +114,7 @@ enum AdminSamples {
     static let agent: Agent = decode("""
     {"id": "agt-triage", "ouId": "ou-1", "ouHandle": "default", "type": "assistant",
      "display": "Ticket triage agent", "description": "Labels and routes support tickets",
-     "owner": "usr-liam", "clientId": "triage",
+     "owner": {"id": "usr-liam"}, "clientId": "triage",
      "attributes": {"name": "Ticket triage agent", "model": "triage-v2"},
      "status": {"value": "ACTIVE"}}
     """)

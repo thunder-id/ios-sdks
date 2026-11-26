@@ -129,7 +129,7 @@ public struct BaseAgentDetails<Content: View>: View {
     private func details(_ agent: Agent) -> some View {
         var overview: [(label: String, value: String)] = [
             (i18n.resolve("admin.agents.details.type"), agent.type),
-            (i18n.resolve("admin.agents.details.owner"), agent.owner ?? i18n.resolve("admin.agents.details.no_owner")),
+            (i18n.resolve("admin.agents.details.owner"), i18n.agentOwner(agent.owner)),
             (i18n.resolve("admin.common.columns.organization_unit"), agent.ouHandle ?? agent.ouId)
         ]
         if let status = agent.status {
@@ -224,6 +224,13 @@ public extension BaseAgentDetails where Content == EmptyView {
             actions: actions,
             renderContent: nil
         )
+    }
+}
+
+extension ThunderIDI18n {
+    /// The identifier of an agent's owner, or the translated "no owner" text when it has none.
+    func agentOwner(_ owner: AgentOwner?) -> String {
+        owner?.id ?? resolve("admin.agents.details.no_owner")
     }
 }
 

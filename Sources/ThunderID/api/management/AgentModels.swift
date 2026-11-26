@@ -24,6 +24,29 @@ public struct AgentLoginConsentConfig: Codable {
     }
 }
 
+/// What an agent owner's `id` holds.
+public enum AgentOwnerIdType: String, Codable, CaseIterable {
+    case uuid
+    case email
+    case mobile
+}
+
+/// The person accountable for an agent. A local owner is an entity of the same deployment and is
+/// named by its entity ID. An owner managed in another identity system is not looked up.
+public struct AgentOwner: Codable, Hashable {
+    public var id: String
+    /// Defaults to `uuid` on the server. A local owner must be a `uuid`.
+    public var idType: AgentOwnerIdType?
+    /// Whether the owner is an entity of this deployment. The server treats a missing value as `true`.
+    public var isLocal: Bool?
+
+    public init(id: String, idType: AgentOwnerIdType? = nil, isLocal: Bool? = nil) {
+        self.id = id
+        self.idType = idType
+        self.isLocal = isLocal
+    }
+}
+
 /// An agent registered in ThunderID.
 public struct Agent: Codable {
     public let id: String
@@ -35,7 +58,7 @@ public struct Agent: Codable {
     public let display: String?
     public let description: String?
     public let logoUrl: String?
-    public let owner: String?
+    public let owner: AgentOwner?
     public let clientId: String?
     public let attributes: [String: AnyCodable]?
     public let allowedUserTypes: [String]?
@@ -86,7 +109,7 @@ public struct CreateAgentRequest: Codable {
     public var type: String
     public var description: String?
     public var logoUrl: String?
-    public var owner: String?
+    public var owner: AgentOwner?
     public var attributes: [String: AnyCodable]?
     public var inboundAuthConfig: [AgentInboundAuthConfig]?
 
@@ -105,7 +128,7 @@ public struct UpdateAgentRequest: Codable {
     public var type: String?
     public var description: String?
     public var logoUrl: String?
-    public var owner: String?
+    public var owner: AgentOwner?
     public var attributes: [String: AnyCodable]?
     public var allowedUserTypes: [String]?
     public var allowedAgentTypes: [String]?

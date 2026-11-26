@@ -176,7 +176,7 @@ public extension BaseAgentCreate where Content == EmptyView {
 public struct AgentCreate<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let ouId: String?
-    let owner: String?
+    let owner: AgentOwner?
     let title: String?
     let description: String?
     let onCancel: (() -> Void)?
@@ -185,7 +185,7 @@ public struct AgentCreate<Content: View>: View {
 
     init(
         ouId: String? = nil,
-        owner: String? = nil,
+        owner: AgentOwner? = nil,
         title: String? = nil,
         description: String? = nil,
         onCancel: (() -> Void)? = nil,
@@ -204,7 +204,7 @@ public struct AgentCreate<Content: View>: View {
     /// - Parameter content: Renders custom UI in place of the default form. See ``BaseAgentCreate``.
     public init(
         ouId: String? = nil,
-        owner: String? = nil,
+        owner: AgentOwner? = nil,
         title: String? = nil,
         description: String? = nil,
         onCancel: (() -> Void)? = nil,
@@ -261,7 +261,7 @@ public struct AgentCreate<Content: View>: View {
 public extension AgentCreate where Content == EmptyView {
     init(
         ouId: String? = nil,
-        owner: String? = nil,
+        owner: AgentOwner? = nil,
         title: String? = nil,
         description: String? = nil,
         onCancel: (() -> Void)? = nil,
