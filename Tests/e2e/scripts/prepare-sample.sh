@@ -17,7 +17,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 E2E_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$E2E_DIR/../.." && pwd)"
-SAMPLE_PATH="quickstarts/ios"
+# The quickstart's path in the samples repository. A samples checkout from before the quickstarts
+# were renamed has it at the bare platform name, so an older THUNDERID_SAMPLES_REF still works.
+SAMPLE_PATHS=("quickstarts/quickstart-ios" "quickstarts/ios")
 SAMPLE_DIR="$E2E_DIR/.quickstart"
 
 if [ -n "${THUNDERID_SAMPLES_DIR:-}" ]; then
@@ -37,8 +39,12 @@ else
     git -C "$samples_dir" checkout -q --force FETCH_HEAD
 fi
 
-if [ ! -f "$samples_dir/$SAMPLE_PATH/Package.swift" ]; then
-    echo "ERROR: $samples_dir/$SAMPLE_PATH is not the iOS Quickstart sample." >&2
+SAMPLE_PATH=""
+for path in "${SAMPLE_PATHS[@]}"; do
+    if [ -f "$samples_dir/$path/Package.swift" ]; then SAMPLE_PATH="$path"; break; fi
+done
+if [ -z "$SAMPLE_PATH" ]; then
+    echo "ERROR: no iOS Quickstart sample at ${SAMPLE_PATHS[*]} in $samples_dir." >&2
     exit 1
 fi
 

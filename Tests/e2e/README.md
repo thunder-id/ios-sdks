@@ -1,6 +1,6 @@
 # Quickstart E2E
 
-Maestro flows that drive the [Quickstart sample](https://github.com/thunder-id/samples/tree/main/quickstarts/ios)
+Maestro flows that drive the [Quickstart sample](https://github.com/thunder-id/samples/tree/main/quickstarts/quickstart-ios)
 through real authentication against a real ThunderID server on an iOS Simulator. The flows live in [`flows/`](./flows); the
 scripts alongside them get a server into the right state to run against.
 
@@ -21,7 +21,7 @@ scripts alongside them get a server into the right state to run against.
 
 The sample lives in the [thunder-id/samples](https://github.com/thunder-id/samples) repository
 and depends on the published SDK release. [`scripts/prepare-sample.sh`](./scripts/prepare-sample.sh)
-fetches it, copies `quickstarts/ios` to `.quickstart/`, and repoints its SDK dependency at this
+fetches it, copies `quickstarts/quickstart-ios` to `.quickstart/`, and repoints its SDK dependency at this
 checkout, so the suite always tests the SDK source in front of it. `run-e2e.sh` calls it unless
 both the server and build stages are skipped.
 
@@ -47,7 +47,7 @@ restarted, and provisioning re-applies cleanly over an existing application and 
 | Test user | `e2e_mobile_user` / `TestPassword@123` |
 
 The application is declared in
-[`quickstarts/ios/thunderid-config/thunderid-config.yaml`](https://github.com/thunder-id/samples/blob/main/quickstarts/ios/thunderid-config/thunderid-config.yaml)
+[`quickstarts/quickstart-ios/thunderid-config/thunderid-config.yaml`](https://github.com/thunder-id/samples/blob/main/quickstarts/quickstart-ios/thunderid-config/thunderid-config.yaml)
 in the samples repository, alongside the sample it configures. The sign-up flow
 registers an additional throwaway user per run, named `e2e_signup_<timestamp>`.
 

@@ -4,7 +4,7 @@ iOS SDK for ThunderID. Provides authentication and user management for native iO
 
 - [Quickstart](https://thunderid.dev/docs/next/getting-started/connect-your-application/ios/)
 - [API reference](https://thunderid.dev/docs/next/sdks/ios/overview/)
-- [Sample app](https://github.com/thunder-id/samples/tree/main/quickstarts/ios)
+- [Sample app](https://github.com/thunder-id/samples/tree/main/quickstarts/quickstart-ios)
 
 ## Installation
 

@@ -3,7 +3,7 @@
 A SwiftUI app for exercising every capability of the ThunderID iOS SDK from source. It depends on
 `ThunderID` and `ThunderIDSwiftUI` through a local package reference to the repository root, so it
 always runs the SDK code in your checkout. For a minimal app to copy from, use the
-[iOS quickstart](https://github.com/thunder-id/samples/tree/main/quickstarts/ios) instead.
+[iOS quickstart](https://github.com/thunder-id/samples/tree/main/quickstarts/quickstart-ios) instead.
 
 The app has four tabs:
 

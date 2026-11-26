@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Swift package providing the ThunderID authentication SDK (`ThunderID`) and a SwiftUI component library (`ThunderIDSwiftUI`). The Quickstart demo app lives in the samples repository at [`quickstarts/ios`](https://github.com/thunder-id/samples/tree/main/quickstarts/ios); the E2E suite fetches it and builds it against this checkout via `Tests/e2e/scripts/prepare-sample.sh`.
+Swift package providing the ThunderID authentication SDK (`ThunderID`) and a SwiftUI component library (`ThunderIDSwiftUI`). The Quickstart demo app lives in the samples repository at [`quickstarts/quickstart-ios`](https://github.com/thunder-id/samples/tree/main/quickstarts/quickstart-ios); the E2E suite fetches it and builds it against this checkout via `Tests/e2e/scripts/prepare-sample.sh`.
 
 The [`Playground/`](Playground) app exercises every SDK capability (capability checks, a component explorer, a session inspector and an event log) against the SDK sources in this checkout through a local package reference. See [Playground/README.md](Playground/README.md) to run it against a local ThunderID server. When you add or change a capability or a ThunderIDSwiftUI component, add or update its check or story there too.
 
@@ -121,7 +121,7 @@ A component that changes here usually needs the same change in the sibling SDKs.
 The quickstarts and integration samples live in [thunder-id/samples](https://github.com/thunder-id/samples), and each one pins a released version of this SDK. A change here therefore can't break a sample until the sample bumps its version, which is exactly when a break would surface for a real app. Before raising a pull request, check every sample that uses this SDK:
 
 - **A sample stops compiling or behaving the same** (a renamed type or package, a changed signature, a moved default): raise a samples pull request that bumps the SDK version and fixes the sample. Keep it as a draft until the SDK release it needs is out.
-- **The change adds something a sample exists to show** (a self-care capability for `self-care/account`, a management component or operation for `management/admin`, a new sign-in option for the quickstarts): update that sample in the same samples pull request, so it demonstrates the new capability rather than working around its absence.
+- **The change adds something a sample exists to show** (a self-service capability for `self-service/myaccount-react`, a management component or operation for `management/admin-react`, a new sign-in option for the quickstarts): update that sample in the same samples pull request, so it demonstrates the new capability rather than working around its absence.
 - Link the samples pull request from this pull request's **Related PRs**, or say why no sample is affected.
 
 ## Code style
