@@ -219,6 +219,10 @@ public extension BaseProjectDetails where Content == EmptyView {
 /// A project's details, loaded through the management API. Set `editable` to let the signed-in user
 /// change the display name and description, and `deletable` to let them delete the project; both are
 /// off by default, and a delete asks for confirmation first. Only the Control Plane serves projects.
+///
+/// Its data-changing actions are offered only when turned on here and the server's capabilities report the
+/// signed-in user may perform them (``CapabilitiesState``); a locked record opens read-only. Capabilities are
+/// not an authorization decision: the server still authorizes every request.
 public struct ProjectDetails<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let projectId: String
@@ -293,13 +297,19 @@ private struct ProjectDetailsHost<Content: View>: View {
     @StateObject private var update: ResourceMutation<(id: String, request: UpdateProjectRequest), Project>
     @StateObject private var deletion: ResourceMutation<String, Void>
     let props: ProjectDetails<Content>
+    @ObservedObject private var capabilities: CapabilitiesState
 
     init(state: ThunderIDState, props: ProjectDetails<Content>) {
         _project = StateObject(wrappedValue: state.projectQuery(id: props.projectId))
         _update = StateObject(wrappedValue: state.updateProjectMutation())
         _deletion = StateObject(wrappedValue: state.deleteProjectMutation())
         self.props = props
+        _capabilities = ObservedObject(wrappedValue: state.capabilities)
     }
+
+    private var access: RecordAccess { capabilities.recordAccess("project", isReadOnly: nil) }
+    private var editable: Bool { props.editable && !access.readOnly }
+    private var deletable: Bool { props.deletable && access.canDelete }
 
     var body: some View {
         BaseProjectDetails(
@@ -308,11 +318,12 @@ private struct ProjectDetailsHost<Content: View>: View {
             error: errorMessage,
             isUpdating: update.isLoading,
             isDeleting: deletion.isLoading,
-            onUpdate: props.editable ? save : nil,
-            onDelete: props.deletable ? delete : nil,
+            onUpdate: editable ? save : nil,
+            onDelete: deletable ? delete : nil,
             actions: props.actions,
             renderContent: props.content
         )
+        .task { capabilities.load() }
         .task { await project.refetch() }
     }
 

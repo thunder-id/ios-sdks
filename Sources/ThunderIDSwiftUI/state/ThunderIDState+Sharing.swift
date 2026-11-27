@@ -10,6 +10,11 @@ public enum SharingResourceType: String, CaseIterable {
     case application
     case role
     case flow
+
+    /// The capability resource a policy of this kind is changed under.
+    var capabilityResource: String {
+        self == .application ? "app" : rawValue
+    }
 }
 
 /// The input of ``ThunderIDState/updateSharingPolicyMutation(resourceType:fetcher:)``.

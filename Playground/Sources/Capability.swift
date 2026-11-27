@@ -41,6 +41,7 @@ enum CapabilityID: String, CaseIterable {
     case authorizationDetailTypes
     case permissionHierarchy
     case grantedPermissions
+    case managementCapabilities
 }
 
 enum CheckStatus: Equatable {
@@ -274,6 +275,12 @@ extension CapabilityCatalog {
             id: .grantedPermissions,
             name: "Granted permissions",
             api: "getGrantedPermissions() · GrantedPermissions",
+            mode: .automatic
+        ),
+        Capability(
+            id: .managementCapabilities,
+            name: "Management capabilities",
+            api: "getCapabilities() · CapabilitiesState · CapabilityGuard",
             mode: .automatic
         )
     ])

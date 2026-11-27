@@ -97,7 +97,7 @@ final class AdministrationFlowStateTests: XCTestCase {
         )
         let client = ThunderIDClient()
         _ = try await client.initialize(config: config, storage: storage, session: MockURLProtocol.makeSession())
-        return ThunderIDState(client: client, i18n: ThunderIDI18n())
+        return ThunderIDState(client: client, i18n: ThunderIDI18n()).allowingEverything()
     }
 
     private func waitFor(_ condition: () -> Bool) async {
@@ -336,8 +336,93 @@ final class AdministrationFlowStateTests: XCTestCase {
         XCTAssertEqual(server.executions.first?["inputs"] as? [String: String], ["subject": "u-1"])
     }
 
+    // MARK: - Capabilities
+
+    private func renderUserDetails(
+        resource: String,
+        capabilities: Capabilities
+    ) async throws -> (UserDetailsState, NSWindow) {
+        let server = FlowServer(configured: ["userUnlockFlow": "unlock-user"], resource: resource)
+        let state = try await makeState(serving: server)
+        state.capabilities.capabilities = capabilities
+        let captured = CapturedDetails()
+        let window = host(
+            UserDetails(userId: "u-1", editable: true, deletable: true, lifecycleActions: true) { details in
+                let _ = (captured.value = details)
+                Text(details.displayName)
+            },
+            state: state
+        )
+        await waitFor { captured.value?.user != nil }
+        // Let the lifecycle flows load when the actions are on.
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        return (try XCTUnwrap(captured.value), window)
+    }
+
+    func testALockedUserOpensReadOnlyButKeepsItsLifecycleActions() async throws {
+        let (details, window) = try await renderUserDetails(
+            resource: #"{"id":"u-1","ouId":"ou","type":"customer","isReadOnly":true,"status":{"value":"LOCKED"}}"#,
+            capabilities: .everything
+        )
+        defer { window.close() }
+
+        XCTAssertNil(details.onUpdate)
+        XCTAssertNil(details.onDelete)
+        XCTAssertNotNil(details.onLifecycleAction)
+    }
+
+    func testAUserWithoutUpdateOrDeleteIsOfferedNoChange() async throws {
+        let (details, window) = try await renderUserDetails(
+            resource: #"{"id":"u-1","ouId":"ou","type":"customer","status":{"value":"LOCKED"}}"#,
+            capabilities: .allowing(["user": ["view"]])
+        )
+        defer { window.close() }
+
+        XCTAssertNil(details.onUpdate)
+        XCTAssertNil(details.onDelete)
+        XCTAssertNil(details.onLifecycleAction)
+        XCTAssertEqual(details.lifecycleActions, [])
+        XCTAssertEqual(MockURLProtocol.requestCount(forPath: "/server-config/flow"), 0)
+    }
+
+    func testAUserWithUpdateAndDeleteIsOfferedThem() async throws {
+        let (details, window) = try await renderUserDetails(
+            resource: #"{"id":"u-1","ouId":"ou","type":"customer","status":{"value":"ACTIVE"}}"#,
+            capabilities: .allowing(["user": ["view", "update", "delete"]])
+        )
+        defer { window.close() }
+
+        XCTAssertNotNil(details.onUpdate)
+        XCTAssertNotNil(details.onDelete)
+        XCTAssertNotNil(details.onLifecycleAction)
+    }
+
+    func testACreateViewRendersNothingWithoutCreate() async throws {
+        let state = try await makeState(serving: FlowServer(configured: [:], resource: "{}"))
+        state.capabilities.capabilities = .allowing(["group": ["view"], "role": ["create"]])
+        let rendered = CapturedDetails.Flags()
+        let window = host(
+            VStack {
+                GroupCreate { _ in let _ = (rendered.group = true); Text("group") }
+                RoleCreate { _ in let _ = (rendered.role = true); Text("role") }
+            },
+            state: state
+        )
+        defer { window.close() }
+
+        await waitFor { rendered.role }
+
+        XCTAssertTrue(rendered.role)
+        XCTAssertFalse(rendered.group)
+    }
+
     private final class CapturedDetails {
         var value: UserDetailsState?
+
+        final class Flags {
+            var group = false
+            var role = false
+        }
     }
     #endif
 }

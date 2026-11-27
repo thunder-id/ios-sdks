@@ -173,6 +173,9 @@ public extension BaseAgentCreate where Content == EmptyView {
 /// Registers an agent through the management API, in `ouId`. Without `ouId`, it goes in the current
 /// project (``ThunderIDState/currentProject``), which the server resolves to the project's root
 /// organization unit, or, when no project is current, in the signed-in user's own organization unit.
+///
+/// It renders only for a user the server's capabilities report may create one (``CapabilitiesState``).
+/// Capabilities are not an authorization decision: the server still authorizes every request.
 public struct AgentCreate<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let ouId: String?
@@ -222,7 +225,12 @@ public struct AgentCreate<Content: View>: View {
         )
     }
 
+    // Creating is offered only to a user the server reports may create one; the server still authorizes it.
     public var body: some View {
+        CapabilityGuard(resource: "agent", action: "create") { createBody }
+    }
+
+    @ViewBuilder private var createBody: some View {
         let state = thunderState
         AdminQueryReader(state.agentTypesQuery(limit: 100)) { types in
             AdminCreateHost(

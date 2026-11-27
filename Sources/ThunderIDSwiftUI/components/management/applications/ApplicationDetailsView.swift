@@ -7,9 +7,11 @@ import ThunderID
 /// An application's details, loaded through the management API. Set `editable` to let the signed-in
 /// user edit the general fields and OAuth basics, `deletable` to let them delete the application, and
 /// `secretRegenerable` to let them issue a new client secret; all are off by default, and deleting and
-/// regenerating ask for confirmation first. A new secret is shown once. Applications are guarded by the
-/// root `system` permission (the server defines no application-specific one), so turn the actions on
-/// only for a user who holds it; a refused request shows the translated forbidden message.
+/// regenerating ask for confirmation first. A new secret is shown once. Each action is offered only when
+/// turned on here and the server's capabilities report the signed-in user may perform it on `app`
+/// (``CapabilitiesState``); a locked application opens read-only. Capabilities are not an authorization
+/// decision: the server still authorizes every request, and a refused one shows the translated forbidden
+/// message.
 /// `administrationMode` chooses how deleting and regenerating the secret run (`.native` by default).
 /// Set `lifecycleActions` to let them suspend and unsuspend the application: each action runs through
 /// its administration flow and is offered only when the status allows it and the server configures its
@@ -116,6 +118,7 @@ private struct ApplicationDetailsHost<Content: View>: View {
     @StateObject private var lifecycle: ResourceMutation<AccountLifecycleInput, AccountLifecycleResult>
     @State private var clientSecret: String?
     let props: ApplicationDetails<Content>
+    @ObservedObject private var capabilities: CapabilitiesState
 
     init(state: ThunderIDState, props: ApplicationDetails<Content>) {
         _application = StateObject(wrappedValue: state.applicationQuery(id: props.applicationId))
@@ -129,7 +132,14 @@ private struct ApplicationDetailsHost<Content: View>: View {
         _lifecycleFlows = StateObject(wrappedValue: state.accountLifecycleFlowsQuery(kind: .application))
         _lifecycle = StateObject(wrappedValue: state.accountLifecycleMutation(kind: .application))
         self.props = props
+        _capabilities = ObservedObject(wrappedValue: state.capabilities)
     }
+
+    private var access: RecordAccess { capabilities.recordAccess("app", isReadOnly: application.data?.isReadOnly) }
+    private var editable: Bool { props.editable && !access.readOnly }
+    private var deletable: Bool { props.deletable && access.canDelete }
+    private var lifecycleActions: Bool { props.lifecycleActions && access.canChangeState }
+    private var secretRegenerable: Bool { props.secretRegenerable && !access.readOnly }
 
     var body: some View {
         BaseApplicationDetails(
@@ -141,23 +151,24 @@ private struct ApplicationDetailsHost<Content: View>: View {
             isRegeneratingSecret: regeneration.isLoading,
             clientSecret: clientSecret,
             onSecretDone: { clientSecret = nil },
-            onDelete: props.deletable ? delete : nil,
-            onUpdate: props.editable && application.data != nil ? save : nil,
-            onRegenerateSecret: props.secretRegenerable ? regenerate : nil,
+            onDelete: deletable ? delete : nil,
+            onUpdate: editable && application.data != nil ? save : nil,
+            onRegenerateSecret: secretRegenerable ? regenerate : nil,
             isRunningLifecycleAction: lifecycle.isLoading,
             lifecycleActions: availableLifecycleActions,
-            onLifecycleAction: props.lifecycleActions ? runLifecycleAction : nil,
+            onLifecycleAction: lifecycleActions ? runLifecycleAction : nil,
             actions: props.actions,
             renderContent: props.content
         )
+        .task { capabilities.load() }
         .task { await application.refetch() }
-        .task(id: props.lifecycleActions) {
-            if props.lifecycleActions { await lifecycleFlows.refetch() }
+        .task(id: lifecycleActions) {
+            if lifecycleActions { await lifecycleFlows.refetch() }
         }
     }
 
     private var availableLifecycleActions: [AccountLifecycleAction] {
-        guard props.lifecycleActions, let flows = lifecycleFlows.data else { return [] }
+        guard lifecycleActions, let flows = lifecycleFlows.data else { return [] }
         return AccountLifecycleAction.available(
             for: .application,
             status: application.data?.status?.accessStatus,

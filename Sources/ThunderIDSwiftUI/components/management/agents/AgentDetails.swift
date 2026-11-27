@@ -233,6 +233,10 @@ public extension BaseAgentDetails where Content == EmptyView {
 /// administration flow and is offered only when the agent's status allows it and the server configures
 /// its flow. The configured flows are read only while it is on, which needs a token that may read the
 /// server configuration. The agent API has no flow-backed delete, so there is no `administrationMode`.
+///
+/// Its data-changing actions are offered only when turned on here and the server's capabilities report the
+/// signed-in user may perform them (``CapabilitiesState``); a locked record opens read-only. Capabilities are
+/// not an authorization decision: the server still authorizes every request.
 public struct AgentDetails<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let agentId: String
@@ -312,6 +316,7 @@ private struct AgentDetailsHost<Content: View>: View {
     @StateObject private var lifecycleFlows: ResourceQuery<[AdministrationFlowConfigKey: String]>
     @StateObject private var lifecycle: ResourceMutation<AccountLifecycleInput, AccountLifecycleResult>
     let props: AgentDetails<Content>
+    @ObservedObject private var capabilities: CapabilitiesState
 
     init(state: ThunderIDState, props: AgentDetails<Content>) {
         _agent = StateObject(wrappedValue: state.agentQuery(id: props.agentId))
@@ -321,7 +326,12 @@ private struct AgentDetailsHost<Content: View>: View {
         _lifecycleFlows = StateObject(wrappedValue: state.accountLifecycleFlowsQuery(kind: .agent))
         _lifecycle = StateObject(wrappedValue: state.accountLifecycleMutation(kind: .agent))
         self.props = props
+        _capabilities = ObservedObject(wrappedValue: state.capabilities)
     }
+
+    private var access: RecordAccess { capabilities.recordAccess("agent", isReadOnly: agent.data?.isReadOnly) }
+    private var deletable: Bool { props.deletable && access.canDelete }
+    private var lifecycleActions: Bool { props.lifecycleActions && access.canChangeState }
 
     var body: some View {
         BaseAgentDetails(
@@ -334,26 +344,27 @@ private struct AgentDetailsHost<Content: View>: View {
                 ?? i18n.managementErrorMessage(lifecycle.error, fallbackKey: "admin.common.lifecycle.error")
                 ?? i18n.managementErrorMessage(lifecycleFlows.error, fallbackKey: "admin.common.lifecycle.load_error"),
             isDeleting: deletion.isLoading,
-            onDelete: props.deletable ? delete : nil,
+            onDelete: deletable ? delete : nil,
             isRunningLifecycleAction: lifecycle.isLoading,
             lifecycleActions: availableLifecycleActions,
-            onLifecycleAction: props.lifecycleActions ? runLifecycleAction : nil,
+            onLifecycleAction: lifecycleActions ? runLifecycleAction : nil,
             actions: props.actions,
             renderContent: props.content
         )
+        .task { capabilities.load() }
         .task {
             async let loadAgent: Void = { _ = await agent.refetch() }()
             async let loadGroups: Void = { _ = await groups.refetch() }()
             async let loadRoles: Void = { _ = await roles.refetch() }()
             _ = await (loadAgent, loadGroups, loadRoles)
         }
-        .task(id: props.lifecycleActions) {
-            if props.lifecycleActions { await lifecycleFlows.refetch() }
+        .task(id: lifecycleActions) {
+            if lifecycleActions { await lifecycleFlows.refetch() }
         }
     }
 
     private var availableLifecycleActions: [AccountLifecycleAction] {
-        guard props.lifecycleActions, let flows = lifecycleFlows.data else { return [] }
+        guard lifecycleActions, let flows = lifecycleFlows.data else { return [] }
         return AccountLifecycleAction.available(for: .agent, status: agent.data?.status?.value, configuredFlows: flows)
     }
 

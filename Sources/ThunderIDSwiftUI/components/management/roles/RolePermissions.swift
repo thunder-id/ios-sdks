@@ -211,6 +211,10 @@ public extension BaseRolePermissions where Content == EmptyView {
 /// `roles.update`. `administrationMode` chooses how a removal is saved: `.flow` runs the permission
 /// removal flow the server configures, which revokes the scopes the permission granted first. It
 /// defaults to `.native`.
+///
+/// Its data-changing actions are offered only when turned on here and the server's capabilities report the
+/// signed-in user may perform them (``CapabilitiesState``); a locked record opens read-only. Capabilities are
+/// not an authorization decision: the server still authorizes every request.
 public struct RolePermissions<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let roleId: String
@@ -295,6 +299,7 @@ private struct RolePermissionsHost<Content: View>: View {
     @StateObject private var candidates: ResourceQuery<[RolePermissionCandidate]>
     @StateObject private var update: ResourceMutation<(id: String, request: UpdateRoleRequest), Role>
     let props: RolePermissions<Content>
+    @ObservedObject private var capabilities: CapabilitiesState
 
     init(state: ThunderIDState, props: RolePermissions<Content>) {
         _role = StateObject(wrappedValue: state.roleQuery(id: props.roleId))
@@ -303,16 +308,19 @@ private struct RolePermissionsHost<Content: View>: View {
             wrappedValue: state.updateRoleMutation(administrationMode: props.administrationMode)
         )
         self.props = props
+        _capabilities = ObservedObject(wrappedValue: state.capabilities)
     }
 
     private var canEdit: Bool {
-        props.editable && role.data != nil && role.data?.isReadOnly != true
+        editable && role.data != nil && role.data?.isReadOnly != true
     }
 
     private var optionsError: String? {
         guard canEdit else { return nil }
         return i18n.managementErrorMessage(candidates.error, fallbackKey: "admin.roles.permissions.options_error")
     }
+
+    private var editable: Bool { props.editable && capabilities.can("role", "update") }
 
     var body: some View {
         BaseRolePermissions(
@@ -330,9 +338,10 @@ private struct RolePermissionsHost<Content: View>: View {
             onRemove: canEdit ? remove : nil,
             renderContent: props.content
         )
+        .task { capabilities.load() }
         .task {
             await role.refetch()
-            guard props.editable else { return }
+            guard editable else { return }
             await candidates.refetch()
         }
     }

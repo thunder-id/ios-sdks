@@ -20,7 +20,7 @@ final class OrganizationUnitComponentTests: XCTestCase {
     }
 
     private func render(_ view: some View) {
-        let state = ThunderIDState(client: ThunderIDClient(), i18n: i18n)
+        let state = ThunderIDState(client: ThunderIDClient(), i18n: i18n).allowingEverything()
         let renderer = ImageRenderer(
             content: view
                 .environmentObject(i18n)

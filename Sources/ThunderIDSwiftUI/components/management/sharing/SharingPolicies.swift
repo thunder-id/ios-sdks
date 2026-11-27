@@ -274,6 +274,10 @@ public extension BaseSharingPolicies where Content == EmptyView {
 /// by default, and a delete asks for confirmation first. With `ouId`, the resolved overlay rules for that
 /// organization unit are shown too, read only. The details components do not embed it: place it where
 /// the app wants it.
+///
+/// Its data-changing actions are offered only when turned on here and the server's capabilities report the
+/// signed-in user may perform them (``CapabilitiesState``); a locked record opens read-only. Capabilities are
+/// not an authorization decision: the server still authorizes every request.
 public struct SharingPolicies<Content: View>: View {
     @EnvironmentObject private var thunderState: ThunderIDState
     let resourceType: SharingResourceType
@@ -360,6 +364,7 @@ private struct SharingPoliciesHost<Content: View>: View {
     @State private var offset = 0
     let state: ThunderIDState
     let props: SharingPolicies<Content>
+    @ObservedObject private var capabilities: CapabilitiesState
 
     init(state: ThunderIDState, props: SharingPolicies<Content>) {
         let type = props.resourceType
@@ -375,7 +380,10 @@ private struct SharingPoliciesHost<Content: View>: View {
         _deletion = StateObject(wrappedValue: state.deleteSharingPolicyMutation(resourceType: type))
         self.state = state
         self.props = props
+        _capabilities = ObservedObject(wrappedValue: state.capabilities)
     }
+
+    private var editable: Bool { props.editable && capabilities.can(props.resourceType.capabilityResource, "update") }
 
     var body: some View {
         let query = state.sharingPoliciesQuery(
@@ -398,13 +406,14 @@ private struct SharingPoliciesHost<Content: View>: View {
                 onPageChange: { offset = $0 },
                 overlay: overlay.data,
                 isMutating: creation.isLoading || update.isLoading || deletion.isLoading,
-                onCreate: props.editable ? create : nil,
-                onUpdate: props.editable ? save : nil,
-                onDelete: props.editable ? delete : nil,
+                onCreate: editable ? create : nil,
+                onUpdate: editable ? save : nil,
+                onDelete: editable ? delete : nil,
                 renderContent: props.content
             )
         }
         .id(offset)
+        .task { capabilities.load() }
         .task {
             if props.ouId != nil { await overlay.refetch() }
         }

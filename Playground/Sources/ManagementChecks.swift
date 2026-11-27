@@ -22,7 +22,8 @@ extension CheckContext {
         .administrationFlows: { try await $0.administrationFlows() },
         .adminWrites: { try await $0.adminWrites() },
         .permissionHierarchy: { try $0.permissionHierarchy() },
-        .grantedPermissions: { try await $0.grantedPermissions() }
+        .grantedPermissions: { try await $0.grantedPermissions() },
+        .managementCapabilities: { try await $0.managementCapabilities() }
     ]
 
     // MARK: - Management endpoints

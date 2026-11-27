@@ -7,7 +7,9 @@ import ThunderID
 /// Reactive auth state for SwiftUI views. Held as @StateObject in ThunderIDProvider.
 @MainActor
 public final class ThunderIDState: ObservableObject {
-    @Published public private(set) var user: User?
+    @Published public private(set) var user: User? {
+        didSet { capabilities.setSession(user.map { [$0.sub, $0["ouId"] as? String] }) }
+    }
     @Published public private(set) var isLoading: Bool = false
     @Published public private(set) var isInitialized: Bool = false
     @Published public private(set) var error: String?
@@ -22,6 +24,9 @@ public final class ThunderIDState: ObservableObject {
     public let i18n: ThunderIDI18n
     /// Coordinates refetching between the management queries and mutations built from this state.
     public let invalidator = ResourceInvalidator()
+    /// The signed-in user's management capabilities, read once for every view under this provider. See
+    /// ``CapabilitiesState``.
+    public let capabilities: CapabilitiesState
 
     /// Mirrors ``ThunderIDConfig/fetchUserProfile``.
     public private(set) var fetchUserProfileEnabled: Bool = true
@@ -39,6 +44,10 @@ public final class ThunderIDState: ObservableObject {
     init(client: ThunderIDClient, i18n: ThunderIDI18n) {
         self.client = client
         self.i18n = i18n
+        capabilities = CapabilitiesState(
+            read: { try await client.getCapabilities() },
+            grantedPermissions: { await client.getGrantedPermissions() }
+        )
     }
 
     func initialize(config: ThunderIDConfig) async {
