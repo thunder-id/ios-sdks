@@ -22,7 +22,7 @@ final class FlowExpiryTests: OAuthTestCase {
     }
 
     func testSignInStepForAnExpiredExecutionFailsAsFlowExpired() async throws {
-        try await makeClient(clientId: nil, applicationId: "app-1")
+        try await makeClient(applicationId: "app-1")
         StubBackend.reply("/flow/execute", status: 400, expiredBody)
         do {
             _ = try await client.signIn(
@@ -37,7 +37,7 @@ final class FlowExpiryTests: OAuthTestCase {
     }
 
     func testSignUpStepForAnExpiredExecutionFailsAsFlowExpired() async throws {
-        try await makeClient(clientId: nil, applicationId: "app-1")
+        try await makeClient(applicationId: "app-1")
         StubBackend.reply("/flow/execute", status: 400, expiredBody)
         do {
             _ = try await client.signUp(payload: EmbeddedSignInPayload(flowId: "f-1", actionId: "submit"))
@@ -48,7 +48,7 @@ final class FlowExpiryTests: OAuthTestCase {
     }
 
     func testOtherRefusedStepsKeepTheirCode() async throws {
-        try await makeClient(clientId: nil, applicationId: "app-1")
+        try await makeClient(applicationId: "app-1")
         StubBackend.reply("/flow/execute", status: 400, #"{"code":"FES-1006","message":"Invalid request"}"#)
         do {
             _ = try await client.signIn(

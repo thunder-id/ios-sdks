@@ -57,7 +57,7 @@ struct SessionSnapshot {
         (try? client.decodeJwtToken(token) as [String: AnyCodable]) ?? [:]
     }
 
-    /// "JWT · RS256" from the token header, or "opaque" when it is not a JWT.
+    /// "JWT · RS256 · typ at+jwt" from the token header, or "opaque" when it is not a JWT.
     private static func jwtMeta(_ token: String) -> String {
         let parts = token.split(separator: ".")
         guard parts.count == 3 else { return "opaque" }
@@ -68,7 +68,7 @@ struct SessionSnapshot {
         guard let data = Data(base64Encoded: header),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let alg = json["alg"] as? String else { return "JWT" }
-        return "JWT · \(alg)"
+        return "JWT · \(alg)" + ((json["typ"] as? String).map { " · typ \($0)" } ?? "")
     }
 
     private static func render(_ value: Any) -> String {

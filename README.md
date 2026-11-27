@@ -39,6 +39,10 @@ ThunderIDConfig(
 - Build the sign-in URL with `signInURL(options:)`, which reads the metadata first. `buildSignInURL(options:)` is synchronous, so it uses the advertised authorization endpoint only once the metadata has been read, and `{baseUrl}/oauth2/authorize` before that.
 - Sign-in bounded to an organization unit, app-native sign-in and the management operations are ThunderID features, and keep their ThunderID paths.
 
+## App-native sign-in
+
+`SignIn(applicationId:)` and `signIn(payload:request:)` run the application's flow in the app. Set both `applicationId` and `clientId`: when a flow completes, the SDK exchanges its assertion at the token endpoint (`urn:ietf:params:oauth:grant-type:token-exchange`, no scope) for the access token it keeps, and keeps the assertion as the ID token. The application needs that grant type. Sign-in, sign-up and the embedded organization unit switch do not start a flow without a `clientId`. An application without the grant fails with `INVALID_CONFIGURATION`, and the previous session, if any, stays.
+
 ## Sign-in on a backend
 
 Set `endpoints.backend` to hand sign-in to a backend the app owns (the Backend for Frontend pattern of RFC 10017). The backend runs the OAuth flow and keeps the tokens, and the app only holds an opaque session handle.

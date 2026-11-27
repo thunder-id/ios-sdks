@@ -176,7 +176,13 @@ struct CheckContext {
         try await requireSignedIn()
         let user = try await client.getUser()
         log.record("user:loaded", "sub=\(user.sub ?? "?")", kind: .success)
-        return "sub \(user.sub ?? "?"), \(user.claims.count) claims"
+        let summary = "sub \(user.sub ?? "?"), \(user.claims.count) claims"
+        do {
+            return "\(summary), profile \(try await client.getUserProfile().attributes.count) attributes"
+        } catch {
+            let code = (error as? ThunderIDError)?.code.rawValue ?? "\(error)"
+            throw CheckFailure("\(summary), but /users/me failed (\(code))")
+        }
     }
 
     /// Reads the email's verification status from `/users/me` and, when it is unverified, starts verifying

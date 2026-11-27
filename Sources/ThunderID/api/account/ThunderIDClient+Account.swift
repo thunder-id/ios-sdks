@@ -10,8 +10,14 @@ public extension ThunderIDClient {
         if let user = currentUser { return user }
         if let backend { return try await backendUser(backend) }
         if let token = tokenStore?.accessToken(),
-           let claims = try? decodeJwtToken(token) as [String: AnyCodable],
+           var claims = try? decodeJwtToken(token) as [String: AnyCodable],
            let sub = claims["sub"]?.value as? String, !sub.isEmpty {
+            // The ID token fills in claims the access token lacks, such as the user's name after an app-native sign-in.
+            if let idToken = tokenStore?.idToken(),
+               let idClaims = try? decodeJwtToken(idToken) as [String: AnyCodable],
+               idClaims["sub"]?.value as? String == sub {
+                claims.merge(idClaims) { fromAccessToken, _ in fromAccessToken }
+            }
             let user = User(claims: claims)
             currentUser = user
             return user
