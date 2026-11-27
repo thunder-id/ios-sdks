@@ -15,6 +15,11 @@ on:
         required: false
         type: string
         default: ""
+      samples-ref:
+        description: thunder-id/samples branch, tag, commit or pull request ref to take the Quickstart from. Defaults to main.
+        required: false
+        type: string
+        default: ""
       artifact-suffix:
         description: Appended to the debug artifact name, so concurrent callers do not collide.
         required: false
@@ -54,6 +59,7 @@ jobs:
         working-directory: Tests/e2e
         env:
           THUNDERID_VERSION: ${{ inputs.thunderid-version }}
+          THUNDERID_SAMPLES_REF: ${{ inputs.samples-ref }}
         run: ./run-e2e.sh
 
       - name: 📤 Upload Debug Artifacts

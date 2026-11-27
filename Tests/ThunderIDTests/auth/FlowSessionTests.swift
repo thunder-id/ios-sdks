@@ -50,7 +50,7 @@ final class FlowSessionTests: OAuthTestCase {
     }
 
     func testSignInStepsKeepTheSessionsTheyReturnAndAPlainSignInSendsNone() async throws {
-        try await makeClient(clientId: nil, applicationId: "app-1")
+        try await makeClient(applicationId: "app-1")
         try store.mergeFlowSessions([session("f0", "h0")], cleared: [])
         StubBackend.reply(
             "/flow/execute",
@@ -70,7 +70,7 @@ final class FlowSessionTests: OAuthTestCase {
     }
 
     func testSignUpStepsKeepTheSessionsTheyReturn() async throws {
-        try await makeClient(clientId: nil, applicationId: "app-1")
+        try await makeClient(applicationId: "app-1")
         StubBackend.reply(
             "/flow/execute",
             #"{"executionId":"f-1","flowStatus":"COMPLETE","sessionData":[{"flowIdentifier":"r1","sessionHandle":"h1"}]}"#
@@ -80,7 +80,7 @@ final class FlowSessionTests: OAuthTestCase {
     }
 
     func testEmbeddedSwitchSendsTheUnexpiredSessions() async throws {
-        try await makeClient(clientId: nil, applicationId: "app-1")
+        try await makeClient(applicationId: "app-1")
         let now = Date()
         try store.mergeFlowSessions([session("old", "h0", expiresIn: 1)], cleared: [], now: now.addingTimeInterval(-10))
         try store.mergeFlowSessions([session("f2", "h2", expiresIn: 600), session("f1", "h1")], cleared: [], now: now)
@@ -95,7 +95,7 @@ final class FlowSessionTests: OAuthTestCase {
     }
 
     func testEmbeddedSwitchWithNoSessionsSendsNone() async throws {
-        try await makeClient(clientId: nil, applicationId: "app-1")
+        try await makeClient(applicationId: "app-1")
         StubBackend.reply("/flow/execute", #"{"executionId":"f-9","flowStatus":"INCOMPLETE"}"#)
         _ = try await client.switchOrganizationUnit("ou-2")
         let body = StubBackend.requests(to: "/flow/execute").first?.json
@@ -104,7 +104,7 @@ final class FlowSessionTests: OAuthTestCase {
     }
 
     func testEmbeddedSwitchKeepsTheDeviceSecretAndTheSessions() async throws {
-        try await makeClient(clientId: nil, applicationId: "app-1")
+        try await makeClient(applicationId: "app-1")
         try storeSession(["sub": "u1", "ouId": "ou-1"], refreshToken: "old", deviceSecret: "ds-1")
         try store.mergeFlowSessions([session("f1", "h1")], cleared: [])
         let assertion = Self.jwt(["sub": "u1", "ouId": "ou-2"])
@@ -112,6 +112,9 @@ final class FlowSessionTests: OAuthTestCase {
             "/flow/execute",
             #"{"executionId":"f-1","flowStatus":"COMPLETE","assertion":"\#(assertion)","sessionData":[{"flowIdentifier":"f2","sessionHandle":"h2"}]}"#
         )
+        // The secret exchange asks for the user, so the switch goes on to the flow and keeps the secret.
+        StubBackend.reply("/ou/ou-2/oauth2/token", status: 400, #"{"error":"interaction_required"}"#)
+        StubBackend.reply("/oauth2/token", tokenJSON(["sub": "u1", "ouId": "ou-2"]))
         let result = try await client.switchOrganizationUnit("ou-2")
         guard case .switched(let user) = result else { return XCTFail("Expected a switch") }
         XCTAssertEqual(user.claims["ouId"]?.value as? String, "ou-2")

@@ -123,6 +123,7 @@ The quickstarts and integration samples live in [thunder-id/samples](https://git
 - **A sample stops compiling or behaving the same** (a renamed type or package, a changed signature, a moved default): raise a samples pull request that bumps the SDK version and fixes the sample. Keep it as a draft until the SDK release it needs is out.
 - **The change adds something a sample exists to show** (a self-service capability for `self-service/myaccount-react`, a management component or operation for `management/admin-react`, a new sign-in option for the quickstarts): update that sample in the same samples pull request, so it demonstrates the new capability rather than working around its absence.
 - Link the samples pull request from this pull request's **Related PRs**, or say why no sample is affected.
+- When the change breaks the quickstart, add a `Samples-Ref: refs/pull/<number>/head` line to this pull request's body. The PR builder's sample build and E2E suite then take the quickstart from that samples pull request instead of `main`. A re-run replays the original event and its body, so after editing the body push a commit, or close and reopen the pull request, to start a fresh run.
 
 ## Pull request labels
 

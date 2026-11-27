@@ -66,8 +66,9 @@ The app has four tabs:
 
 In the ThunderID Console, create a **mobile** application and note its ID.
 
-- For **app-native sign-in** (the `SignIn` component and the passkey check), the application ID is
-  enough. Mobile applications must prove their identity with App Attest before they can start a
+- For **app-native sign-in** (the `SignIn` component and the passkey check), give the application an
+  OAuth client with the `urn:ietf:params:oauth:grant-type:token-exchange` grant: the SDK exchanges
+  the flow's assertion for the access token, so it needs both the application ID and the client ID. Mobile applications must prove their identity with App Attest before they can start a
   flow, which the simulator cannot do; for local development, enable attestation dev mode on the
   application.
 - For **system browser sign-in**, also give the application an OAuth client with the
@@ -85,7 +86,7 @@ cp Sources/Config.plist.example Sources/Config.plist
 |---|---|
 | `THUNDERID_BASE_URL` | Server URL, for example `https://localhost:8090` |
 | `THUNDERID_APPLICATION_ID` | The application ID, for app-native sign-in |
-| `THUNDERID_CLIENT_ID` | The OAuth client ID, for system browser sign-in |
+| `THUNDERID_CLIENT_ID` | The OAuth client ID, for system browser and app-native sign-in |
 | `THUNDERID_AFTER_SIGN_IN_URL` | Redirect URI, `dev.thunderid.playground://callback` |
 | `THUNDERID_AFTER_SIGN_OUT_URL` | Where to go after sign-out |
 | `THUNDERID_SCOPES` | Space-separated scopes, `openid profile email` by default |

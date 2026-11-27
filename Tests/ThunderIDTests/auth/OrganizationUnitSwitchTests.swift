@@ -157,7 +157,7 @@ final class OrganizationUnitSwitchTests: OAuthTestCase {
     }
 
     func testEmbeddedSwitchReturnsTheFlowAndSwitchesOnlyWhenItCompletes() async throws {
-        try await makeClient(clientId: nil, applicationId: "app-1")
+        try await makeClient(applicationId: "app-1")
         try storeSession(["sub": "u1", "ouId": "ou-1"], refreshToken: "old")
         let before = store.accessToken()
         StubBackend.reply("/flow/execute", #"{"executionId":"f-9","flowStatus":"INCOMPLETE"}"#)
@@ -169,20 +169,24 @@ final class OrganizationUnitSwitchTests: OAuthTestCase {
         let assertion = Self.jwt(["sub": "u1", "ouId": "ou-2"])
         StubBackend.reset()
         StubBackend.reply("/flow/execute", #"{"executionId":"f-9","flowStatus":"COMPLETE","assertion":"\#(assertion)"}"#)
+        let issued = Self.jwt(["sub": "u1", "ouId": "ou-2", "typ": "at"])
+        StubBackend.reply("/oauth2/token", #"{"access_token":"\#(issued)","token_type":"Bearer","expires_in":3600}"#)
         _ = try await client.signIn(
             payload: EmbeddedSignInPayload(flowId: response.flowId, actionId: "submit"),
             request: EmbeddedFlowRequestConfig(applicationId: "app-1")
         )
-        XCTAssertEqual(store.accessToken(), assertion)
+        XCTAssertEqual(store.accessToken(), issued)
+        XCTAssertEqual(store.idToken(), assertion)
         XCTAssertNil(store.refreshToken(), "a unit-bounded sign-in replaces the whole session")
         let user = try await client.getUser()
         XCTAssertEqual(user.claims["ouId"]?.value as? String, "ou-2")
     }
 
     func testEmbeddedSwitchThatCompletesAtOnceSwitches() async throws {
-        try await makeClient(clientId: nil, applicationId: "app-1")
+        try await makeClient(applicationId: "app-1")
         let assertion = Self.jwt(["sub": "u1", "ouId": "ou-2"])
         StubBackend.reply("/flow/execute", #"{"executionId":"f-1","flowStatus":"COMPLETE","assertion":"\#(assertion)"}"#)
+        StubBackend.reply("/oauth2/token", tokenJSON(["sub": "u1", "ouId": "ou-2"]))
         let result = try await client.switchOrganizationUnit("ou-2")
         guard case .switched(let user) = result else { return XCTFail("Expected a switch") }
         XCTAssertEqual(user.claims["ouId"]?.value as? String, "ou-2")

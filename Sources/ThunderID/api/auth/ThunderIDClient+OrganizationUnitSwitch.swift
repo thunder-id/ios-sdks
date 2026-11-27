@@ -43,7 +43,7 @@ public extension ThunderIDClient {
     ///    `invalid_grant` is dropped. Any failure but an unavailable unit goes on to the next way.
     /// 3. With an `authorize` handler, redirect mode opens the unit-bounded authorization URL through it.
     /// 4. Otherwise app-native mode starts the `AUTHENTICATION` flow with `ouId`, sending the SSO session
-    ///    handles kept from earlier flows.
+    ///    handles kept from earlier flows, and exchanges the assertion of the completed flow (needs `clientId`).
     ///
     /// On success the tokens are replaced and the user is read again (the refresh token is bound to the
     /// unit); the device secret and the kept flow sessions stay. On failure the previous session stays as it

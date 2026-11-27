@@ -24,9 +24,6 @@ public final class ThunderIDClient {
     /// The organization unit the redirect sign-in in progress is bounded to: its code is redeemed only at
     /// that unit's token endpoint. Held in memory with the PKCE verifier.
     var pendingOrganizationUnitId: String?
-    /// The embedded sign-in flows started bounded to an organization unit. When one completes, its session
-    /// replaces the stored one rather than merging into it.
-    var boundedFlowIds: Set<String> = []
     /// Waits between polls of the token endpoint. A test seam: tests replace it so polling does not sleep.
     var pollSleep: (TimeInterval) async throws -> Void = { seconds in
         try await Task.sleep(nanoseconds: UInt64(max(seconds, 0) * 1_000_000_000))
@@ -95,7 +92,8 @@ public final class ThunderIDClient {
     // MARK: - Authentication
 
     /// App-native sign-in via Flow Execution API (spec §6.1 app-native mode). The SSO session handles a step
-    /// returns are kept, for a later organization unit switch.
+    /// returns are kept, for a later organization unit switch. Needs `clientId`: a completed flow's assertion is
+    /// exchanged for the access token, and kept as the ID token.
     public func signIn(
         payload: EmbeddedSignInPayload,
         request: EmbeddedFlowRequestConfig,
@@ -115,6 +113,7 @@ public final class ThunderIDClient {
         try refuseInBackendMode("Embedded sign-in")
         _isLoading = true
         defer { _isLoading = false }
+        _ = try requireEmbeddedClientId()
         let response: EmbeddedFlowResponse
         if let flowId = payload.flowId {
             response = try await flowClient!.submit(
@@ -133,10 +132,8 @@ public final class ThunderIDClient {
                 organizationUnitId: ouId,
                 sessionData: flowSessions
             )
-            if ouId != nil, let flowId = response.flowId { boundedFlowIds.insert(flowId) }
         }
-        try keepFlowSessions(from: response)
-        try establishSessionIfNeeded(from: response)
+        try await keepFlowStep(response)
         return response
     }
 
@@ -275,12 +272,14 @@ public final class ThunderIDClient {
     // MARK: - Registration
 
     /// App-native sign-up via Flow Execution API (spec §6.2). Keeps the SSO session handles a step returns.
+    /// Needs `clientId`; a flow that completes with an assertion signs the user in, as `signIn` does.
     public func signUp(
         payload: EmbeddedSignInPayload? = nil,
         request: EmbeddedFlowRequestConfig? = nil
     ) async throws -> EmbeddedFlowResponse {
         try requireInitialized()
         try refuseInBackendMode("Embedded sign-up")
+        _ = try requireEmbeddedClientId()
         let appId = request?.applicationId ?? config?.applicationId ?? ""
         let response: EmbeddedFlowResponse
         if let payload, let flowId = payload.flowId {
@@ -297,8 +296,7 @@ public final class ThunderIDClient {
                 attestationToken: try await attestationToken()
             )
         }
-        try keepFlowSessions(from: response)
-        try establishSessionIfNeeded(from: response)
+        try await keepFlowStep(response)
         return response
     }
 
@@ -411,29 +409,6 @@ public final class ThunderIDClient {
             return array.map { deepUnwrap($0) }
         default:
             return value
-        }
-    }
-
-    func establishSessionIfNeeded(from response: EmbeddedFlowResponse) throws {
-        let bounded = response.flowId.map { boundedFlowIds.contains($0) } ?? false
-        if bounded, response.flowStatus != .promptOnly, let flowId = response.flowId {
-            boundedFlowIds.remove(flowId)
-        }
-        guard response.flowStatus == .complete,
-              let assertion = response.assertion,
-              !assertion.isEmpty else {
-            return
-        }
-        let tokenResponse = TokenResponse(accessToken: assertion, tokenType: "Bearer")
-        // A sign-in bounded to a unit is a new session: nothing of the previous one carries over.
-        if bounded {
-            try tokenStore!.replace(tokenResponse)
-            currentUser = nil
-        } else {
-            try tokenStore!.save(tokenResponse)
-        }
-        if let claims = try? decodeJwtToken(assertion) as [String: AnyCodable] {
-            currentUser = User(claims: claims)
         }
     }
 }

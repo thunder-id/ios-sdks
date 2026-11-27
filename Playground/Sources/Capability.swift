@@ -144,7 +144,7 @@ enum CapabilityCatalog {
                 api: "KeychainStorageAdapter",
                 mode: .automatic
             ),
-            Capability(id: .userInfo, name: "User info", api: "getUser()", mode: .automatic),
+            Capability(id: .userInfo, name: "User info", api: "getUser() · getUserProfile()", mode: .automatic),
             Capability(
                 id: .attributeVerification,
                 name: "Attribute verification",
