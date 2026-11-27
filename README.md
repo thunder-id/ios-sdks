@@ -62,6 +62,22 @@ ThunderIDConfig(
 - API calls go to `{baseUrl}{proxy}`: a path such as `/users` is sent to `https://app.example.com/auth/api/users`, and a URL already under the proxy is sent as it is. The SDK's own calls, `/users/me` and the management operations, go there too. The backend maps the proxy to the API from its own configuration, so the app never needs the API's address.
 - `getGrantedPermissions()` reads the permissions from the backend's session (`scope`), never from a token.
 
+## Credential change and recent sign-in
+
+`updateUserCredentials(attribute:currentValue:newValue:)` sets one of the signed-in user's own credentials (`POST /users/me/update-credentials` with `{name, currentValue, newValue}`), and the `ChangeCredential` component drives it.
+
+- When the user holds the credential, the server checks `currentValue` against it. A missing value fails with the server code `USR-1047`, and a wrong one with `USR-1048`. The code is in the error's `serverError.code`, and `message` is the server's readable message.
+- When the user does not hold it yet, leave `currentValue` empty. The server then asks for a recent sign-in, as it does for a profile update that changes an `email` or `mobile` attribute.
+- A blank credential name or an empty new value fails with `INVALID_INPUT` before any request.
+- Replacing a credential the user holds revokes the user's tokens, including the one the SDK holds, so the user signs in again afterwards.
+
+When the sign-in is too old, the call fails with `STEP_UP_REQUIRED`, and the error's `authenticationChallenge` carries `maxAge`, read from the `WWW-Authenticate` header (RFC 9470) or, when the header is missing, from the response body (`AUTH-4011`).
+
+- `reauthenticate(maxAge:options:)` signs the same user in again in redirect mode: an authorization request with `max_age` (or `prompt=login`), the session's ID token as `id_token_hint`, PKCE, `state` and `nonce`, through an `ASWebAuthenticationSession` (or `options.authorize`). The new ID token must carry the same `sub`; otherwise the session stays as it was. It never refreshes to meet the challenge. With sign-in on a backend, or for a session from an app-native sign-in, it fails with `UNSUPPORTED_OPERATION`. `reauthenticationMethod()` says which way applies: `.browser`, `.flow` or `.unavailable`.
+- For a session from an app-native sign-in, run the sign-in flow again with `EmbeddedFlowRequestConfig(applicationId:reauthentication: true, maxAge:)`. The flow starts with `maxAge` and the kept SSO session handles, so the server asks the user again when the sign-in is older. When it completes, its assertion is exchanged and replaces the session only when it names the signed-in user; another user fails with `AUTHENTICATION_FAILED` and the session stays.
+- `SignInOptions(maxAge:idTokenHint:extra:)` sends `max_age`, `id_token_hint` and any other parameter with a redirect sign-in. A parameter in `extra` does not replace one the SDK sets.
+- `ChangeCredential` and `UserProfile` handle the challenge themselves: they keep the pending change in memory, sign the user in again (the browser sheet in redirect mode, or a sheet that runs the sign-in flow for an app-native session), and retry once. When the retry is refused again or the sign-in fails, they show a translated error. When the app shows `BaseChangeCredential` or `BaseUserProfile` in its own sheet, apply `.presentsReauthentication()` to that sheet's content so the sign-in sheet can show over it. Pass `onReauthenticationRequired` to run the sign-in yourself instead.
+
 ## Organizations
 
 The signed-in user's organization units, and signing in to one of them:

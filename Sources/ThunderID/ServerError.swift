@@ -32,6 +32,14 @@ public struct ServerError: Decodable, Equatable {
         description = try? container.decodeIfPresent(ServerErrorMessage.self, forKey: .description)
     }
 
+    /// The readable text of the error: the message's `defaultValue`, else the description's. `nil` when
+    /// neither has text.
+    public var readableMessage: String? {
+        [message?.defaultValue, description?.defaultValue]
+            .compactMap { $0 }
+            .first { !$0.isEmpty }
+    }
+
     /// Reads the envelope from a raw response body, or returns `nil` when the body is not one.
     static func parse(_ data: Data) -> ServerError? {
         guard !data.isEmpty else { return nil }

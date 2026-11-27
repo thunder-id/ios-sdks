@@ -321,6 +321,10 @@ public struct BaseUserProfile<Content: View>: View {
     public let attributeMapping: [String: [String]]
     public let onSaved: (() -> Void)?
     public let onError: (() -> Void)?
+    /// Replaces the built-in sign-in again when a save needs a more recent sign-in, such as an email or
+    /// mobile change: called with the challenge's `maxAge`. When `nil`, the view signs the same user in again
+    /// and retries the save once.
+    public let onReauthenticationRequired: ((Int?) -> Void)?
     public let content: (UserProfileState) -> Content
 
     @StateObject private var state = UserProfileState()
@@ -329,11 +333,13 @@ public struct BaseUserProfile<Content: View>: View {
         attributeMapping: [String: [String]] = [:],
         onSaved: (() -> Void)? = nil,
         onError: (() -> Void)? = nil,
+        onReauthenticationRequired: ((Int?) -> Void)? = nil,
         @ViewBuilder content: @escaping (UserProfileState) -> Content
     ) {
         self.attributeMapping = attributeMapping
         self.onSaved = onSaved
         self.onError = onError
+        self.onReauthenticationRequired = onReauthenticationRequired
         self.content = content
     }
 
@@ -413,15 +419,22 @@ public struct BaseUserProfile<Content: View>: View {
     }
 
     private func performSave(name: String, field: ProfileField, value: String) async {
-        let client = thunderState.client
+        let (thunderState, onReauthenticationRequired) = (thunderState, onReauthenticationRequired)
         do {
             try await state.commitSave(
                 field,
                 value: value,
-                update: { try await client.updateUserProfile(payload: $0) },
+                update: { payload in
+                    try await thunderState.performWithStepUp(onReauthenticationRequired: onReauthenticationRequired) {
+                        try await thunderState.client.updateUserProfile(payload: payload)
+                    }
+                },
                 apply: applyProfile
             )
             onSaved?()
+        } catch let error as ThunderIDError where error.code == .stepUpRequired {
+            state.fieldErrors[name] = thunderState.i18n.resolve("reauthentication.required")
+            onError?()
         } catch {
             state.fieldErrors[name] = thunderState.i18n.resolve("userProfile.error.save")
             onError?()

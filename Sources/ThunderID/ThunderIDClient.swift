@@ -24,6 +24,9 @@ public final class ThunderIDClient {
     /// The organization unit the redirect sign-in in progress is bounded to: its code is redeemed only at
     /// that unit's token endpoint. Held in memory with the PKCE verifier.
     var pendingOrganizationUnitId: String?
+    /// The signed-in user each re-sign-in flow in progress must sign in again, by execution ID, so the step
+    /// that completes the flow is checked whatever config it is sent with.
+    var reauthenticationSubjects: [String: String] = [:]
     /// Waits between polls of the token endpoint. A test seam: tests replace it so polling does not sleep.
     var pollSleep: (TimeInterval) async throws -> Void = { seconds in
         try await Task.sleep(nanoseconds: UInt64(max(seconds, 0) * 1_000_000_000))
@@ -114,6 +117,10 @@ public final class ThunderIDClient {
         _isLoading = true
         defer { _isLoading = false }
         _ = try requireEmbeddedClientId()
+        // Read before any request, so the flow is checked against the user signed in when it started.
+        let signedInSubject = request.reauthentication && request.flowType == .authentication
+            ? try requireSignedInSubject()
+            : nil
         let response: EmbeddedFlowResponse
         if let flowId = payload.flowId {
             response = try await flowClient!.submit(
@@ -124,15 +131,20 @@ public final class ThunderIDClient {
             )
         } else {
             // A unit-bounded sign-in names its unit only on the request that starts an AUTHENTICATION flow.
-            let ouId = request.flowType == .authentication ? request.organizationUnitId : nil
+            let isAuthentication = request.flowType == .authentication
+            let ouId = isAuthentication ? request.organizationUnitId : nil
+            let isReauthentication = isAuthentication && request.reauthentication
             response = try await flowClient!.initiate(
                 applicationId: request.applicationId,
                 flowType: request.flowType,
                 attestationToken: try await attestationToken(),
                 organizationUnitId: ouId,
-                sessionData: flowSessions
+                // The kept handles let the server read when the user last signed in.
+                sessionData: isReauthentication ? (tokenStore?.flowSessions() ?? []) : flowSessions,
+                maxAge: isReauthentication ? max(request.maxAge ?? 0, 0) : nil
             )
         }
+        try trackReauthentication(submittedFlowId: payload.flowId, startSubject: signedInSubject, response: response)
         try await keepFlowStep(response)
         return response
     }
@@ -193,10 +205,23 @@ public final class ThunderIDClient {
             .init(name: "code_challenge", value: challenge),
             .init(name: "code_challenge_method", value: "S256")
         ]
-        if let prompt = options?.prompt { params.append(.init(name: "prompt", value: prompt)) }
-        if let hint = options?.loginHint { params.append(.init(name: "login_hint", value: hint)) }
-        if let fidp = options?.fidp { params.append(.init(name: "fidp", value: fidp)) }
-        for (key, val) in cfg.signInOptions { params.append(.init(name: key, value: "\(val)")) }
+        let optional: [(String, String?)] = [
+            ("prompt", options?.prompt),
+            ("login_hint", options?.loginHint),
+            ("fidp", options?.fidp),
+            ("max_age", options?.maxAge.map(String.init)),
+            ("id_token_hint", options?.idTokenHint),
+            ("state", options?.state),
+            ("nonce", options?.nonce)
+        ]
+        for (name, value) in optional {
+            if let value { params.append(.init(name: name, value: value)) }
+        }
+        // App parameters never replace one the SDK set, and the call's own win over the configured ones.
+        let extra = cfg.signInOptions.merging(options?.extra ?? [:]) { $1 }
+        for (key, val) in extra.sorted(by: { $0.key < $1.key }) where !params.contains(where: { $0.name == key }) {
+            params.append(.init(name: key, value: "\(val)"))
+        }
         return params
     }
 
@@ -254,6 +279,7 @@ public final class ThunderIDClient {
             }
         }
         tokenStore?.clear()
+        reauthenticationSubjects.removeAll()
         currentUser = nil
         return config?.afterSignOutUrl ?? "/"
     }
@@ -296,6 +322,7 @@ public final class ThunderIDClient {
                 attestationToken: try await attestationToken()
             )
         }
+        try trackReauthentication(submittedFlowId: payload?.flowId, startSubject: nil, response: response)
         try await keepFlowStep(response)
         return response
     }
@@ -342,6 +369,7 @@ public final class ThunderIDClient {
 
     public func clearSession(sessionId: String? = nil) {
         tokenStore?.clear()
+        reauthenticationSubjects.removeAll()
         currentUser = nil
     }
 

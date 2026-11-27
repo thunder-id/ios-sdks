@@ -20,6 +20,7 @@ struct ThunderIDProviderModifier: ViewModifier {
             .environmentObject(state)
             .environmentObject(state.i18n)
             .task { await state.initialize(config: config) }
+            .modifier(ReauthenticationPresenter(state: state))
     }
 }
 

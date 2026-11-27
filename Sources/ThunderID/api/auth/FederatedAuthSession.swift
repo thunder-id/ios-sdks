@@ -19,11 +19,14 @@ import AppKit
 public final class FederatedAuthSession: NSObject {
     private var continuation: CheckedContinuation<URL, Error>?
     private var session: ASWebAuthenticationSession?
+    private let anchor: ASPresentationAnchor?
 
     /// Cancellation by the user, surfaced so callers can silently reset state.
     public struct CancelledError: Error {}
 
-    override public init() {
+    /// `presentationAnchor` is the window the browser sheet opens over; the key window when `nil`.
+    public init(presentationAnchor: ASPresentationAnchor? = nil) {
+        anchor = presentationAnchor
         super.init()
     }
 
@@ -62,6 +65,7 @@ public final class FederatedAuthSession: NSObject {
 
 extension FederatedAuthSession: ASWebAuthenticationPresentationContextProviding {
     public func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        if let anchor { return anchor }
         #if canImport(UIKit)
         let scene = UIApplication.shared.connectedScenes.first { $0.activationState == .foregroundActive }
         let windowScene = scene as? UIWindowScene

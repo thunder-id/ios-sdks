@@ -60,7 +60,7 @@ final class TokenRefresher {
             } else {
                 response = try await httpClient.postForm(path: "/oauth2/token", form: form)
             }
-            try tokenStore.save(response)
+            try tokenStore.save(response, refreshed: true)
             return response
         }
         refreshTask = task

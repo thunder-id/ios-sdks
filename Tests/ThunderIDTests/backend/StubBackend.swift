@@ -11,6 +11,7 @@ final class StubBackend: URLProtocol {
         let body: String
         /// Seconds the stub waits before answering, to let concurrent callers overlap.
         var delay: TimeInterval = 0
+        var headers: [String: String]?
     }
 
     struct Recorded {
@@ -40,9 +41,15 @@ final class StubBackend: URLProtocol {
     }
 
     /// Queues `body` as the next answer for `path`. The last answer queued for a path repeats.
-    static func reply(_ path: String, status: Int = 200, _ body: String = "{}", delay: TimeInterval = 0) {
+    static func reply(
+        _ path: String,
+        status: Int = 200,
+        _ body: String = "{}",
+        delay: TimeInterval = 0,
+        headers: [String: String]? = nil
+    ) {
         lock.lock()
-        queues[path, default: []].append(Reply(status: status, body: body, delay: delay))
+        queues[path, default: []].append(Reply(status: status, body: body, delay: delay, headers: headers))
         lock.unlock()
     }
 
@@ -84,7 +91,12 @@ final class StubBackend: URLProtocol {
         if reply.delay > 0 {
             Thread.sleep(forTimeInterval: reply.delay)
         }
-        let response = HTTPURLResponse(url: request.url!, statusCode: reply.status, httpVersion: nil, headerFields: nil)!
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: reply.status,
+            httpVersion: nil,
+            headerFields: reply.headers
+        )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data(reply.body.utf8))
         client?.urlProtocolDidFinishLoading(self)

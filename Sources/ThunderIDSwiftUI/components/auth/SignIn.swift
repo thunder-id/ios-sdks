@@ -13,6 +13,8 @@ public struct SignIn: View {
     public let organizationUnitId: String?
     public let onComplete: (() -> Void)?
     public let onError: ((String) -> Void)?
+    /// Set when the flow signs the signed-in user in again (``ReauthenticationSheet``).
+    var reauthentication: SignInReauthentication?
 
     public init(
         applicationId: String,
@@ -30,6 +32,7 @@ public struct SignIn: View {
         BaseSignIn(
             applicationId: applicationId,
             organizationUnitId: organizationUnitId,
+            reauthentication: reauthentication,
             onComplete: onComplete,
             onError: onError
         ) { signInState in
@@ -270,6 +273,8 @@ public struct BaseSignIn<Content: View>: View {
     public let onComplete: (() -> Void)?
     public let onError: ((String) -> Void)?
     public let content: (SignInState) -> Content
+    /// Set when the flow signs the signed-in user in again.
+    var reauthentication: SignInReauthentication?
 
     @StateObject private var signInState = SignInState { _, _, _, _ in }
     @Environment(\.scenePhase) private var scenePhase
@@ -337,7 +342,9 @@ public struct BaseSignIn<Content: View>: View {
             let request = EmbeddedFlowRequestConfig(
                 applicationId: applicationId,
                 flowType: .authentication,
-                organizationUnitId: organizationUnitId
+                organizationUnitId: organizationUnitId,
+                reauthentication: reauthentication != nil,
+                maxAge: reauthentication?.maxAge
             )
             let payload = EmbeddedSignInPayload(actionId: "__initiate__")
             let response = try await state.client.signIn(payload: payload, request: request)
@@ -358,11 +365,19 @@ public struct BaseSignIn<Content: View>: View {
             let payload = EmbeddedSignInPayload(
                 flowId: flowId, actionId: actionId, inputs: inputs, challengeToken: challengeToken
             )
-            let request = EmbeddedFlowRequestConfig(applicationId: applicationId, flowType: .authentication)
+            let request = EmbeddedFlowRequestConfig(
+                applicationId: applicationId,
+                flowType: .authentication,
+                reauthentication: reauthentication != nil
+            )
             let response = try await state.client.signIn(payload: payload, request: request)
             await handleResponse(response, actionId: actionId)
         } catch let error as ThunderIDError where error.code == .flowExpired {
             signInState.flowExpiry.expire()
+        } catch let error as ThunderIDError where error.isReauthenticationByAnotherAccount {
+            let message = i18n.resolve("reauthentication.differentUser")
+            signInState.error = message
+            onError?(message)
         } catch {
             signInState.error = error.localizedDescription
             onError?(error.localizedDescription)

@@ -45,15 +45,41 @@ public extension ThunderIDClient {
         return try await httpClient!.put(path: "/users/me", body: ["attributes": payload])
     }
 
-    /// Changes one of the signed-in user's own credentials via `POST /users/me/update-credentials`.
+    /// Sets one of the signed-in user's own credentials via `POST /users/me/update-credentials`.
     ///
-    /// The self-service write path does not verify the account's existing value today, so this
-    /// call collects only the new value, matching the Android/React/Vue SDKs.
-    func updateUserCredentials(attribute: String = "password", newValue: String) async throws {
+    /// When the user holds the credential, the server checks `currentValue` against it: a missing value
+    /// fails with server code `USR-1047` and a wrong one with `USR-1048` (see ``ThunderIDError/serverError``).
+    /// When the user does not hold it yet, leave `currentValue` empty: the server then asks for a recent
+    /// sign-in and, when the sign-in is too old, fails with `AUTH-4011` and an
+    /// ``ThunderIDError/authenticationChallenge`` whose `maxAge` bounds the next sign-in.
+    ///
+    /// Replacing a held credential revokes the user's tokens, including the one this client holds, so
+    /// sign the user in again afterwards.
+    ///
+    /// - Parameters:
+    ///   - attribute: The credential the user type's schema declares, such as `password`.
+    ///   - currentValue: The credential's current value. Sent only when not empty.
+    ///   - newValue: The value to set.
+    /// - Throws: ``ThunderIDErrorCode/invalidInput`` before any request when `attribute` is blank or
+    ///   `newValue` is empty; otherwise the server's error.
+    func updateUserCredentials(
+        attribute: String = "password",
+        currentValue: String? = nil,
+        newValue: String
+    ) async throws {
         try requireInitialized()
+        let name = attribute.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !newValue.isEmpty else {
+            throw ThunderIDError(code: .invalidInput, message: "A credential name and a new value are required")
+        }
+        var body: [String: Any] = ["name": name, "newValue": newValue]
+        if let currentValue, !currentValue.isEmpty {
+            body["currentValue"] = currentValue
+        }
         let _: EmptyResponse = try await httpClient!.post(
             path: "/users/me/update-credentials",
-            body: ["attributes": [attribute: newValue]]
+            body: body,
+            isSensitive: true
         )
     }
 

@@ -27,6 +27,7 @@ extension ThunderIDClient {
         }
         try keepFlowSessions(from: response)
         try tokenStore!.replace(tokens)
+        try tokenStore!.markEmbeddedSignIn()
         currentUser = nil
     }
 

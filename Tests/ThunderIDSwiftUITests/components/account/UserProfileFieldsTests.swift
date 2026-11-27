@@ -1,7 +1,7 @@
 // Copyright 2026 The ThunderID Authors
 // SPDX-License-Identifier: Apache-2.0
 
-import ThunderID
+@testable import ThunderID
 import XCTest
 @testable import ThunderIDSwiftUI
 
@@ -242,3 +242,131 @@ final class UserProfileFieldsTests: XCTestCase {
         XCTAssertFalse(isPictureField("email"))
     }
 }
+
+#if canImport(AppKit)
+import AppKit
+import SwiftUI
+
+/// A profile save that needs a more recent sign-in signs the user in again and retries once.
+@MainActor
+final class UserProfileStepUpTests: XCTestCase {
+    private final class Captured {
+        var state: UserProfileState?
+        var puts = 0
+        var reauthentications: [Int?] = []
+    }
+
+    override func tearDown() {
+        MockURLProtocol.reset()
+        super.tearDown()
+    }
+
+    private let profileBody = #"{"id":"u1","isReadOnly":false,"attributes":{"email":"a@example.com"}}"#
+    private let stepUpBody = #"{"code":"AUTH-4011","description":{"params":{"maxAge":"300"}}}"#
+
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        for _ in 0..<300 where !condition() {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+    }
+
+    /// Mounts a custom-rendered `BaseUserProfile`; `PUT /users/me` is refused with a step-up `refusals` times.
+    private func mount(
+        _ captured: Captured,
+        refusals: Int,
+        reauthenticate: @escaping (Int?) async throws -> Void = { _ in }
+    ) async throws -> NSWindow {
+        let storage = InMemoryStorageAdapter()
+        storage.store(key: "thunder.access_token", value: "user-token")
+        let client = ThunderIDClient()
+        _ = try await client.initialize(
+            config: ThunderIDConfig(baseUrl: "https://localhost:8090", clientId: "c"),
+            storage: storage,
+            session: MockURLProtocol.makeSession()
+        )
+        MockURLProtocol.handler = { [profileBody, stepUpBody] request in
+            var (status, body) = (200, profileBody)
+            switch (request.url?.path, request.httpMethod) {
+            case ("/users/me/meta", _): body = #"{"schema":{"email":{"type":"email"}}}"#
+            case ("/users/me", "PUT"):
+                captured.puts += 1
+                if captured.puts <= refusals { (status, body) = (401, stepUpBody) }
+            default: break
+            }
+            let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
+            return (response, Data(body.utf8))
+        }
+        let i18n = ThunderIDI18n(language: "en-US")
+        let thunderState = ThunderIDState(client: client, i18n: i18n)
+        thunderState.reauthenticate = { maxAge in
+            captured.reauthentications.append(maxAge)
+            try await reauthenticate(maxAge)
+        }
+        let view = BaseUserProfile { profile in
+            let _ = (captured.state = profile)
+            Text(profile.displayName)
+        }
+        .environmentObject(thunderState)
+        .environmentObject(i18n)
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 400),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: view)
+        window.orderBack(nil)
+        try await waitUntil { captured.state?.fields.isEmpty == false }
+        return window
+    }
+
+    private func saveEmail(_ captured: Captured) async throws -> UserProfileState {
+        let state = try XCTUnwrap(captured.state)
+        state.edit("email")
+        state.setFieldValue("email", "new@example.com")
+        state.save("email")
+        try await waitUntil { captured.puts > 0 && !state.isLoading }
+        try await Task.sleep(nanoseconds: 20_000_000)
+        return state
+    }
+
+    func testSignsInAgainAndRetriesTheSaveOnce() async throws {
+        let captured = Captured()
+        let window = try await mount(captured, refusals: 1)
+        defer { window.close() }
+
+        let state = try await saveEmail(captured)
+
+        XCTAssertEqual(captured.reauthentications, [300])
+        XCTAssertEqual(captured.puts, 2)
+        XCTAssertNil(state.fieldError("email"))
+        XCTAssertFalse(state.isEditing("email"))
+    }
+
+    func testAsksToSignInAgainWhenRefusedAgain() async throws {
+        let captured = Captured()
+        let window = try await mount(captured, refusals: 2)
+        defer { window.close() }
+
+        let state = try await saveEmail(captured)
+
+        XCTAssertEqual(captured.puts, 2, "One retry only")
+        XCTAssertEqual(state.fieldError("email"), "Sign in again to save this change.")
+        XCTAssertTrue(state.isEditing("email"))
+    }
+
+    func testAsksToSignInAgainWhenTheSignInAgainFails() async throws {
+        let captured = Captured()
+        struct OtherUser: Error {}
+        let window = try await mount(captured, refusals: 1) { _ in throw OtherUser() }
+        defer { window.close() }
+
+        let state = try await saveEmail(captured)
+
+        XCTAssertEqual(captured.puts, 1)
+        XCTAssertEqual(state.fieldError("email"), "Sign in again to save this change.")
+        XCTAssertEqual(state.fieldValue(try XCTUnwrap(state.fields.first)), "new@example.com")
+    }
+}
+#endif
