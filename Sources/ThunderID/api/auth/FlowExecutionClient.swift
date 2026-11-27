@@ -37,7 +37,8 @@ final class FlowExecutionClient {
             body: body,
             requiresAuth: false,
             headers: attestationTokenHeaders(attestationToken),
-            isSensitive: !sessionData.isEmpty
+            isSensitive: !sessionData.isEmpty,
+            observe: false
         )
     }
 
@@ -53,7 +54,7 @@ final class FlowExecutionClient {
             body["inputs"] = inputs
         }
         do {
-            return try await httpClient.post(path: "/flow/execute", body: body, requiresAuth: false)
+            return try await httpClient.post(path: "/flow/execute", body: body, requiresAuth: false, observe: false)
         } catch let error as ThunderIDError where error.serverError?.code == Self.executionNotFoundCode {
             throw ThunderIDError(
                 code: .flowExpired,
@@ -89,7 +90,8 @@ final class FlowExecutionClient {
         let (data, response) = try await httpClient.exchange(
             method: "POST",
             url: url,
-            body: try JSONSerialization.data(withJSONObject: body)
+            body: try JSONSerialization.data(withJSONObject: body),
+            observe: false
         )
         guard (200...299).contains(response.statusCode) else {
             throw Self.refusal(status: response.statusCode)

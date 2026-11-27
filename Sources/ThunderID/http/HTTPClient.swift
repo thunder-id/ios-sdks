@@ -11,10 +11,15 @@ final class HTTPClient {
     private let session: URLSession
     private var accessTokenProvider: (() async throws -> String)?
     private var transport: Transport?
+    /// Sees every request this client sends and how it ended, except the SDK's own sign-in, token, refresh,
+    /// sign-out and flow requests, which pass `observe: false`. It cannot throw, and nothing it does reaches
+    /// the request.
+    var requestObserver: HTTPRequestObserver?
 
     /// Sends a request on the client's behalf and returns the response whatever its status. The fetcher
-    /// is the caller's own transport for the request, when it passed one.
-    typealias Transport = (URLRequest, ThunderIDFetcher?) async throws -> (Data, HTTPURLResponse)
+    /// is the caller's own transport for the request, when it passed one, and the flag says whether the
+    /// request observer sees it.
+    typealias Transport = (URLRequest, ThunderIDFetcher?, Bool) async throws -> (Data, HTTPURLResponse)
 
     init(baseUrl: String, session: URLSession? = nil) {
         self.baseUrl = baseUrl
@@ -43,12 +48,14 @@ final class HTTPClient {
     }
 
     /// Set `isSensitive` for a request or response that can carry a credential: neither body is then logged.
+    /// Clear `observe` for the SDK's own sign-in and flow requests, which the request observer never sees.
     func post<T: Decodable>(
         path: String,
         body: [String: Any],
         requiresAuth: Bool = true,
         headers: [String: String] = [:],
-        isSensitive: Bool = false
+        isSensitive: Bool = false,
+        observe: Bool = true
     ) async throws -> T {
         var request = try await buildRequest(
             method: "POST",
@@ -60,12 +67,13 @@ final class HTTPClient {
         for (name, value) in headers {
             request.setValue(value, forHTTPHeaderField: name)
         }
-        return try await perform(request, isSensitive: isSensitive)
+        return try await perform(request, isSensitive: isSensitive, observe: observe)
     }
 
     /// Posts `form` to an OAuth endpoint under `baseUrl`, `application/x-www-form-urlencoded` as RFC 6749 and
     /// RFC 7009 require and the server reads. No access token is attached, and neither body is logged: both
-    /// can carry a credential (a code, a refresh token, a subject token).
+    /// can carry a credential (a code, a refresh token, a subject token). These are the SDK's own token
+    /// requests, so the request observer never sees them.
     func postForm<T: Decodable>(path: String, form: [(String, String)]) async throws -> T {
         guard let url = URL(string: baseUrl + path) else {
             throw ThunderIDError(code: .invalidConfiguration, message: "Invalid URL: \(baseUrl)\(path)")
@@ -84,7 +92,7 @@ final class HTTPClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = Data(ThunderIDClient.formEncode(form).utf8)
-        return try await perform(request, isSensitive: true)
+        return try await perform(request, isSensitive: true, observe: false)
     }
 
     func put<T: Decodable>(
@@ -114,29 +122,32 @@ final class HTTPClient {
     /// When `fetcher` is set it replaces the `URLSession` transport for this request; the access token is
     /// already attached to the request it receives. Set `isSensitive` for a request or response that can
     /// carry a credential, such as a secret value: its bodies are then never logged. Clear `requiresAuth`
-    /// for a public endpoint: no access token is attached then, so no sign-in is needed.
+    /// for a public endpoint: no access token is attached then, so no sign-in is needed. Clear `observe` for
+    /// a flow execution, which the request observer never sees.
     func send<T: Decodable>(
         method: String,
         url: URL,
         body: Data? = nil,
         isSensitive: Bool = false,
         requiresAuth: Bool = true,
-        fetcher: ThunderIDFetcher? = nil
+        fetcher: ThunderIDFetcher? = nil,
+        observe: Bool = true
     ) async throws -> T {
         let request = try await authorizedRequest(method: method, url: url, body: body, requiresAuth: requiresAuth)
         debugLogRequest(request, body: nil)
-        return try await perform(request, isSensitive: isSensitive, fetcher: fetcher)
+        return try await perform(request, isSensitive: isSensitive, fetcher: fetcher, observe: observe)
     }
 
     /// Sends an authenticated request to an absolute URL and returns the response whatever its status,
     /// through the same transport as ``send(method:url:body:isSensitive:fetcher:)``. It logs neither the request nor
-    /// the response, so a caller can report a refusal without the response body.
-    func exchange(method: String, url: URL, body: Data?) async throws -> (Data, HTTPURLResponse) {
+    /// the response, so a caller can report a refusal without the response body. Clear `observe` for the SDK's
+    /// own flow requests, which the request observer never sees.
+    func exchange(method: String, url: URL, body: Data?, observe: Bool = true) async throws -> (Data, HTTPURLResponse) {
         let request = try await authorizedRequest(method: method, url: url, body: body)
         if let transport {
-            return try await transport(request, nil)
+            return try await transport(request, nil, observe)
         }
-        return try await rawData(for: request)
+        return try await rawData(for: request, observe: observe)
     }
 
     private func authorizedRequest(
@@ -203,13 +214,14 @@ final class HTTPClient {
     private func perform<T: Decodable>(
         _ request: URLRequest,
         isSensitive: Bool = false,
-        fetcher: ThunderIDFetcher? = nil
+        fetcher: ThunderIDFetcher? = nil,
+        observe: Bool = true
     ) async throws -> T {
         let (data, response): (Data, HTTPURLResponse)
         if let transport {
-            (data, response) = try await transport(request, fetcher)
+            (data, response) = try await transport(request, fetcher, observe)
         } else {
-            (data, response) = try await rawData(for: request, fetcher: fetcher)
+            (data, response) = try await rawData(for: request, fetcher: fetcher, observe: observe)
         }
         debugLogResponse(response, data: isSensitive ? nil : data)
         return try handleResponse(response, data: data, isSensitive: isSensitive)
@@ -217,7 +229,16 @@ final class HTTPClient {
 
     /// Sends `request` as it is and returns the response whatever its status. It logs neither the
     /// request nor the response, so it is safe for a request that carries a credential.
-    func rawData(for request: URLRequest, fetcher: ThunderIDFetcher? = nil) async throws -> (Data, HTTPURLResponse) {
+    ///
+    /// - Parameter observe: Whether ``requestObserver`` sees it. Off for the SDK's own sign-in, token,
+    ///   refresh, sign-out and flow requests, and for a hop of a request the caller reports itself once it
+    ///   ends, such as a call the backend's proxy retries.
+    func rawData(
+        for request: URLRequest,
+        fetcher: ThunderIDFetcher? = nil,
+        observe: Bool = true
+    ) async throws -> (Data, HTTPURLResponse) {
+        let observer = observe ? requestObserver : nil
         let (data, response): (Data, URLResponse)
         do {
             if let fetcher {
@@ -226,6 +247,7 @@ final class HTTPClient {
                 (data, response) = try await session.data(for: request)
             }
         } catch {
+            observer?(request, .failed)
             let nsError = error as NSError
             let details = "\(nsError.domain)(\(nsError.code)): \(nsError.localizedDescription)"
             let urlStr = request.url?.absoluteString ?? ""
@@ -237,8 +259,10 @@ final class HTTPClient {
             )
         }
         guard let http = response as? HTTPURLResponse else {
+            observer?(request, .failed)
             throw ThunderIDError(code: .networkError, message: "Invalid response")
         }
+        observer?(request, .response(http, data))
         return (data, http)
     }
 
@@ -297,6 +321,17 @@ final class HTTPClient {
         }
     }
 }
+
+/// How a request ended, for a request observer.
+enum HTTPRequestOutcome {
+    /// A response came, whatever its status.
+    case response(HTTPURLResponse, Data)
+    /// No response came.
+    case failed
+}
+
+/// Sees a request an ``HTTPClient`` sent and how it ended.
+typealias HTTPRequestObserver = (URLRequest, HTTPRequestOutcome) -> Void
 
 /// Marker type for a `204 No Content` (or otherwise empty-body) response. `decodeSuccess`
 /// special-cases it so callers never try to JSON-decode an empty body.

@@ -18,6 +18,8 @@ struct PlaygroundConfig {
     let scopes: [String]
     /// `THUNDERID_ENDPOINT_*` values, keyed by collection path (`users`, `groups`, ...).
     let endpointOverrides: [String: String]
+    /// `THUNDERID_TELEMETRY_ENDPOINT`: where usage events go. Unset leaves telemetry off.
+    let telemetryEndpoint: String?
     let isLoaded: Bool
 
     static func load(bundle: Bundle = .main, defaults: UserDefaults = .standard) -> PlaygroundConfig {
@@ -53,6 +55,7 @@ struct PlaygroundConfig {
         endpointOverrides = ManagementCollection.all.reduce(into: [:]) { overrides, collection in
             overrides[collection.path] = value(collection.configKey)
         }
+        telemetryEndpoint = value("THUNDERID_TELEMETRY_ENDPOINT")
         self.isLoaded = isLoaded
     }
 
@@ -76,7 +79,8 @@ struct PlaygroundConfig {
             afterSignOutUrl: afterSignOutUrl,
             applicationId: applicationId,
             endpoints: sdkEndpoints,
-            storage: storage
+            storage: storage,
+            telemetry: telemetryEndpoint.map { TelemetryConfig(endpoint: $0, format: .json, prefix: "playground") }
         )
     }
 }

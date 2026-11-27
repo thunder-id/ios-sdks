@@ -146,7 +146,7 @@ extension ThunderIDClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await httpClient.rawData(for: request)
+        let (data, response) = try await httpClient.rawData(for: request, observe: false)
         return (data, response.statusCode)
     }
 }

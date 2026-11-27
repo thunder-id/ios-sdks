@@ -10,6 +10,9 @@ final class TokenRefresher {
     /// Where tokens are refreshed: the server's advertised `token_endpoint`. Without it, `/oauth2/token`.
     private let endpoint: (() async throws -> URL)?
     private var refreshTask: Task<TokenResponse, Error>?
+    /// Called when the server refuses the refresh token, which ends the session. Once per refresh token.
+    var onSessionEnded: (() -> Void)?
+    private var refusedRefreshToken: String?
 
     init(httpClient: HTTPClient, tokenStore: TokenStore, endpoint: (() async throws -> URL)? = nil) {
         self.httpClient = httpClient
@@ -55,15 +58,31 @@ final class TokenRefresher {
                 ("client_id", clientId)
             ]
             let response: TokenResponse
-            if let endpoint {
-                response = try await httpClient.postForm(url: try await endpoint(), form: form)
-            } else {
-                response = try await httpClient.postForm(path: "/oauth2/token", form: form)
+            do {
+                if let endpoint {
+                    response = try await httpClient.postForm(url: try await endpoint(), form: form)
+                } else {
+                    response = try await httpClient.postForm(path: "/oauth2/token", form: form)
+                }
+            } catch {
+                refused(refreshToken, error: error)
+                throw error
             }
             try tokenStore.save(response)
             return response
         }
         refreshTask = task
         return try await task.value
+    }
+
+    /// Reports the session ended when the server refused `refreshToken`, rather than not answering.
+    private func refused(_ refreshToken: String, error: Error) {
+        let refusals: Set<ThunderIDErrorCode> = [.invalidInput, .invalidGrant, .authenticationFailed]
+        guard let code = (error as? ThunderIDError)?.code, refusals.contains(code),
+              refusedRefreshToken != refreshToken else {
+            return
+        }
+        refusedRefreshToken = refreshToken
+        onSessionEnded?()
     }
 }

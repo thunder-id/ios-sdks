@@ -134,6 +134,7 @@ extension ThunderIDClient {
             tokenStore: tokenStore,
             endpoint: discoveredEndpointProvider(\.tokenEndpoint, fallback: "/oauth2/token")
         )
+        refresher.onSessionEnded = { [weak self] in self?.telemetryClient?.sessionExpired() }
         return TokenHandling(keys: keys, validator: validator, refresher: refresher)
     }
 
@@ -178,7 +179,7 @@ extension ThunderIDClient {
         request.httpMethod = "GET"
         request.assumesHTTP3Capable = false
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await httpClient.rawData(for: request)
+        let (data, response) = try await httpClient.rawData(for: request, observe: false)
         guard (200...299).contains(response.statusCode) else {
             throw ThunderIDError(code: .serverError, message: "Could not read the server metadata")
         }
@@ -208,7 +209,7 @@ extension ThunderIDClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = Data(Self.formEncode(form).utf8)
-        let (data, response) = try await httpClient.rawData(for: request)
+        let (data, response) = try await httpClient.rawData(for: request, observe: false)
         guard (200...299).contains(response.statusCode) else {
             let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
             throw OAuthFailure(

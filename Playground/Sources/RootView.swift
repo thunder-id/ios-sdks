@@ -65,10 +65,10 @@ struct RootView: View {
 
     @ViewBuilder private var content: some View {
         switch tab {
-        case .checks: ChecksView()
-        case .components: ExplorerView()
-        case .session: SessionView()
-        case .logs: LogsView()
+        case .checks: ChecksView().telemetryScreen("checks")
+        case .components: ExplorerView().telemetryScreen("components")
+        case .session: SessionView().telemetryScreen("session")
+        case .logs: LogsView().telemetryScreen("logs")
         }
     }
 }

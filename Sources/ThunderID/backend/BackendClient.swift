@@ -255,7 +255,8 @@ actor BackendClient {
         if attachHandle, let handle = tokenStore.sessionHandle() {
             request.setValue(handle, forHTTPHeaderField: backendSessionHandleHeader)
         }
-        return try await http.rawData(for: request)
+        // The backend's own session, sign-in and sign-out requests are never API events.
+        return try await http.rawData(for: request, observe: false)
     }
 
     /// The `error` code of a backend `401`, such as `session_expired` or `login_required`.

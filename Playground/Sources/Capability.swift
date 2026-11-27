@@ -41,6 +41,7 @@ enum CapabilityID: String, CaseIterable {
     case authorizationDetailTypes
     case permissionHierarchy
     case grantedPermissions
+    case telemetry
 }
 
 enum CheckStatus: Equatable {
@@ -151,6 +152,12 @@ enum CapabilityCatalog {
                 api: "verifyAttribute(_:) · verifiedAttributes",
                 // Starting a verification sends the user an email, so it only runs on tap.
                 mode: .interactive
+            ),
+            Capability(
+                id: .telemetry,
+                name: "Usage telemetry",
+                api: "TelemetryConfig · track(_:data:) · trackPageView(_:) · telemetryScreen(_:)",
+                mode: .automatic
             )
         ]),
         organizationSection,

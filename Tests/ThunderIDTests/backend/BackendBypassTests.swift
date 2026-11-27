@@ -153,4 +153,82 @@ final class BackendBypassTests: BackendTestCase {
         XCTAssertNil(storedToken)
         XCTAssertEqual(storedHandle, "h2")
     }
+
+    /// Records how each request the observer sees ended: its status, or `nil` when no answer came.
+    private func observeOutcomes() throws -> () -> [Int?] {
+        let lock = NSLock()
+        var outcomes: [Int?] = []
+        let transport = try XCTUnwrap(client.backendHttp)
+        transport.http.requestObserver = { _, outcome in
+            lock.lock()
+            defer { lock.unlock() }
+            switch outcome {
+            case let .response(response, _): outcomes.append(response.statusCode)
+            case .failed: outcomes.append(nil)
+            }
+        }
+        return {
+            lock.lock()
+            defer { lock.unlock() }
+            return outcomes
+        }
+    }
+
+    func testA401FromTheApiIsReportedWhenTheTokenEndpointThenFails() async throws {
+        try await makeClient()
+        let outcomes = try observeOutcomes()
+        StubBackend.reply("/api/auth/token", token("t1"))
+        StubBackend.reply("/api/auth/token", status: 500)
+        StubBackend.reply("/api/orders", status: 401, #"{"error":"invalid_token"}"#)
+
+        await assertThrows(.serverError) {
+            _ = try await self.client.httpRequest(self.request("\(self.dataPlane)/orders", method: "POST"))
+        }
+
+        XCTAssertEqual(outcomes(), [401])
+    }
+
+    func testA401FromTheApiIsReportedWhenTheTokenRenewalGetsNoAnswer() async throws {
+        try await makeClient()
+        StubBackend.reply("/api/auth/token", token("t1"))
+        _ = try await client.getAccessToken()
+        // No reply is queued for the token endpoint now, so renewing the token fails with no answer.
+        StubBackend.reset()
+        let outcomes = try observeOutcomes()
+        StubBackend.reply("/api/orders", status: 401, #"{"error":"invalid_token"}"#)
+
+        await assertThrows(.networkError) {
+            _ = try await self.client.httpRequest(self.request("\(self.dataPlane)/orders", method: "POST"))
+        }
+
+        XCTAssertEqual(StubBackend.requests(to: "/api/auth/token").count, 1)
+        XCTAssertEqual(outcomes(), [401])
+    }
+
+    func testA401FromTheProxyIsReportedWhenTheSessionRefreshGetsNoAnswer() async throws {
+        try await makeClient()
+        let outcomes = try observeOutcomes()
+        StubBackend.reply("/api/auth/proxy/applications", status: 401, #"{"error":"session_expired"}"#)
+
+        await assertThrows(.networkError) {
+            _ = try await self.client.httpRequest(self.request("\(self.proxyBase)/applications", method: "POST"))
+        }
+
+        XCTAssertEqual(StubBackend.requests(to: "/api/auth/refresh").count, 1)
+        XCTAssertEqual(outcomes(), [401])
+    }
+
+    func testOnlyARequestThatGotNoAnswerIsReportedAsFailed() async throws {
+        try await makeClient()
+        StubBackend.reply("/api/auth/token", token("t1"))
+        _ = try await client.getAccessToken()
+        StubBackend.reset()
+        let outcomes = try observeOutcomes()
+
+        await assertThrows(.networkError) {
+            _ = try await self.client.httpRequest(self.request("\(self.dataPlane)/orders", method: "POST"))
+        }
+
+        XCTAssertEqual(outcomes(), [nil])
+    }
 }

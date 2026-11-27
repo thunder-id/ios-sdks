@@ -26,6 +26,7 @@ struct PlaygroundApp: App {
                 .environmentObject(log)
                 .environmentObject(checks)
                 .environmentObject(checks.ids)
+                .telemetryLinks()
                 .thunderIDProvider(config: sdkConfig)
                 .tint(Palette.primary)
         }

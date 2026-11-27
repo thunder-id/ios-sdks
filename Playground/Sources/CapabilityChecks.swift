@@ -46,7 +46,8 @@ struct CheckContext {
         .secureStorage: { try await $0.secureStorage() },
         .userInfo: { try await $0.userInfo() },
         .attributeVerification: { try await $0.attributeVerification() },
-        .translations: { try $0.translations() }
+        .translations: { try $0.translations() },
+        .telemetry: { try $0.telemetry() }
     ]
 
     func requireApplicationId() throws -> String {
@@ -197,6 +198,23 @@ struct CheckContext {
     }
 
     // MARK: - UI
+
+    /// Reports one event of each kind the app reports itself. With no endpoint configured, the calls must do
+    /// nothing, which is what the check confirms.
+    func telemetry() throws -> String {
+        let configured = try client.getConfiguration().telemetry
+        client.track("check.run", data: ["check": "telemetry"])
+        client.trackPageView("checks/:id")
+        client.trackLink(URL(string: "https://docs.example.com/start")!)
+        log.record("telemetry:tracked", "check.run, checks/:id, link.open")
+        guard let endpoint = configured?.endpoint else {
+            return "Off: set THUNDERID_TELEMETRY_ENDPOINT to report. The calls did nothing."
+        }
+        guard endpoint.hasPrefix("https://") else {
+            throw CheckFailure("THUNDERID_TELEMETRY_ENDPOINT must be an HTTPS URL; telemetry stays off")
+        }
+        return "Reported check.run, check.detail-view and link.open to \(endpoint) in the next batch"
+    }
 
     func translations() throws -> String {
         let storageKey = "playground.i18n.check"

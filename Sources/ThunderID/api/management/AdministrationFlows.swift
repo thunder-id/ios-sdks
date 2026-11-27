@@ -129,7 +129,8 @@ public struct AdministrationFlowsAPI {
             method: "POST",
             path: "flow/execute",
             body: try JSONEncoder().encode(AdministrationFlowExecutionRequest(flowId: flowId, inputs: inputs)),
-            fetcher: fetcher
+            fetcher: fetcher,
+            observe: false
         )
         switch result.flowStatus {
         case "COMPLETE":
