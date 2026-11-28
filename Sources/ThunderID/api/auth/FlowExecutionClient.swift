@@ -13,13 +13,15 @@ final class FlowExecutionClient {
     }
 
     /// Starts a flow. `sessionData`, the SSO session handles kept from earlier flows, lets the server sign
-    /// the user in silently; a request that carries them is not logged.
+    /// the user in silently; a request that carries them is not logged. `maxAge` asks for a sign-in no older
+    /// than that many seconds.
     func initiate(
         applicationId: String,
         flowType: FlowType,
         attestationToken: String? = nil,
         organizationUnitId: String? = nil,
-        sessionData: [EmbeddedFlowSessionData] = []
+        sessionData: [EmbeddedFlowSessionData] = [],
+        maxAge: Int? = nil
     ) async throws -> EmbeddedFlowResponse {
         var body: [String: Any] = [
             "applicationId": applicationId,
@@ -27,6 +29,7 @@ final class FlowExecutionClient {
             "verbose": true
         ]
         if let organizationUnitId { body["ouId"] = organizationUnitId }
+        if let maxAge { body["maxAge"] = maxAge }
         if !sessionData.isEmpty {
             body["sessionData"] = sessionData.map {
                 ["flowIdentifier": $0.flowIdentifier, "sessionHandle": $0.sessionHandle]

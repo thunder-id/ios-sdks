@@ -24,9 +24,9 @@ public final class ThunderIDClient {
     /// The organization unit the redirect sign-in in progress is bounded to: its code is redeemed only at
     /// that unit's token endpoint. Held in memory with the PKCE verifier.
     var pendingOrganizationUnitId: String?
-    /// The embedded sign-in flows started bounded to an organization unit. When one completes, its session
-    /// replaces the stored one rather than merging into it.
-    var boundedFlowIds: Set<String> = []
+    /// The signed-in user each re-sign-in flow in progress must sign in again, by execution ID, so the step
+    /// that completes the flow is checked whatever config it is sent with.
+    var reauthenticationSubjects: [String: String] = [:]
     /// Waits between polls of the token endpoint. A test seam: tests replace it so polling does not sleep.
     var pollSleep: (TimeInterval) async throws -> Void = { seconds in
         try await Task.sleep(nanoseconds: UInt64(max(seconds, 0) * 1_000_000_000))
@@ -95,7 +95,8 @@ public final class ThunderIDClient {
     // MARK: - Authentication
 
     /// App-native sign-in via Flow Execution API (spec §6.1 app-native mode). The SSO session handles a step
-    /// returns are kept, for a later organization unit switch.
+    /// returns are kept, for a later organization unit switch. Needs `clientId`: a completed flow's assertion is
+    /// exchanged for the access token, and kept as the ID token.
     public func signIn(
         payload: EmbeddedSignInPayload,
         request: EmbeddedFlowRequestConfig,
@@ -115,6 +116,11 @@ public final class ThunderIDClient {
         try refuseInBackendMode("Embedded sign-in")
         _isLoading = true
         defer { _isLoading = false }
+        _ = try requireEmbeddedClientId()
+        // Read before any request, so the flow is checked against the user signed in when it started.
+        let signedInSubject = request.reauthentication && request.flowType == .authentication
+            ? try requireSignedInSubject()
+            : nil
         let response: EmbeddedFlowResponse
         if let flowId = payload.flowId {
             response = try await flowClient!.submit(
@@ -125,18 +131,21 @@ public final class ThunderIDClient {
             )
         } else {
             // A unit-bounded sign-in names its unit only on the request that starts an AUTHENTICATION flow.
-            let ouId = request.flowType == .authentication ? request.organizationUnitId : nil
+            let isAuthentication = request.flowType == .authentication
+            let ouId = isAuthentication ? request.organizationUnitId : nil
+            let isReauthentication = isAuthentication && request.reauthentication
             response = try await flowClient!.initiate(
                 applicationId: request.applicationId,
                 flowType: request.flowType,
                 attestationToken: try await attestationToken(),
                 organizationUnitId: ouId,
-                sessionData: flowSessions
+                // The kept handles let the server read when the user last signed in.
+                sessionData: isReauthentication ? (tokenStore?.flowSessions() ?? []) : flowSessions,
+                maxAge: isReauthentication ? max(request.maxAge ?? 0, 0) : nil
             )
-            if ouId != nil, let flowId = response.flowId { boundedFlowIds.insert(flowId) }
         }
-        try keepFlowSessions(from: response)
-        try establishSessionIfNeeded(from: response)
+        try trackReauthentication(submittedFlowId: payload.flowId, startSubject: signedInSubject, response: response)
+        try await keepFlowStep(response)
         return response
     }
 
@@ -196,10 +205,23 @@ public final class ThunderIDClient {
             .init(name: "code_challenge", value: challenge),
             .init(name: "code_challenge_method", value: "S256")
         ]
-        if let prompt = options?.prompt { params.append(.init(name: "prompt", value: prompt)) }
-        if let hint = options?.loginHint { params.append(.init(name: "login_hint", value: hint)) }
-        if let fidp = options?.fidp { params.append(.init(name: "fidp", value: fidp)) }
-        for (key, val) in cfg.signInOptions { params.append(.init(name: key, value: "\(val)")) }
+        let optional: [(String, String?)] = [
+            ("prompt", options?.prompt),
+            ("login_hint", options?.loginHint),
+            ("fidp", options?.fidp),
+            ("max_age", options?.maxAge.map(String.init)),
+            ("id_token_hint", options?.idTokenHint),
+            ("state", options?.state),
+            ("nonce", options?.nonce)
+        ]
+        for (name, value) in optional {
+            if let value { params.append(.init(name: name, value: value)) }
+        }
+        // App parameters never replace one the SDK set, and the call's own win over the configured ones.
+        let extra = cfg.signInOptions.merging(options?.extra ?? [:]) { $1 }
+        for (key, val) in extra.sorted(by: { $0.key < $1.key }) where !params.contains(where: { $0.name == key }) {
+            params.append(.init(name: key, value: "\(val)"))
+        }
         return params
     }
 
@@ -257,6 +279,7 @@ public final class ThunderIDClient {
             }
         }
         tokenStore?.clear()
+        reauthenticationSubjects.removeAll()
         currentUser = nil
         return config?.afterSignOutUrl ?? "/"
     }
@@ -275,12 +298,14 @@ public final class ThunderIDClient {
     // MARK: - Registration
 
     /// App-native sign-up via Flow Execution API (spec §6.2). Keeps the SSO session handles a step returns.
+    /// Needs `clientId`; a flow that completes with an assertion signs the user in, as `signIn` does.
     public func signUp(
         payload: EmbeddedSignInPayload? = nil,
         request: EmbeddedFlowRequestConfig? = nil
     ) async throws -> EmbeddedFlowResponse {
         try requireInitialized()
         try refuseInBackendMode("Embedded sign-up")
+        _ = try requireEmbeddedClientId()
         let appId = request?.applicationId ?? config?.applicationId ?? ""
         let response: EmbeddedFlowResponse
         if let payload, let flowId = payload.flowId {
@@ -297,8 +322,8 @@ public final class ThunderIDClient {
                 attestationToken: try await attestationToken()
             )
         }
-        try keepFlowSessions(from: response)
-        try establishSessionIfNeeded(from: response)
+        try trackReauthentication(submittedFlowId: payload?.flowId, startSubject: nil, response: response)
+        try await keepFlowStep(response)
         return response
     }
 
@@ -344,6 +369,7 @@ public final class ThunderIDClient {
 
     public func clearSession(sessionId: String? = nil) {
         tokenStore?.clear()
+        reauthenticationSubjects.removeAll()
         currentUser = nil
     }
 
@@ -411,29 +437,6 @@ public final class ThunderIDClient {
             return array.map { deepUnwrap($0) }
         default:
             return value
-        }
-    }
-
-    func establishSessionIfNeeded(from response: EmbeddedFlowResponse) throws {
-        let bounded = response.flowId.map { boundedFlowIds.contains($0) } ?? false
-        if bounded, response.flowStatus != .promptOnly, let flowId = response.flowId {
-            boundedFlowIds.remove(flowId)
-        }
-        guard response.flowStatus == .complete,
-              let assertion = response.assertion,
-              !assertion.isEmpty else {
-            return
-        }
-        let tokenResponse = TokenResponse(accessToken: assertion, tokenType: "Bearer")
-        // A sign-in bounded to a unit is a new session: nothing of the previous one carries over.
-        if bounded {
-            try tokenStore!.replace(tokenResponse)
-            currentUser = nil
-        } else {
-            try tokenStore!.save(tokenResponse)
-        }
-        if let claims = try? decodeJwtToken(assertion) as [String: AnyCodable] {
-            currentUser = User(claims: claims)
         }
     }
 }

@@ -163,22 +163,36 @@ public struct SignInOptions {
     public var prompt: String?
     public var loginHint: String?
     public var fidp: String?
+    /// More authorization request parameters. A parameter the SDK sets itself, such as `client_id`,
+    /// `redirect_uri`, `state` or the PKCE challenge, is not overridden.
     public var extra: [String: Any]
     /// Bounds the sign-in to this organization unit (`/ou/{ouId}/oauth2/authorize`, or `ouId` to a backend).
     public var organizationUnitId: String?
+    /// The highest acceptable age of the user's sign-in, in seconds (`max_age`). An older sign-in makes
+    /// the user sign in again.
+    public var maxAge: Int?
+    /// An ID token of the signed-in user (`id_token_hint`), so the server refuses a sign-in as anyone else.
+    public var idTokenHint: String?
+    /// Set by ``ThunderIDClient/reauthenticate(maxAge:options:)``, which checks both on return.
+    var state: String?
+    var nonce: String?
 
     public init(
         prompt: String? = nil,
         loginHint: String? = nil,
         fidp: String? = nil,
         extra: [String: Any] = [:],
-        organizationUnitId: String? = nil
+        organizationUnitId: String? = nil,
+        maxAge: Int? = nil,
+        idTokenHint: String? = nil
     ) {
         self.prompt = prompt
         self.loginHint = loginHint
         self.fidp = fidp
         self.extra = extra
         self.organizationUnitId = organizationUnitId
+        self.maxAge = maxAge
+        self.idTokenHint = idTokenHint
     }
 }
 
@@ -238,19 +252,6 @@ public struct EmbeddedSignInPayload {
         self.actionId = actionId
         self.inputs = inputs
         self.challengeToken = challengeToken
-    }
-}
-
-public struct EmbeddedFlowRequestConfig {
-    public var applicationId: String
-    public var flowType: FlowType
-    /// Bounds an `AUTHENTICATION` flow to this unit: sent as `ouId` when the flow starts, never after.
-    public var organizationUnitId: String?
-
-    public init(applicationId: String, flowType: FlowType = .authentication, organizationUnitId: String? = nil) {
-        self.applicationId = applicationId
-        self.flowType = flowType
-        self.organizationUnitId = organizationUnitId
     }
 }
 

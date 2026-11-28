@@ -20,21 +20,31 @@ public struct UserProfile: View {
     public let verificationFlowHandle: String
     public let onSaved: (() -> Void)?
     public let onError: (() -> Void)?
+    /// Replaces the built-in sign-in again when a save needs a more recent sign-in: called with the
+    /// challenge's `maxAge`. When `nil`, the view signs the same user in again and retries the save once.
+    public let onReauthenticationRequired: ((Int?) -> Void)?
 
     public init(
         attributeMapping: [String: [String]] = [:],
         verificationFlowHandle: String = AttributeVerification.defaultFlowHandle,
         onSaved: (() -> Void)? = nil,
-        onError: (() -> Void)? = nil
+        onError: (() -> Void)? = nil,
+        onReauthenticationRequired: ((Int?) -> Void)? = nil
     ) {
         self.attributeMapping = attributeMapping
         self.verificationFlowHandle = verificationFlowHandle
         self.onSaved = onSaved
         self.onError = onError
+        self.onReauthenticationRequired = onReauthenticationRequired
     }
 
     public var body: some View {
-        BaseUserProfile(attributeMapping: attributeMapping, onSaved: onSaved, onError: onError) { state in
+        BaseUserProfile(
+            attributeMapping: attributeMapping,
+            onSaved: onSaved,
+            onError: onError,
+            onReauthenticationRequired: onReauthenticationRequired
+        ) { state in
             UserProfileContent(state: state, i18n: i18n, verificationFlowHandle: verificationFlowHandle)
         }
     }
@@ -113,6 +123,7 @@ private struct UserProfileContent: View {
             switch sheet {
             case .edit(let field):
                 ProfileFieldEditSheet(field: field, state: state, i18n: i18n)
+                    .presentsReauthentication()
             case .verify(let field):
                 ProfileVerificationSheet(field: field, state: state, flowHandle: verificationFlowHandle)
             }

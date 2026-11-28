@@ -111,8 +111,8 @@ public extension ThunderIDClient {
 }
 
 extension ThunderIDClient {
-    /// The claim sets that can name the session's organization unit, most specific first: the ID token,
-    /// the access token (the assertion of an app-native sign-in), and the backend session's user.
+    /// The claim sets that can name the session's organization unit, most specific first: the ID token (the
+    /// assertion of an app-native sign-in), the access token, and the backend session's user.
     func sessionClaims() async throws -> [[String: AnyCodable]] {
         if let backend {
             let session = try await backend.getSession()

@@ -19,6 +19,10 @@ public enum ThunderIDErrorCode: String {
     case userAccountLocked = "USER_ACCOUNT_LOCKED"
     case userAccountDisabled = "USER_ACCOUNT_DISABLED"
     case sessionExpired = "SESSION_EXPIRED"
+    /// The server asks for a more recent sign-in (RFC 9470) before it accepts the request. The error's
+    /// ``ThunderIDError/authenticationChallenge`` carries the `maxAge` the new sign-in must meet; sign the user in
+    /// again as ``ThunderIDClient/reauthenticationMethod()`` says, then retry the request.
+    case stepUpRequired = "STEP_UP_REQUIRED"
     case mfaRequired = "MFA_REQUIRED"
     case mfaFailed = "MFA_FAILED"
     case invalidGrant = "INVALID_GRANT"
@@ -92,19 +96,26 @@ public struct ThunderIDError: Error {
     /// The error of the administration flow step that refused, when one did. Set only on the
     /// `administrationFlow*` codes, which together form the administration flow error family.
     public let flowError: FlowError?
+    /// The server's request for a more recent sign-in, set on a `401` that carries one. Sign the user in
+    /// again within its `maxAge`, then retry. `nil` otherwise.
+    public let authenticationChallenge: AuthenticationChallenge?
+    /// Set on the error a re-sign-in fails with when another account signed in.
+    var anotherAccountSignedIn = false
 
     public init(
         code: ThunderIDErrorCode,
         message: String,
         underlyingError: Error? = nil,
         serverError: ServerError? = nil,
-        flowError: FlowError? = nil
+        flowError: FlowError? = nil,
+        authenticationChallenge: AuthenticationChallenge? = nil
     ) {
         self.code = code
         self.message = message
         self.underlyingError = underlyingError
         self.serverError = serverError
         self.flowError = flowError
+        self.authenticationChallenge = authenticationChallenge
     }
 
     /// Whether this error reports an administration flow that did not complete (a refused step, a flow

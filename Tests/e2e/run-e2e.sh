@@ -47,6 +47,8 @@ CONFIG_FILE="$SAMPLE_DIR/thunderid-config/thunderid-config.yaml"
 
 # Must match the `id` in $CONFIG_FILE and the application ID the sample is built with.
 APP_ID="019e5b10-1001-7a2b-9c3d-4e5f60718293"
+# The OAuth client of that application, which exchanges the sign-in flow's assertion for a token.
+CLIENT_ID="mobile-quickstart-e2e"
 
 do_server=true
 do_build=true
@@ -361,6 +363,8 @@ build_sample() {
 	<string>$SERVER_URL</string>
 	<key>THUNDERID_APPLICATION_ID</key>
 	<string>$APP_ID</string>
+	<key>THUNDERID_CLIENT_ID</key>
+	<string>$CLIENT_ID</string>
 </dict>
 </plist>
 PLIST

@@ -95,9 +95,36 @@ jobs:
       - name: 🧪 Run Tests
         run: swift test -v
 
+  samples-ref:
+    name: 🔗 Resolve Samples Ref
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+    steps:
+      # A change that breaks the quickstart ships with a samples pull request that fixes it. Name it
+      # in this pull request's body as `Samples-Ref: refs/pull/<number>/head` (any branch, tag or
+      # commit of thunder-id/samples works), and the sample build and E2E suite fetch that instead
+      # of main. The body is untrusted input, so it is read from the environment and the ref is
+      # checked against a strict pattern before use.
+      - name: 🔗 Resolve Samples Ref
+        id: resolve
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          ref="$(printf '%s\n' "$PR_BODY" | tr -d '\r' | sed -n 's/^[[:space:]]*Samples-Ref:[[:space:]]*\([^[:space:]]*\)[[:space:]]*$/\1/p' | head -1)"
+          if [ -n "$ref" ] && ! printf '%s' "$ref" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$'; then
+            echo "::error::Samples-Ref '$ref' is not a valid branch, tag, commit or pull request ref."
+            exit 1
+          fi
+          echo "Samples ref: ${ref:-main}"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
   build-sample:
     name: 🛠️ Build Quickstart Sample
     if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+    needs: samples-ref
     runs-on: macos-latest
     timeout-minutes: 15
     steps:
@@ -115,6 +142,8 @@ jobs:
       # The sample lives in thunder-id/samples; build it against this checkout so a change that
       # breaks the Quickstart fails here rather than after the release.
       - name: 📥 Fetch Quickstart Sample
+        env:
+          THUNDERID_SAMPLES_REF: ${{ needs.samples-ref.outputs.ref }}
         run: Tests/e2e/scripts/prepare-sample.sh
 
       - name: 🔨 Build Quickstart Sample
@@ -147,8 +176,10 @@ jobs:
   e2e:
     name: 🎭 E2E Tests
     if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+    needs: samples-ref
     uses: ./.github/workflows/run-e2e-suite.yml
     with:
+      samples-ref: ${{ needs.samples-ref.outputs.ref }}
       # Fork PRs run without repository secrets, so the unauthenticated GitHub API call that
       # resolves "latest" hits its rate limit easily. The nightly workflow already exists to
       # catch breakage from new server releases, so pin the PR builder to a known-good

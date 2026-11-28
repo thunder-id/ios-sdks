@@ -13,6 +13,7 @@ private enum StoreKey {
     static let sessionHandle = "thunder.session_handle"
     static let deviceSecret = "thunder.device_secret"
     static let flowSessions = "thunder.flow_sessions"
+    static let embeddedSignIn = "thunder.embedded_sign_in"
 }
 
 /// An SSO session handle as stored, with when it ends.
@@ -32,8 +33,11 @@ final class TokenStore {
     }
 
     /// Saves `tokenResponse`. `createdAt`, when given, is stored with it and the expiry counts from it,
-    /// for a token that is reused until it nears expiry and then requested again.
-    func save(_ tokenResponse: TokenResponse, createdAt: Date? = nil) throws {
+    /// for a token that is reused until it nears expiry and then requested again. A `refreshed` response
+    /// keeps the embedded sign-in mark.
+    func save(_ tokenResponse: TokenResponse, createdAt: Date? = nil, refreshed: Bool = false) throws {
+        // Tokens from the token endpoint end a session from an embedded sign-in flow, unless they refresh it.
+        if !refreshed { storage.delete(key: StoreKey.embeddedSignIn) }
         try storage.store(key: StoreKey.accessToken, value: tokenResponse.accessToken)
         if let createdAt {
             try storage.store(key: StoreKey.createdAt, value: String(createdAt.timeIntervalSince1970))
@@ -69,6 +73,15 @@ final class TokenStore {
         try save(tokenResponse)
         if let secret { try storage.store(key: StoreKey.deviceSecret, value: secret) }
     }
+
+    /// Marks the session as one from an embedded (app-native) sign-in flow, which signs the user in again by
+    /// running the flow rather than in a browser. The next ``save(_:createdAt:)`` ends the mark.
+    func markEmbeddedSignIn() throws {
+        try storage.store(key: StoreKey.embeddedSignIn, value: "true")
+    }
+
+    /// Whether the session came from an embedded (app-native) sign-in flow.
+    func isEmbeddedSignIn() -> Bool { storage.retrieve(key: StoreKey.embeddedSignIn) == "true" }
 
     /// The device secret a code exchange with the `device_sso` scope returned. It is a credential: it is
     /// never logged.

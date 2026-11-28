@@ -36,6 +36,15 @@ public final class ThunderIDState: ObservableObject {
 
     public var isSignedIn: Bool { user != nil }
 
+    /// Signs the user in again for a step-up challenge. A test seam: when `nil`, the browser sheet or the
+    /// sign-in flow sheet, as ``ThunderIDClient/reauthenticationMethod()`` says.
+    var reauthenticate: ((Int?) async throws -> Void)?
+
+    /// The open re-sign-in for a session from an embedded sign-in flow, shown by the provider as a sheet.
+    @Published var reauthenticationRequest: ReauthenticationRequest?
+    /// The views that can show ``reauthenticationRequest``, outermost first; the last one shows it.
+    @Published var reauthenticationPresenters: [UUID] = []
+
     init(client: ThunderIDClient, i18n: ThunderIDI18n) {
         self.client = client
         self.i18n = i18n

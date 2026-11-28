@@ -102,7 +102,9 @@ private struct UserPreview: View {
             }
         default:
             signedInOnly {
+                // No onReauthenticationRequired, so the view signs the user in again and retries itself.
                 ChangeCredential(attribute: values.text("attribute")) { onEvent("onSuccess") }
+                    .id(values.text("attribute"))
             }
         }
     }

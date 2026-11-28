@@ -250,11 +250,13 @@ final class HTTPClient {
         if (200...299).contains(http.statusCode) {
             return try decodeSuccess(data, isSensitive: isSensitive)
         }
-        throw Self.failure(status: http.statusCode, data: data, isSensitive: isSensitive)
+        throw Self.failure(http, data: data, isSensitive: isSensitive)
     }
 
-    /// Maps a failed response to its error code, carrying the server's error envelope when the body is one.
-    private static func failure(status: Int, data: Data, isSensitive: Bool = false) -> ThunderIDError {
+    /// Maps a failed response to its error code, carrying the server's error envelope when the body is one,
+    /// its readable message, and the sign-in challenge a `401` carries.
+    private static func failure(_ http: HTTPURLResponse, data: Data, isSensitive: Bool = false) -> ThunderIDError {
+        let status = http.statusCode
         let serverError = ServerError.parse(data)
         let (code, message): (ThunderIDErrorCode, String)
         switch status {
@@ -273,7 +275,17 @@ final class HTTPClient {
         case 500...599: (code, message) = (.serverError, "Server error: \(status)")
         default: (code, message) = (.unknownError, "Unexpected status: \(status)")
         }
-        return ThunderIDError(code: code, message: message, serverError: serverError)
+        let challenge = AuthenticationChallenge.from(
+            status: status,
+            header: http.value(forHTTPHeaderField: "WWW-Authenticate"),
+            serverError: serverError
+        )
+        return ThunderIDError(
+            code: challenge == nil ? code : .stepUpRequired,
+            message: serverError?.readableMessage ?? message,
+            serverError: serverError,
+            authenticationChallenge: challenge
+        )
     }
 
     private func decodeSuccess<T: Decodable>(_ data: Data, isSensitive: Bool = false) throws -> T {
